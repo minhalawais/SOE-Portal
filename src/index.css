@@ -30,7 +30,6 @@
 }
 
 :root {
-  --app-viewport-scale: 0.8;
   --color-navy: #12304a;
   --color-blue: #1d5d8f;
   --color-teal: #16877a;
@@ -92,12 +91,6 @@ body {
   color: var(--color-text-primary);
   background: var(--color-background);
   -webkit-font-smoothing: antialiased;
-}
-
-@media screen {
-  body {
-    zoom: var(--app-viewport-scale);
-  }
 }
 
 :focus-visible {
