@@ -1,0 +1,169 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-soe-navy: #12304a;
+  --color-soe-blue: #1d5d8f;
+  --color-soe-teal: #16877a;
+  --color-soe-canvas: #f6f8fa;
+  --color-soe-surface: #ffffff;
+  --color-soe-ink: #17212b;
+  --color-soe-slate: #64748b;
+  --color-soe-border: #dde3e8;
+  --color-soe-success: #2e7d5a;
+  --color-soe-warning: #c58a19;
+  --color-soe-critical: #b84242;
+  --color-soe-info: #3b76a8;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, monospace;
+
+  --radius-sm: 6px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-feature: 14px;
+  --radius-modal: 16px;
+
+  --spacing-page: 1.5rem;
+  --spacing-section: 1.25rem;
+  --spacing-card: 1.125rem;
+}
+
+:root {
+  --color-navy: #12304a;
+  --color-blue: #1d5d8f;
+  --color-teal: #16877a;
+  --color-background: #f6f8fa;
+  --color-surface: #ffffff;
+  --color-surface-subtle: rgba(18, 48, 74, 0.035);
+  --color-surface-selected: rgba(29, 93, 143, 0.08);
+  --color-surface-teal: rgba(22, 135, 122, 0.08);
+  --color-text-primary: #17212b;
+  --color-text-secondary: #64748b;
+  --color-text-inverse: #ffffff;
+  --color-heading: #12304a;
+  --color-link: #1d5d8f;
+  --color-border-default: #dde3e8;
+  --color-border-subtle: rgba(221, 227, 232, 0.72);
+  --color-border-focus: #1d5d8f;
+  --color-success: #2e7d5a;
+  --color-warning: #c58a19;
+  --color-critical: #b84242;
+  --color-info: #3b76a8;
+  --color-pending: #64748b;
+  --color-success-soft: rgba(46, 125, 90, 0.1);
+  --color-warning-soft: rgba(197, 138, 25, 0.12);
+  --color-critical-soft: rgba(184, 66, 66, 0.1);
+  --color-info-soft: rgba(59, 118, 168, 0.1);
+  --color-pending-soft: rgba(100, 116, 139, 0.1);
+  --shadow-xs: 0 1px 2px rgba(18, 48, 74, 0.04);
+  --shadow-sm: 0 2px 5px rgba(18, 48, 74, 0.06);
+  --shadow-card: 0 4px 12px rgba(18, 48, 74, 0.07);
+  --shadow-card-hover: 0 6px 16px rgba(18, 48, 74, 0.1);
+  --shadow-modal: 0 18px 42px rgba(18, 48, 74, 0.16);
+  --shadow-focus: 0 0 0 3px rgba(29, 93, 143, 0.18);
+  --motion-fast: 120ms;
+  --motion-normal: 200ms;
+  --motion-slow: 300ms;
+  --z-dropdown: 40;
+  --z-sticky: 30;
+  --z-drawer: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+  --z-tooltip: 80;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dark navy surfaces (sidebar / mobile drawer) */
+.scrollbar-navy {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+.scrollbar-navy::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-navy::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-navy::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.scrollbar-navy::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.scrollbar-navy::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Phase 22 — print baseline for report/briefing preview surfaces */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  a[href='#main-content'],
+  aside,
+  [role='dialog'],
+  .pointer-events-none.fixed,
+  header.sticky,
+  nav {
+    display: none !important;
+  }
+
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .rounded-card,
+  .border {
+    box-shadow: none !important;
+  }
+}
