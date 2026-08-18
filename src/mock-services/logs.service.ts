@@ -59,7 +59,7 @@ const DEMO_LOGS: ActivityLogEntry[] = [
   {
     id: 'log-001',
     occurredAt: '2026-08-18T08:02:11Z',
-    level: 'auth',
+    level: 'info',
     category: 'auth',
     actor: 'Ayesha Khan',
     actorRole: 'executive_viewer',
@@ -362,7 +362,7 @@ function matchesQuick(entry: ActivityLogEntry, quick: LogsQuery['quick']) {
 
 function buildLogs(): ActivityLogEntry[] {
   const fromHistory = db.submissionHistory.slice(0, 12).map(
-    (e, i): ActivityLogEntry => ({
+    (e): ActivityLogEntry => ({
       id: `log-hist-${e.id}`,
       occurredAt: e.occurredAt,
       level: e.action === 'lock' || e.action === 'approval' ? 'success' : 'info',
