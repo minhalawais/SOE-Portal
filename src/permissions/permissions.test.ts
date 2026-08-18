@@ -49,21 +49,26 @@ describe('permissions', () => {
     expect(normalizeRole(ROLE.SYSTEM_ADMIN)).toBe(ROLE.MOIP_REVIEWER)
   })
 
-  it('allows Executive Viewer to access executive route namespaces', () => {
+  it('allows Executive Viewer to access executive and SOE route namespaces', () => {
     expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SECRETARY)).toBe(true)
     expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MINISTER)).toBe(true)
     expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.PMO)).toBe(true)
-    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SOE)).toBe(false)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SOE)).toBe(true)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MOIP)).toBe(true)
   })
 
-  it('keeps Executive Viewer read-only', () => {
+  it('allows Executive Viewer operational write permissions', () => {
     expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.PORTFOLIO_READ)).toBe(true)
     expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.EXECUTIVE_DASHBOARD_READ)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_APPROVE)).toBe(false)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_CERTIFY)).toBe(false)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_SUBMIT)).toBe(false)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.FINANCE_EDIT)).toBe(false)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.ASSETS_EDIT)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_SUBMIT)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_CERTIFY)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.FINANCE_EDIT)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.ASSETS_EDIT)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.COMPLIANCE_EDIT)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.DOCUMENT_UPLOAD)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.USER_READ)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.USER_MANAGE)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.AUDIT_LOG_READ)).toBe(true)
   })
 
   it('keeps legacy SOE data contributor out of the selectable demo roles', () => {

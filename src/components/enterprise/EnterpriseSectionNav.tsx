@@ -1,32 +1,20 @@
 import { NavLink } from 'react-router-dom'
+import { MODULE_SECTIONS } from '@/app/config/moduleSections'
+import { ModuleSectionNav } from '@/components/soe/ExecutiveModuleSectionNav'
 import { cn } from '@/utils'
 
-const soeTabs = [
-  { to: '/soe/enterprise/profile', label: 'Profile' },
-  { to: '/soe/enterprise/ownership', label: 'Ownership' },
-  { to: '/soe/enterprise/structure', label: 'Structure' },
-  { to: '/soe/enterprise/locations', label: 'Locations' },
-  { to: '/soe/enterprise/history', label: 'History' },
-]
+const tabClassName = (isActive: boolean) =>
+  cn(
+    'rounded-md px-3 py-1.5 text-sm font-medium',
+    isActive ? 'bg-[#12304a] text-white' : 'text-soe-navy hover:bg-white/80',
+  )
 
 export function SoeEnterpriseNav() {
   return (
-    <nav className="mb-4 flex flex-wrap gap-1 border-b border-soe-border pb-2" aria-label="Enterprise sections">
-      {soeTabs.map((t) => (
-        <NavLink
-          key={t.to}
-          to={t.to}
-          className={({ isActive }) =>
-            cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium text-soe-slate hover:bg-[var(--color-pending-soft)]',
-              isActive && 'bg-[var(--color-info-soft)] text-soe-navy',
-            )
-          }
-        >
-          {t.label}
-        </NavLink>
-      ))}
-    </nav>
+    <ModuleSectionNav
+      tabs={MODULE_SECTIONS['soe-enterprise']}
+      ariaLabel="Enterprise sections"
+    />
   )
 }
 
@@ -39,19 +27,12 @@ export function MoipEnterpriseNav({ organizationId }: { organizationId: string }
     { to: `/moip/enterprise/${organizationId}/history`, label: 'History' },
   ]
   return (
-    <nav className="mb-4 flex flex-wrap gap-1 border-b border-soe-border pb-2" aria-label="Enterprise sections">
+    <nav
+      className="mb-4 inline-flex max-w-full flex-wrap gap-0.5 rounded-lg bg-[#e8eef3] p-0.5"
+      aria-label="Enterprise sections"
+    >
       {tabs.map((t) => (
-        <NavLink
-          key={t.to}
-          to={t.to}
-          end={t.end}
-          className={({ isActive }) =>
-            cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium text-soe-slate hover:bg-[var(--color-pending-soft)]',
-              isActive && 'bg-[var(--color-info-soft)] text-soe-navy',
-            )
-          }
-        >
+        <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => tabClassName(isActive)}>
           {t.label}
         </NavLink>
       ))}

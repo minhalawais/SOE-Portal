@@ -32,6 +32,31 @@ describe('Phase 5 golden finance workflow', () => {
     expect(cfo.some((a) => a.id === 'certify')).toBe(true)
   })
 
+  it('does not treat seeded finance packs as attached form evidence', async () => {
+    const ws = await mockFinanceWorkflowService.getWorkspace(
+      'org-psm',
+      'period-fy2027',
+      ROLE.FINANCE_OFFICER,
+    )
+    expect(ws.evidence).toEqual([])
+    expect(ws.validation.some((issue) => issue.code === 'EVIDENCE_REQUIRED')).toBe(true)
+
+    await mockFinanceWorkflowService.attachEvidence(
+      'org-psm',
+      'period-fy2027',
+      { title: 'Audited statements', fileName: 'psm-fs.pdf' },
+      ROLE.FINANCE_OFFICER,
+    )
+    const next = await mockFinanceWorkflowService.getWorkspace(
+      'org-psm',
+      'period-fy2027',
+      ROLE.FINANCE_OFFICER,
+    )
+    expect(next.evidence).toHaveLength(1)
+    expect(next.evidence[0]?.fileName).toBe('psm-fs.pdf')
+    expect(next.validation.some((issue) => issue.code === 'EVIDENCE_REQUIRED')).toBe(false)
+  })
+
   it('blocks completion without evidence', () => {
     const issues = validateFinanceDraft(
       {
@@ -101,6 +126,55 @@ describe('Phase 5 golden finance workflow', () => {
     await expect(
       mockFinanceWorkflowService.saveDraft(orgId, periodId, { revenue: 1 }, ROLE.FINANCE_OFFICER),
     ).rejects.toBeInstanceOf(AppError)
+  })
+
+  it('allows Executive Viewer to edit locked finance snapshots in demo override mode', async () => {
+    const orgId = 'org-psm'
+    const periodId = 'period-fy2027'
+
+    await mockFinanceWorkflowService.attachEvidence(
+      orgId,
+      periodId,
+      { title: 'Statements', fileName: 'fs.pdf' },
+      ROLE.FINANCE_OFFICER,
+    )
+    await mockFinanceWorkflowService.saveDraft(
+      orgId,
+      periodId,
+      { revenue: 20_000_000_000 },
+      ROLE.FINANCE_OFFICER,
+    )
+    await mockFinanceWorkflowService.markComplete(orgId, periodId, ROLE.FINANCE_OFFICER)
+    await mockFinanceWorkflowService.sendForCertification(orgId, periodId, ROLE.SOE_FOCAL_PERSON)
+    await mockFinanceWorkflowService.certify(orgId, periodId, ROLE.CFO, 'CFO')
+    const submitted = await mockFinanceWorkflowService.submitToMoip(
+      orgId,
+      periodId,
+      ROLE.SOE_FOCAL_PERSON,
+    )
+    await mockFinanceWorkflowService.takeUnderReview(submitted.id, ROLE.MOIP_REVIEWER)
+    const locked = await mockFinanceWorkflowService.approve(
+      submitted.id,
+      ROLE.MOIP_REVIEWER,
+      'MoIP Reviewer',
+    )
+    expect(locked.status).toBe(SUBMISSION_STATUS.LOCKED)
+
+    const workspace = await mockFinanceWorkflowService.getWorkspace(
+      orgId,
+      periodId,
+      ROLE.EXECUTIVE_VIEWER,
+    )
+    expect(workspace.readOnly).toBe(false)
+
+    const saved = await mockFinanceWorkflowService.saveDraft(
+      orgId,
+      periodId,
+      { revenue: 21_000_000_000 },
+      ROLE.EXECUTIVE_VIEWER,
+    )
+    expect(saved.revenue).toBe(21_000_000_000)
+    expect(saved.status).toBe(SUBMISSION_STATUS.LOCKED)
   })
 
   it('bumps versions correctly', () => {

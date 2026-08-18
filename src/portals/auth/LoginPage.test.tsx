@@ -13,7 +13,7 @@ describe('LoginPage', () => {
   it('presents a role-neutral institutional sign-in screen', () => {
     render(<MemoryRouter initialEntries={['/login']}><LoginPage /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
-    expect(screen.getByText("Pakistan's unified SOE oversight workspace")).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /State-Owned Enterprises\s*Governance and Intelligence Portal/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Official email address')).toHaveAttribute('autocomplete', 'username')
     expect(screen.queryByText(/select role|demo persona/i)).not.toBeInTheDocument()
   })
@@ -26,18 +26,20 @@ describe('LoginPage', () => {
     expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
   })
 
-  it('completes MFA and derives the MoIP Reviewer role from the official identity', async () => {
+  it('opens the PM Dashboard even when login was triggered from an SOE route', async () => {
     vi.useFakeTimers()
-    render(<MemoryRouter initialEntries={['/login']}><LoginPage /></MemoryRouter>)
-    fireEvent.change(screen.getByLabelText('Official email address'), { target: { value: 'ayesha.khan@moip.gov.pk' } })
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/login', state: { from: '/soe/dashboard' } }]}>
+        <LoginPage />
+      </MemoryRouter>,
+    )
+    fireEvent.change(screen.getByLabelText('Official email address'), { target: { value: 'focal.person@pidc.gov.pk' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'OfficialPortalPassword' } })
     fireEvent.click(screen.getByRole('button', { name: 'Sign in securely' }))
-    expect(screen.getByRole('heading', { name: 'Verify your identity' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Verification code'), { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify and continue' }))
     await act(async () => { vi.advanceTimersByTime(500) })
-    expect(useSessionStore.getState().isAuthenticated).toBe(true)
-    expect(useSessionStore.getState().role).toBe(ROLE.MOIP_REVIEWER)
+    expect(useSessionStore.getState().role).toBe(ROLE.EXECUTIVE_VIEWER)
     vi.useRealTimers()
   })
 })

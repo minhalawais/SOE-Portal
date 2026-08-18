@@ -32,7 +32,7 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const orgsQuery = useQuery({
     queryKey: ['organizations'],
     queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 50 }),
-    enabled: portal === 'soe' || canSwitchOrg,
+    enabled: portal === 'soe' || canSwitchOrg || role === ROLE.EXECUTIVE_VIEWER,
   })
   const periodsQuery = useQuery({
     queryKey: ['reporting-periods'],
@@ -40,6 +40,12 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   })
 
   const currentOrg = orgsQuery.data?.items.find((o) => o.id === organizationId)
+
+  const isExecutiveViewer =
+    role === ROLE.EXECUTIVE_VIEWER ||
+    portal === 'minister' ||
+    portal === 'secretary' ||
+    portal === 'pmo'
 
   return (
     <header className="flex min-h-14 flex-wrap items-center gap-3 border-b border-soe-border bg-white px-4 py-2">
@@ -66,7 +72,7 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        {portal === 'moip' || role === ROLE.EXECUTIVE_VIEWER ? null : canSwitchOrg ? (
+        {portal === 'moip' ? null : canSwitchOrg ? (
           <label className="flex items-center gap-1 text-xs text-soe-slate">
             Organization
             <select
@@ -81,45 +87,49 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
               ))}
             </select>
           </label>
-        ) : portal === 'soe' ? (
+        ) : portal === 'soe' || role === ROLE.EXECUTIVE_VIEWER ? (
           <span className="rounded-control border border-soe-border bg-soe-canvas px-2 py-1.5 text-xs text-soe-ink">
             {currentOrg ? `${currentOrg.abbreviation}` : 'Organization'}
           </span>
         ) : null}
 
-        <label className="flex items-center gap-1 text-xs text-soe-slate">
-          Period
-          <select
-            className="h-9 rounded-control border border-soe-border bg-white px-2 text-sm text-soe-ink"
-            value={reportingPeriodId}
-            onChange={(e) => setReportingPeriodId(e.target.value)}
-          >
-            {(periodsQuery.data ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!isExecutiveViewer ? (
+          <label className="flex items-center gap-1 text-xs text-soe-slate">
+            Period
+            <select
+              className="h-9 rounded-control border border-soe-border bg-white px-2 text-sm text-soe-ink"
+              value={reportingPeriodId}
+              onChange={(e) => setReportingPeriodId(e.target.value)}
+            >
+              {(periodsQuery.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
-        <label className="flex items-center gap-1 text-xs text-soe-slate">
-          Workspace view
-          <select
-            className="h-9 min-w-[160px] rounded-control border border-soe-border bg-white px-2 text-sm text-soe-ink"
-            value={role}
-            onChange={(e) => {
-              const next = e.target.value as typeof role
-              setRole(next)
-              navigate(getHomeForRole(next))
-            }}
-          >
-            {DEMO_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!isExecutiveViewer ? (
+          <label className="flex items-center gap-1 text-xs text-soe-slate">
+            Workspace view
+            <select
+              className="h-9 min-w-[160px] rounded-control border border-soe-border bg-white px-2 text-sm text-soe-ink"
+              value={role}
+              onChange={(e) => {
+                const next = e.target.value as typeof role
+                setRole(next)
+                navigate(getHomeForRole(next))
+              }}
+            >
+              {DEMO_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <IconButton label="Tasks">
           <ListTodo size={16} />

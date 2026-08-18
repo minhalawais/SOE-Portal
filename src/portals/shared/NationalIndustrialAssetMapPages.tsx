@@ -7,6 +7,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ExecutiveModuleSectionNav } from '@/components/soe'
 import { GisMapLegend } from '@/components/gis/GisMapLegend'
 import { DataTable } from '@/components/tables/DataTable'
 import { Button } from '@/design-system/components/Button'
@@ -323,6 +324,8 @@ export function NationalIndustrialAssetMapWorkspace({
             </div>
           }
         />
+
+        {portal === 'soe' ? <ExecutiveModuleSectionNav moduleId="soe-assets" /> : null}
 
         <p className="mb-2 text-xs text-soe-slate">
           Scope: {geoLabel}

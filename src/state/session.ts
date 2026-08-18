@@ -14,6 +14,7 @@ interface SessionState {
   setRole: (role: RoleId) => void
   setOrganizationId: (id: string) => void
   setReportingPeriodId: (id: string) => void
+  setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
   signIn: (email: string) => void
   signOut: () => void
@@ -65,6 +66,10 @@ export const useSessionStore = create<SessionState>((set) => ({
     persistence.set(persistenceKeys.reportingPeriodId, reportingPeriodId)
     set({ reportingPeriodId })
   },
+  setSidebarCollapsed: (sidebarCollapsed) => {
+    persistence.set(persistenceKeys.sidebarCollapsed, sidebarCollapsed)
+    set({ sidebarCollapsed })
+  },
   toggleSidebar: () =>
     set((s) => {
       const sidebarCollapsed = !s.sidebarCollapsed
@@ -73,9 +78,12 @@ export const useSessionStore = create<SessionState>((set) => ({
     }),
   signIn: (email) => {
     const normalizedEmail = email.trim().toLowerCase()
-    let role: RoleId = ROLE.SOE_FOCAL_PERSON
+    let role: RoleId = ROLE.EXECUTIVE_VIEWER
     if (normalizedEmail.includes('certifier')) role = ROLE.SOE_CERTIFIER
     if (normalizedEmail.includes('soe.executive')) role = ROLE.SOE_EXECUTIVE
+    if (normalizedEmail.includes('focal') || normalizedEmail.includes('contributor')) {
+      role = ROLE.SOE_FOCAL_PERSON
+    }
     if (normalizedEmail.includes('executive.viewer')) role = ROLE.EXECUTIVE_VIEWER
     if (normalizedEmail.endsWith('@moip.gov.pk')) role = ROLE.MOIP_REVIEWER
     persistence.set(persistenceKeys.authenticated, true)

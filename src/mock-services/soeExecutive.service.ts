@@ -294,7 +294,7 @@ export const mockSoeExecutiveService = {
     const scoreComponents = [
       { domain: 'Financial', score: financialScore, route: '/soe/finance' },
       { domain: 'Operations', score: operationsScore, route: '/soe/industrial' },
-      { domain: 'Assets', score: assetScore, route: '/soe/assets/registry' },
+      { domain: 'Assets', score: assetScore, route: '/soe/assets/land' },
       { domain: 'Governance', score: governanceScore, route: '/soe/people/board' },
       { domain: 'Compliance', score: complianceScore, route: '/soe/accountability/compliance' },
     ]
@@ -309,7 +309,7 @@ export const mockSoeExecutiveService = {
     const overdueLoans = loans.filter((row) => lower(row.repaymentStatus).includes('overdue') || lower(row.defaultStatus).includes('default'))
     if (overdueLoans.length) addAttention({ id: 'debt', title: `${overdueLoans.length} loan obligation${overdueLoans.length > 1 ? 's' : ''} overdue`, detail: 'Repayment or default status requires executive review.', severity: 'critical', domain: 'Fiscal exposure', route: '/soe/finance/loans' })
     if (currentIndustrial && currentIndustrial.capacityUtilization < 60) addAttention({ id: 'capacity', title: 'Capacity utilization below 60%', detail: 'Installed capacity is not translating into expected production output.', severity: 'high', domain: 'Operations', route: '/soe/industrial' })
-    if (idleAssets.length) addAttention({ id: 'idle-assets', title: `${idleAssets.length} idle or underutilized assets`, detail: 'Review redeployment, lease, disposal, or monetization options.', severity: 'high', domain: 'Assets', route: '/soe/assets/registry' })
+    if (idleAssets.length) addAttention({ id: 'idle-assets', title: `${idleAssets.length} idle or underutilized assets`, detail: 'Review redeployment, lease, disposal, or monetization options.', severity: 'high', domain: 'Assets', route: '/soe/assets/land' })
     if (boardVacancies) addAttention({ id: 'board', title: `${boardVacancies} board vacanc${boardVacancies === 1 ? 'y' : 'ies'}`, detail: 'Vacancies may affect quorum, committees, and governance effectiveness.', severity: 'high', domain: 'Governance', route: '/soe/people/board' })
     if (openAudit.length) addAttention({ id: 'audit', title: `${openAudit.length} audit paras remain open`, detail: 'Outstanding observations carry financial and accountability exposure.', severity: 'high', domain: 'Audit', route: '/soe/accountability/audit' })
     if (overdueCompliance.length) addAttention({ id: 'compliance', title: `${overdueCompliance.length} compliance obligations overdue`, detail: 'Statutory or governance deadlines have passed without closure.', severity: 'high', domain: 'Compliance', route: '/soe/accountability/compliance' })

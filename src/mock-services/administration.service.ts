@@ -194,7 +194,34 @@ const users: UserAccount[] = [
   seedUser({ id: 'usr-audit', name: 'Nadia Iqbal', email: 'assurance@audit.gov.pk', role: ROLE.ASSURANCE_USER, status: 'suspended', activeSessions: [] }),
 ]
 
-const auditEvents: AdministrationAuditEvent[] = []
+const auditEvents: AdministrationAuditEvent[] = [
+  { id: 'admin-audit-seed-01', occurredAt: '2026-08-17T14:22:00Z', actorRole: ROLE.MOIP_SUPERVISOR, action: 'password_reset_sent', targetType: 'user', targetId: 'usr-psm-certifier', detail: 'Password-reset link sent to Kamran Ali.' },
+  { id: 'admin-audit-seed-02', occurredAt: '2026-08-16T11:05:00Z', actorRole: ROLE.MOIP_SUPERVISOR, action: 'user_suspended', targetType: 'user', targetId: 'usr-audit', detail: 'Nadia Iqbal suspended after unused assurance access.' },
+  { id: 'admin-audit-seed-03', occurredAt: '2026-08-15T09:40:00Z', actorRole: ROLE.MOIP_REVIEWER, action: 'access_updated', targetType: 'user', targetId: 'usr-pidc-focal', detail: 'Sara Ahmed scoped to PIDC only.' },
+  { id: 'admin-audit-seed-04', occurredAt: '2026-08-14T16:18:00Z', actorRole: ROLE.MOIP_SUPERVISOR, action: 'mfa_reset', targetType: 'user', targetId: 'usr-psm-certifier', detail: 'MFA enrolment reset for Kamran Ali.' },
+  { id: 'admin-audit-seed-05', occurredAt: '2026-08-13T08:12:00Z', actorRole: ROLE.MOIP_REVIEWER, action: 'session_terminated', targetType: 'user', targetId: 'usr-moip-reviewer', detail: 'Stale Islamabad session closed for Ayesha Khan.' },
+  { id: 'admin-audit-seed-06', occurredAt: '2026-08-12T10:30:00Z', actorRole: ROLE.MOIP_SUPERVISOR, action: 'user_invited', targetType: 'user', targetId: 'usr-pidc-certifier', detail: 'Activation link issued to Usman Raza (SOE Certifier).' },
+  { id: 'admin-audit-seed-07', occurredAt: '2026-08-11T13:55:00Z', actorRole: ROLE.MOIP_REVIEWER, action: 'roles_updated', targetType: 'user', targetId: 'usr-moip-reviewer', detail: 'Ayesha Khan retained MoIP Reviewer role.' },
+  { id: 'admin-audit-seed-08', occurredAt: '2026-08-10T07:20:00Z', actorRole: ROLE.MOIP_SUPERVISOR, action: 'organization_access_changed', targetType: 'organization', targetId: 'org-psm', detail: 'PSM portal access confirmed active.' },
+  { id: 'admin-audit-seed-09', occurredAt: '2026-08-09T15:02:00Z', actorRole: ROLE.MOIP_REVIEWER, action: 'invitation_resent', targetType: 'user', targetId: 'usr-pidc-focal', detail: 'Activation reminder sent to Sara Ahmed.' },
+  { id: 'admin-audit-seed-10', occurredAt: '2026-08-08T09:44:00Z', actorRole: ROLE.MOIP_SUPERVISOR, action: 'user_activated', targetType: 'user', targetId: 'usr-moip-supervisor', detail: 'Faisal Mahmood accepted invitation and enrolled MFA.' },
+]
+
+for (const event of auditEvents) {
+  if (event.targetType !== 'user') continue
+  const user = users.find((item) => item.id === event.targetId)
+  if (!user) continue
+  user.activity.push({
+    id: event.id,
+    occurredAt: event.occurredAt,
+    action: event.action,
+    detail: event.detail,
+    actorRole: event.actorRole,
+  })
+}
+for (const user of users) {
+  user.activity.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+}
 const organizationSettings = new Map<string, OrganizationAdminSettings>()
 
 function requirePermission(role: RoleId, permission: (typeof PERMISSION)[keyof typeof PERMISSION]) {

@@ -1,9 +1,10 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Fingerprint, HelpCircle, KeyRound, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { APP_CONFIG } from '@/app/config/app.config'
+import { PoweredByFooter } from '@/components/layout/PoweredByFooter'
 import { Button } from '@/design-system/components/Button'
-import { getHomeForRole } from '@/permissions'
+import { ROLE } from '@/constants'
 import { useSessionStore } from '@/state/session'
 import { cn } from '@/utils'
 
@@ -25,10 +26,9 @@ function AuthenticationHeader({ title, description }: { title: string; descripti
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const isAuthenticated = useSessionStore((state) => state.isAuthenticated)
-  const role = useSessionStore((state) => state.role)
   const signIn = useSessionStore((state) => state.signIn)
+  const setRole = useSessionStore((state) => state.setRole)
   const [step, setStep] = useState<LoginStep>('credentials')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -39,9 +39,7 @@ export function LoginPage() {
   const [working, setWorking] = useState(false)
   const [recoverySent, setRecoverySent] = useState(false)
 
-  const requestedPath = (location.state as { from?: string } | null)?.from
-
-  if (isAuthenticated) return <Navigate to={requestedPath || getHomeForRole(role)} replace />
+  if (isAuthenticated) return <Navigate to="/pmo/dashboard" replace />
 
   const validEmail = /^\S+@\S+\.\S+$/.test(email)
 
@@ -59,8 +57,8 @@ export function LoginPage() {
     setWorking(true)
     window.setTimeout(() => {
       signIn(email)
-      const nextRole = useSessionStore.getState().role
-      navigate(requestedPath || getHomeForRole(nextRole), { replace: true })
+      setRole(ROLE.EXECUTIVE_VIEWER)
+      navigate('/pmo/dashboard', { replace: true })
     }, 450)
   }
 
@@ -84,25 +82,26 @@ export function LoginPage() {
     setRecoverySent(true)
   }
 
-  return <main className="grid min-h-[100dvh] bg-white lg:h-[100dvh] lg:grid-cols-[minmax(0,1.45fr)_minmax(430px,0.75fr)] lg:overflow-hidden">
+  return (
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-white">
+      <main className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1.45fr)_minmax(430px,0.75fr)] lg:overflow-hidden">
     <section className="relative hidden min-h-0 overflow-hidden lg:block" aria-label="Pakistan industrial infrastructure">
       <img src="/images/soe-login-industrial.png" alt="Pakistan industrial port, rail and manufacturing infrastructure" className="absolute inset-0 h-full w-full object-cover object-center" />
       <div className="absolute inset-0 bg-[rgba(8,34,52,0.62)]" />
       <div className="relative z-10 flex h-full flex-col p-10 xl:p-14">
         <BrandLockup />
-        <div className="mt-auto max-w-[660px] pb-10"><div className="mb-5 h-1 w-14 bg-soe-teal" /><p className="text-xs font-semibold uppercase text-white/75">SOE-GAIP</p><h2 className="mt-3 max-w-[620px] text-[40px] font-bold leading-[1.12] text-white xl:text-[46px]">Pakistan's unified SOE oversight workspace</h2><p className="mt-5 max-w-[590px] text-base leading-7 text-white/78">Secure reporting, regulatory review and decision intelligence for state-owned enterprises.</p></div>
-        <div className="flex items-center justify-between border-t border-white/20 pt-4 text-[11px] text-white/65"><span>Official government information system</span><span>Authorized access only</span></div>
+        <div className="mt-auto max-w-[660px] pb-10"><div className="mb-5 h-1 w-14 bg-soe-teal" /><p className="text-xs font-semibold uppercase text-white/75">SOE-GAIP</p><h2 className="mt-3 max-w-[620px] font-bold leading-[1.12] text-white"><span className="block text-[40px] xl:text-[42px]">State-Owned Enterprises</span><span className="mt-1 block text-[32px] xl:text-[36px]">Governance and Intelligence Portal</span></h2><p className="mt-5 max-w-[590px] text-base leading-7 text-white/78">Secure reporting, regulatory review and decision intelligence for state-owned enterprises.</p></div>
       </div>
     </section>
 
-    <section className="flex min-h-[100dvh] flex-col bg-white lg:min-h-0 lg:overflow-y-auto">
+    <section className="flex min-h-0 flex-1 flex-col bg-white lg:overflow-y-auto">
       <div className="border-b border-soe-border px-5 py-4 lg:hidden"><BrandLockup compact /></div>
       <div className="flex flex-1 items-center px-5 py-8 sm:px-10 lg:px-12 xl:px-16">
         <div className="mx-auto w-full max-w-[430px]">
-          <div className="mb-8 hidden lg:block"><p className="text-xs font-bold uppercase text-soe-blue">{APP_CONFIG.APP_NAME}</p><p className="mt-1 text-xs text-soe-slate">Governance, Asset & Performance Intelligence</p></div>
+          <div className="mb-8 hidden lg:block"><p className="text-xl font-bold uppercase text-soe-blue">{APP_CONFIG.APP_NAME}</p><p className="mt-1 text-xs text-soe-slate">Governance, Asset & Performance Intelligence</p></div>
 
           {step === 'credentials' ? <>
-            <AuthenticationHeader title="Sign in" description="Access your authorized SOE or MoIP workspace using your official account." />
+            <AuthenticationHeader title="Sign in" description="Access governance, asset, and performance tools for your state-owned enterprise." />
             {error ? <div role="alert" className="mb-4 border-l-4 border-soe-critical bg-[var(--color-critical-soft)] px-4 py-3 text-sm text-soe-ink">{error}</div> : null}
             <form onSubmit={continueWithCredentials} noValidate>
               <div className="mb-4"><FieldLabel htmlFor="official-email">Official email address</FieldLabel><div className="relative"><Mail aria-hidden="true" size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-soe-slate" /><input id="official-email" name="email" type="email" autoComplete="username" inputMode="email" className={cn(inputClass, 'pl-10')} placeholder="name@organization.gov.pk" value={email} onChange={(event) => setEmail(event.target.value)} autoFocus /></div></div>
@@ -140,10 +139,12 @@ export function LoginPage() {
             {!recoverySent ? <form onSubmit={requestRecovery}>{error ? <div role="alert" className="mb-4 border-l-4 border-soe-critical bg-[var(--color-critical-soft)] px-4 py-3 text-sm text-soe-ink">{error}</div> : null}<FieldLabel htmlFor="recovery-email">Official email address</FieldLabel><input id="recovery-email" type="email" autoComplete="email" className={inputClass} value={email} onChange={(event) => setEmail(event.target.value)} autoFocus /><Button type="submit" className="mt-5 h-12 w-full">Send secure reset link</Button></form> : <Button variant="secondary" className="h-12 w-full" onClick={() => { setRecoverySent(false); setStep('credentials') }}>Return to sign in</Button>}
           </> : null}
 
-          <div className="mt-8 border-t border-soe-border pt-5"><p className="flex items-center gap-2 text-xs font-semibold text-soe-navy"><ShieldCheck size={15} className="text-soe-teal" />Protected government access</p><p className="mt-2 text-[11px] leading-5 text-soe-slate">Authorized personnel only. Access attempts and account activity are monitored and recorded.</p></div>
         </div>
       </div>
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-soe-border px-5 py-4 text-[11px] text-soe-slate sm:px-10 lg:px-12 xl:px-16"><span>© 2026 Ministry of Industries & Production</span><div className="flex gap-4"><a href="mailto:support@moip.gov.pk" className="inline-flex items-center gap-1 hover:text-soe-blue"><HelpCircle size={13} />Support</a><button type="button" className="hover:text-soe-blue">Privacy</button><button type="button" className="hover:text-soe-blue">Accessibility</button></div></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-soe-border px-5 py-4 text-[11px] text-soe-slate sm:px-10 lg:px-12 xl:px-16"><span>© 2026 Ministry of Industries & Production</span><div className="flex gap-4"><a href="mailto:support@moip.gov.pk" className="inline-flex items-center gap-1 hover:text-soe-blue"><HelpCircle size={13} />Support</a></div></footer>
     </section>
-  </main>
+      </main>
+      <PoweredByFooter />
+    </div>
+  )
 }

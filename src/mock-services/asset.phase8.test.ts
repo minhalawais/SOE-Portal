@@ -5,10 +5,17 @@ import {
   ENCROACHMENT_STATUS,
   ASSET_LITIGATION_STATUS,
   ASSET_EVIDENCE_STATUS,
+  ASSET_OCCUPANCY,
+  LAND_USE_CLASS,
 } from '@/constants'
 import { db, resetMockDb } from '@/mock-data'
 import { resetMockRuntime } from '@/mock-data/runtime'
 import { mockAssetService, valuationVariance } from '@/mock-services/asset.service'
+import {
+  assetDraftToPayload,
+  emptyAssetDraft,
+  isAssetDraftValid,
+} from '@/portals/shared/assetEntryForm'
 
 describe('Phase 8 asset intelligence', () => {
   beforeEach(() => {
@@ -117,5 +124,51 @@ describe('Phase 8 asset intelligence', () => {
     expect(docs.length).toBeGreaterThan(0)
     const geo = await mockAssetService.getGeoForAsset(withDocs!.linkedRecordId!)
     expect(geo?.assetId).toBe(withDocs!.linkedRecordId)
+  })
+
+  it('creates land asset with Module 3 land fields from entry draft', async () => {
+    const draft = emptyAssetDraft(ASSET_TYPE.LAND)
+    draft.name = 'Test industrial plot'
+    draft.identifier = 'LAND-TEST-001'
+    draft.province = 'Punjab'
+    draft.district = 'Lahore'
+    draft.tehsil = 'Model Town'
+    draft.mouza = 'Demo Mouza'
+    draft.khasraNumber = 'K-42'
+    draft.areaAcres = 5
+    draft.areaKanals = 40
+    draft.areaSqFt = 217800
+    draft.occupancyStatus = ASSET_OCCUPANCY.VACANT
+    draft.useClassification = LAND_USE_CLASS.INDUSTRIAL
+    draft.bookValue = 50_000_000
+    draft.marketValue = 65_000_000
+    draft.encroachmentStatus = ENCROACHMENT_STATUS.CLEAR
+    draft.litigationStatus = ASSET_LITIGATION_STATUS.CLEAR
+
+    expect(isAssetDraftValid(draft, 'org-nfc')).toBe(true)
+
+    const created = await mockAssetService.createAsset(
+      assetDraftToPayload(draft, 'org-nfc'),
+    )
+    expect(created.assetType).toBe(ASSET_TYPE.LAND)
+    expect(created.mouza).toBe('Demo Mouza')
+    expect(created.areaAcres).toBe(5)
+    expect(created.useClassification).toBe(LAND_USE_CLASS.INDUSTRIAL)
+  })
+
+  it('creates building asset with type-specific fields from entry draft', async () => {
+    const draft = emptyAssetDraft(ASSET_TYPE.BUILDING)
+    draft.name = 'Admin block'
+    draft.buildingType = 'Office'
+    draft.floorAreaSqFt = 12000
+    draft.buildingAgeYears = 18
+    draft.replacementValue = 90_000_000
+    draft.occupancyStatus = ASSET_OCCUPANCY.OCCUPIED
+
+    const created = await mockAssetService.createAsset(
+      assetDraftToPayload(draft, 'org-nfc'),
+    )
+    expect(created.buildingType).toBe('Office')
+    expect(created.floorAreaSqFt).toBe(12000)
   })
 })

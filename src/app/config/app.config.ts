@@ -4,7 +4,7 @@ export const APP_CONFIG = {
     'State-Owned Enterprises Governance, Asset & Performance Intelligence Platform',
   OWNER: 'Ministry of Industries and Production',
   DEMO_MODE: true,
-  DEFAULT_ROLE: 'soe_focal_person' as const,
+  DEFAULT_ROLE: 'executive_viewer' as const,
   DEFAULT_ORGANIZATION_ID: 'org-psm',
   DEFAULT_REPORTING_PERIOD_ID: 'period-fy2027',
   ENABLE_PMO_PORTAL: true,

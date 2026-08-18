@@ -53,9 +53,74 @@ export function validateAssetDraft(draft: Partial<Asset>): AssetValidationIssue[
     })
   }
 
-  if (draft.assetType === ('land' satisfies AssetType)) {
+  if (draft.latitude != null && (draft.latitude < -90 || draft.latitude > 90)) {
+    issues.push({ field: 'latitude', message: 'Latitude must be between -90 and 90.', severity: 'error' })
+  }
+  if (draft.longitude != null && (draft.longitude < -180 || draft.longitude > 180)) {
+    issues.push({
+      field: 'longitude',
+      message: 'Longitude must be between -180 and 180.',
+      severity: 'error',
+    })
+  }
+
+  const assetType = draft.assetType as AssetType | undefined
+
+  if (assetType === ASSET_TYPE.LAND) {
     if (draft.areaAcres != null && draft.areaAcres < 0) {
       issues.push({ field: 'areaAcres', message: 'Area (acres) cannot be negative.', severity: 'error' })
+    }
+    if (!draft.province?.trim()) {
+      issues.push({ field: 'province', message: 'Province is recommended for land.', severity: 'warning' })
+    }
+    if (!draft.district?.trim()) {
+      issues.push({ field: 'district', message: 'District is recommended for land.', severity: 'warning' })
+    }
+    if (draft.areaAcres == null || draft.areaAcres <= 0) {
+      issues.push({ field: 'areaAcres', message: 'Area (acres) is recommended for land.', severity: 'warning' })
+    }
+  }
+
+  if (assetType === ASSET_TYPE.BUILDING) {
+    if (!draft.buildingType?.trim()) {
+      issues.push({
+        field: 'buildingType',
+        message: 'Building type is recommended.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  if (assetType === ASSET_TYPE.MACHINERY) {
+    if (!draft.machineId?.trim()) {
+      issues.push({
+        field: 'machineId',
+        message: 'Machine ID is recommended.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  if (assetType === ASSET_TYPE.VEHICLE) {
+    if (!draft.vehicleNumber?.trim()) {
+      issues.push({
+        field: 'vehicleNumber',
+        message: 'Vehicle number is recommended.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  if (
+    assetType === ASSET_TYPE.OTHER_EQUIPMENT ||
+    assetType === ASSET_TYPE.IT_EQUIPMENT
+  ) {
+    if (!draft.equipmentCategory?.trim()) {
+      issues.push({
+        field: 'equipmentCategory',
+        message: 'Equipment category is recommended.',
+        severity: 'warning',
+      })
     }
   }
 

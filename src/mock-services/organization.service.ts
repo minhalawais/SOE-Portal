@@ -72,6 +72,11 @@ export interface OrganizationService {
     parentOrganizationId: string,
     relatedOrganizationId: string,
   ): Promise<SubsidiaryDetail>
+  updateSubsidiaryRelationship(
+    parentOrganizationId: string,
+    relatedOrganizationId: string,
+    patch: Partial<OrganizationRelationship>,
+  ): Promise<OrganizationRelationship>
   getDerivedMetrics(
     organizationId: string,
     reportingPeriodId?: string,
@@ -318,6 +323,9 @@ export const mockOrganizationService: OrganizationService = {
       if (!loc.label || !loc.province || !loc.district) {
         throw new AppError('Location label, province and district are required', 'VALIDATION')
       }
+      if (!loc.polygon || loc.polygon.length < 3) {
+        throw new AppError('Select a unit footprint polygon on the map', 'VALIDATION')
+      }
     }
     db.locations = [
       ...db.locations.filter((l) => l.organizationId !== organizationId),
@@ -437,9 +445,10 @@ export const mockOrganizationService: OrganizationService = {
       organization,
       relationship,
       performanceSnapshot: {
-        revenue: metrics?.revenue,
-        netProfit: metrics?.profitOrLoss,
-        capacityUtilization: industrial?.capacityUtilization,
+        revenue: relationship.revenueReported ?? metrics?.revenue,
+        netProfit: relationship.netProfitReported ?? metrics?.profitOrLoss,
+        capacityUtilization:
+          relationship.capacityUtilizationReported ?? industrial?.capacityUtilization,
       },
       financialStatementAvailable: Boolean(metrics),
       boardMemberCount: boards.length,
@@ -448,6 +457,17 @@ export const mockOrganizationService: OrganizationService = {
       liabilitiesNote: 'Detailed liabilities available in Financial module (later periods).',
     }
     return simulateLatency(detail)
+  },
+
+  async updateSubsidiaryRelationship(parentOrganizationId, relatedOrganizationId, patch) {
+    const idx = db.relationships.findIndex(
+      (r) =>
+        r.parentOrganizationId === parentOrganizationId &&
+        r.relatedOrganizationId === relatedOrganizationId,
+    )
+    if (idx < 0) throw new AppError('Relationship not found', 'NOT_FOUND')
+    db.relationships[idx] = { ...db.relationships[idx], ...patch, id: db.relationships[idx].id }
+    return simulateMutation(db.relationships[idx])
   },
 
   async getDerivedMetrics(organizationId, reportingPeriodId) {

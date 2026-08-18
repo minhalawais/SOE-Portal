@@ -17,7 +17,7 @@ export function FormActions({
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-end gap-2 border-t border-soe-border bg-white/95 px-1 py-3 backdrop-blur-sm',
+        'flex flex-wrap items-center justify-end gap-2 border-t border-soe-border bg-white/95 px-4 py-2 backdrop-blur-sm',
         sticky && 'sticky bottom-0 z-[25]',
         className,
       )}

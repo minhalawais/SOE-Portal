@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ContributorModuleLayout } from '@/components/soe'
 import { DataTable } from '@/components/tables/DataTable'
 import {
   Alert,
@@ -19,6 +20,7 @@ import {
   ChartContainer,
   CheckboxField,
   ConfirmDialog,
+  CurrencyField,
   Drawer,
   FilterBar,
   KpiComparison,
@@ -36,6 +38,7 @@ import {
   TextField,
   Tooltip,
 } from '@/design-system'
+import { MODULE } from '@/constants'
 import { statusCatalog, type StatusFamily } from '@/design-system/tokens/status'
 
 interface SampleRow {
@@ -105,6 +108,7 @@ export function DesignSystemPage() {
         onChange={setTab}
         items={[
           { id: 'foundations', label: 'Foundations' },
+          { id: 'contributor', label: 'Contributor shells' },
           { id: 'forms', label: 'Forms & actions' },
           { id: 'status', label: 'Status' },
           { id: 'data', label: 'Data display' },
@@ -141,6 +145,30 @@ export function DesignSystemPage() {
           <Alert tone="info" title="Prototype note">
             All visual decisions must follow SOE-GAIP-DESIGN-SYSTEM.md and FOS-UI-UX-INSTRUCTIONS.md.
           </Alert>
+        </div>
+      ) : null}
+
+      {tab === 'contributor' ? (
+        <div className="space-y-6">
+          <Card title="Module page shell" subtitle="Entry form on page · registry table below · one save bar">
+            <ContributorModuleLayout
+              moduleId={MODULE.FINANCE}
+              title="Sample module page"
+              entry={
+                <Card title="Entry form">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <CurrencyField label="Revenue (PKR)" defaultValue={2131067250} />
+                    <CurrencyField label="Operating expenditure (PKR)" defaultValue={2874638000} />
+                  </div>
+                </Card>
+              }
+              onSave={() => undefined}
+              registryTitle="Registry"
+              registry={
+                <DataTable data={filtered} columns={columns} density="compact" showSearch={false} />
+              }
+            />
+          </Card>
         </div>
       ) : null}
 

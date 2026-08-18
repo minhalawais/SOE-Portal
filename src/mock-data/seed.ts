@@ -29,6 +29,7 @@ import {
   LAND_USE_CLASS,
   LEASE_STATUS,
   LEGAL_STATUS,
+  LEGAL_STATUS_LABEL,
   LITIGATION_STATUS,
   MACHINERY_OPERATIONAL,
   PAC_STATUS,
@@ -45,13 +46,16 @@ import {
   ROLE,
   SHAREHOLDER_CATEGORY,
   SOE_STATUS,
+  SOE_STATUS_LABEL,
   SUBMISSION_STATUS,
   TRANSFORMATION_TYPE,
   type LegalStatus,
+  type AssetType,
   type PrivatizationStage,
   type SubmissionStatus,
 } from '@/constants'
 import { SCENARIO, type ScenarioId } from '@/mock-data/scenarios'
+import { buildParcelPolygon } from '@/components/gis/unitLocationPolygon'
 import {
   assetDisplayName,
   auditObservation,
@@ -119,6 +123,7 @@ import type {
   PrivatizationCase,
   PrivatizationMilestone,
   ProcurementContract,
+  ProcurementAnnualPlan,
   ReportingPeriod,
   SanctionedPost,
   Submission,
@@ -143,6 +148,103 @@ function unit(seed: string): number {
 
 function pick<T>(seed: string, items: T[]): T {
   return items[hash(seed) % items.length]
+}
+
+/** Vacant board seats by scenario so Enterprise snapshot stats change per SOE. */
+function boardVacantSeatCount(scenarioId: ScenarioId): number {
+  switch (scenarioId) {
+    case SCENARIO.GOVERNANCE_RISK:
+      return 2
+    case SCENARIO.PRIVATIZATION:
+    case SCENARIO.LITIGATION_HEAVY:
+      return 2
+    case SCENARIO.ASSET_RICH:
+    case SCENARIO.HIGH_SUBSIDY:
+    case SCENARIO.LOSS_MAKING:
+      return 1
+    case SCENARIO.UNDERUTILIZED:
+      return 3
+    default:
+      return 0
+  }
+}
+
+/** Expired (non-vacant) seats. NFC/governance keeps chair expired for expiry-band tests. */
+function boardExpiredSeatCount(scenarioId: ScenarioId): number {
+  switch (scenarioId) {
+    case SCENARIO.GOVERNANCE_RISK:
+    case SCENARIO.PRIVATIZATION:
+    case SCENARIO.AUDIT_HEAVY:
+    case SCENARIO.HIGH_SUBSIDY:
+      return 1
+    case SCENARIO.LOSS_MAKING:
+      return 2
+    default:
+      return 0
+  }
+}
+
+function boardAssignedFacilities(
+  orgId: string,
+  i: number,
+  memberType: (typeof DIRECTOR_TYPE)[keyof typeof DIRECTOR_TYPE],
+) {
+  const isChair = i === 0
+  const isGov = memberType === DIRECTOR_TYPE.GOVERNMENT
+  const u = (key: string) => unit(`${key}-${orgId}-${i}`)
+  const officialVehicle =
+    isChair
+      ? ('dedicated' as const)
+      : u('veh') > 0.55
+        ? ('pool' as const)
+        : u('veh') > 0.25
+          ? ('dedicated' as const)
+          : ('none' as const)
+  const hasVehicle = officialVehicle !== 'none'
+
+  return {
+    officialVehicle,
+    fuelAllowance:
+      !hasVehicle && u('fuel-none') > 0.5
+        ? 'None'
+        : u('fuel') > 0.35
+          ? `${80 + i * 12 + (hash(orgId) % 40)} L/month`
+          : `PKR ${(32_000 + i * 4_000).toLocaleString('en-PK')}/month`,
+    officialResidence: isChair || (isGov && u('res') > 0.35),
+    medicalFacility: isChair
+      ? 'Yes · OPD + hospitalization'
+      : u('med') > 0.72
+        ? 'No'
+        : u('med') > 0.5
+          ? 'Yes · OPD + dependents'
+          : 'Yes · OPD only',
+    officeSecretariat: isChair || isGov || u('office') > 0.42,
+    laptopComputer: isChair || u('laptop') > 0.22,
+    mobileHandset: isChair || u('mobile') > 0.28,
+    communicationAllowance:
+      isChair || u('comm') > 0.32
+        ? `PKR ${(5_000 + (hash(`${orgId}-comm-${i}`) % 8) * 1_000).toLocaleString('en-PK')}/month`
+        : 'None',
+    internetFacility: isChair || isGov || u('net') > 0.38,
+    travelFacility: isChair
+      ? 'Air + official'
+      : u('travel') > 0.68
+        ? 'None'
+        : u('travel') > 0.38
+          ? 'Air ticket'
+          : 'Official transport',
+    securityVehicle:
+      isChair && u('sec') > 0.2
+        ? ('authorized' as const)
+        : u('sec') > 0.88
+          ? ('authorized' as const)
+          : ('none' as const),
+    otherAssignedAsset: isChair
+      ? 'Official driver'
+      : u('other') > 0.8
+        ? pick(`other-${orgId}-${i}`, ['Protocol staff', 'Guest house', 'Official driver'])
+        : 'None',
+  }
 }
 
 function money(seed: string, base: number, spread = 0.35): number {
@@ -484,10 +586,10 @@ function buildOwnershipLines(): OwnershipLine[] {
           percentage: 75,
         },
         {
-          id: 'own-tusdec-inst',
+          id: 'own-tusdec-foreign',
           organizationId: s.id,
-          category: SHAREHOLDER_CATEGORY.INSTITUTIONAL,
-          holderName: 'Industry partners',
+          category: SHAREHOLDER_CATEGORY.FOREIGN,
+          holderName: 'Foreign strategic partner',
           percentage: 25,
         },
       )
@@ -561,9 +663,117 @@ function buildRelationships(): OrganizationRelationship[] {
   ]
 }
 
+type SeedLocationProfile = {
+  province: string
+  city: string
+  address: string
+  latitude: number
+  longitude: number
+}
+
+// Keep operating locations explicit. City-centre defaults make unrelated SOE units
+// appear co-located and are not suitable for parcel-level map rendering.
+const REGIONAL_OFFICE_BY_ORG: Record<string, SeedLocationProfile> = {
+  'org-pidc': {
+    province: 'Punjab',
+    city: 'Lahore',
+    address: 'Gulberg, Lahore',
+    latitude: 31.5209,
+    longitude: 74.3497,
+  },
+  'org-psm': {
+    province: 'Punjab',
+    city: 'Lahore',
+    address: '42-A Zafar Ali Road, Gulberg V, Lahore',
+    latitude: 31.5239,
+    longitude: 74.3538,
+  },
+  'org-usc': {
+    province: 'Sindh',
+    city: 'Karachi',
+    address: 'Sector 36-A, Korangi, Karachi',
+    latitude: 24.838396,
+    longitude: 67.10956,
+  },
+  'org-nfc': {
+    province: 'Sindh',
+    city: 'Karachi',
+    address: 'Civil Lines, Karachi',
+    latitude: 24.8546,
+    longitude: 67.0307,
+  },
+  'org-peco': {
+    province: 'Sindh',
+    city: 'Karachi',
+    address: 'Shahrah-e-Faisal, Karachi',
+    latitude: 24.8653,
+    longitude: 67.0502,
+  },
+  'org-nfml': {
+    province: 'Punjab',
+    city: 'Multan',
+    address: 'Industrial Estate, Multan',
+    latitude: 30.1984,
+    longitude: 71.4687,
+  },
+  'org-pasdec': {
+    province: 'Balochistan',
+    city: 'Quetta',
+    address: 'Airport Road, Quetta',
+    latitude: 30.1798,
+    longitude: 66.975,
+  },
+  'org-tusdec': {
+    province: 'Khyber Pakhtunkhwa',
+    city: 'Peshawar',
+    address: 'Hayatabad Industrial Estate, Peshawar',
+    latitude: 34.0151,
+    longitude: 71.5249,
+  },
+  'org-smeda': {
+    province: 'Sindh',
+    city: 'Karachi',
+    address: 'Bahria Complex II, M.T. Khan Road, Karachi',
+    latitude: 24.8367,
+    longitude: 67.0256,
+  },
+  'org-pitac': {
+    province: 'Sindh',
+    city: 'Karachi',
+    address: 'C-24, PECHS Block 6, Shahrah-e-Faisal, Karachi',
+    latitude: 24.8722,
+    longitude: 67.0631,
+  },
+}
+
+const INDUSTRIAL_SITE_BY_ORG: Partial<Record<string, SeedLocationProfile>> = {
+  'org-psm': {
+    province: 'Sindh',
+    city: 'Karachi',
+    address: 'Pakistan Steel, Bin Qasim, Karachi',
+    latitude: 24.805247,
+    longitude: 67.346582,
+  },
+  'org-nfc': {
+    province: 'Punjab',
+    city: 'Lahore',
+    address: 'Sundar Industrial Estate, Lahore',
+    latitude: 31.4228,
+    longitude: 74.2171,
+  },
+  'org-pasdec': {
+    province: 'Khyber Pakhtunkhwa',
+    city: 'Risalpur',
+    address: 'Marble City, Risalpur',
+    latitude: 34.055,
+    longitude: 71.984,
+  },
+}
+
 function buildLocations(): OrganizationLocation[] {
   const locations: OrganizationLocation[] = []
   for (const s of ORG_SPECS) {
+    const regionalOffice = REGIONAL_OFFICE_BY_ORG[s.id]!
     locations.push({
       id: `loc-${s.id}-ho`,
       organizationId: s.id,
@@ -578,29 +788,38 @@ function buildLocations(): OrganizationLocation[] {
     locations.push({
       id: `loc-${s.id}-prov`,
       organizationId: s.id,
-      label: locationLabel(`loc-po-${s.id}`, s.abbreviation, 'provincial_office', s.city),
+      label: locationLabel(
+        `loc-po-${s.id}`,
+        s.abbreviation,
+        'provincial_office',
+        regionalOffice.city,
+      ),
       kind: 'provincial_office',
-      province: s.province === 'Sindh' ? 'Punjab' : 'Sindh',
-      district: s.province === 'Sindh' ? 'Lahore' : 'Karachi',
-      address: 'Provincial liaison',
-      latitude: s.lat + 0.4,
-      longitude: s.lng - 0.3,
+      province: regionalOffice.province,
+      district: regionalOffice.city,
+      address: regionalOffice.address,
+      latitude: regionalOffice.latitude,
+      longitude: regionalOffice.longitude,
     })
-    if (s.sector === 'Manufacturing' || s.sector === 'Fertilizer' || s.sector.includes('Mining')) {
+    const industrialSite = INDUSTRIAL_SITE_BY_ORG[s.id]
+    if (industrialSite) {
       locations.push({
         id: `loc-${s.id}-factory`,
         organizationId: s.id,
-        label: locationLabel(`loc-fac-${s.id}`, s.abbreviation, 'factory', s.city),
+        label: locationLabel(`loc-fac-${s.id}`, s.abbreviation, 'factory', industrialSite.city),
         kind: 'factory',
-        province: s.province,
-        district: s.city,
-        address: 'Industrial site',
-        latitude: s.lat - 0.05,
-        longitude: s.lng + 0.05,
+        province: industrialSite.province,
+        district: industrialSite.city,
+        address: industrialSite.address,
+        latitude: industrialSite.latitude,
+        longitude: industrialSite.longitude,
       })
     }
   }
-  return locations
+  return locations.map((location) => ({
+    ...location,
+    polygon: buildParcelPolygon(location.latitude, location.longitude, location.id, location.kind),
+  }))
 }
 
 function buildContacts(): OrganizationContact[] {
@@ -627,66 +846,129 @@ function buildContacts(): OrganizationContact[] {
 }
 
 function buildEnterpriseHistory(): EnterpriseHistoryEvent[] {
+  const parentIds = new Set(buildRelationships().map((rel) => rel.parentOrganizationId))
+  const events: EnterpriseHistoryEvent[] = []
+
+  for (const org of ORG_SPECS) {
+    const month = String((hash(org.id) % 9) + 1).padStart(2, '0')
+    const day = String((hash(`${org.id}-d`) % 27) + 1).padStart(2, '0')
+    events.push(
+      {
+        id: `eh-${org.id}-legal`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.LEGAL_STATUS_CHANGED,
+        occurredAt: org.incorporation,
+        summary: `Legal status recorded as ${LEGAL_STATUS_LABEL[org.legalStatus]}`,
+        newValue: org.legalStatus,
+        actorLabel: 'Company Secretary',
+      },
+      {
+        id: `eh-${org.id}-own`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.OWNERSHIP_UPDATED,
+        occurredAt: `2024-${month}-${day}`,
+        summary: `Government shareholding confirmed at ${org.govPct}%`,
+        newValue: `${org.govPct}% Government of Pakistan`,
+        actorLabel: 'Company Secretary',
+      },
+      {
+        id: `eh-${org.id}-loc`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.LOCATIONS_UPDATED,
+        occurredAt: '2025-09-18',
+        summary: `Head office recorded in ${org.city}, ${org.province}`,
+        newValue: org.city,
+        actorLabel: 'SOE Contributor',
+      },
+      {
+        id: `eh-${org.id}-contacts`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.CONTACTS_UPDATED,
+        occurredAt: '2025-11-04',
+        summary: 'Primary focal person and company secretary recorded',
+        actorLabel: 'SOE Contributor',
+      },
+      {
+        id: `eh-${org.id}-struct`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.STRUCTURE_UPDATED,
+        occurredAt: '2026-02-16',
+        summary: parentIds.has(org.id)
+          ? 'Corporate structure updated with recorded subsidiaries'
+          : 'Corporate structure reviewed — no subsidiary on file',
+        actorLabel: 'Company Secretary',
+      },
+    )
+
+    if (parentIds.has(org.id)) {
+      events.push({
+        id: `eh-${org.id}-sub`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.SUBSIDIARY_ADDED,
+        occurredAt: '2023-07-01',
+        summary: 'Subsidiary / related entity recorded in the corporate tree',
+        actorLabel: 'MoIP Supervisory Officer',
+      })
+    }
+
+    if (org.status !== SOE_STATUS.ACTIVE) {
+      events.push({
+        id: `eh-${org.id}-status`,
+        organizationId: org.id,
+        eventType: ENTERPRISE_HISTORY_EVENT.ENTERPRISE_STATUS_CHANGED,
+        occurredAt: org.id === 'org-psm' ? '2024-11-12' : '2025-06-30',
+        summary: `Enterprise status set to ${SOE_STATUS_LABEL[org.status]}`,
+        previousValue: SOE_STATUS.ACTIVE,
+        newValue: org.status,
+        actorLabel: 'MoIP Supervisory Officer',
+      })
+    }
+  }
+
+  return events
+}
+
+function isIndustrialAssetOrg(org: (typeof ORG_SPECS)[number]) {
   return [
-    {
-      id: 'eh-psm-status',
-      organizationId: 'org-psm',
-      eventType: ENTERPRISE_HISTORY_EVENT.ENTERPRISE_STATUS_CHANGED,
-      occurredAt: '2024-11-12',
-      summary: 'Enterprise status set to Under Privatization',
-      previousValue: SOE_STATUS.ACTIVE,
-      newValue: SOE_STATUS.UNDER_PRIVATIZATION,
-      actorLabel: 'MoIP Supervisory Officer',
-    },
-    {
-      id: 'eh-peco-own',
-      organizationId: 'org-peco',
-      eventType: ENTERPRISE_HISTORY_EVENT.OWNERSHIP_UPDATED,
-      occurredAt: '2025-03-01',
-      summary: 'Shareholding composition updated (mixed ownership)',
-      previousValue: 'Government 60% / Private 40%',
-      newValue: 'Government 51% / Private 30% / Public 19%',
-      actorLabel: 'Company Secretary',
-    },
-    {
-      id: 'eh-nfc-sub',
-      organizationId: 'org-nfc',
-      eventType: ENTERPRISE_HISTORY_EVENT.SUBSIDIARY_ADDED,
-      occurredAt: '1976-01-15',
-      summary: 'NFML recorded as wholly owned subsidiary',
-      newValue: 'org-nfml',
-      actorLabel: 'System seed',
-    },
-    {
-      id: 'eh-smeda-dormant',
-      organizationId: 'org-smeda',
-      eventType: ENTERPRISE_HISTORY_EVENT.ENTERPRISE_STATUS_CHANGED,
-      occurredAt: '2025-06-30',
-      summary: 'Enterprise marked Dormant for prototype scenario',
-      previousValue: SOE_STATUS.ACTIVE,
-      newValue: SOE_STATUS.DORMANT,
-      actorLabel: 'MoIP Analyst',
-    },
-    {
-      id: 'eh-pidc-legal',
-      organizationId: 'org-pidc',
-      eventType: ENTERPRISE_HISTORY_EVENT.LEGAL_STATUS_CHANGED,
-      occurredAt: '2010-01-01',
-      summary: 'Legal status confirmed as Statutory Corporation',
-      newValue: LEGAL_STATUS.STATUTORY_CORPORATION,
-      actorLabel: 'Company Secretary',
-    },
-    {
-      id: 'eh-nfml-rename',
-      organizationId: 'org-nfml',
-      eventType: ENTERPRISE_HISTORY_EVENT.ENTERPRISE_RENAMED,
-      occurredAt: '1990-07-01',
-      summary: 'Registered name confirmed (demonstration history)',
-      previousValue: 'NFC Marketing Unit',
-      newValue: 'National Fertilizer Marketing Limited',
-      actorLabel: 'System seed',
-    },
-  ]
+    'Manufacturing',
+    'Engineering',
+    'Fertilizer',
+    'Mining / Stone',
+    'Skills / Industry',
+    'Technical Assistance',
+    'Industrial Development',
+  ].includes(org.sector)
+}
+
+function assetMixForOrg(org: (typeof ORG_SPECS)[number]) {
+  const industrial = isIndustrialAssetOrg(org)
+  if (org.scenarioId === SCENARIO.ASSET_RICH) {
+    const buildings = industrial ? 14 : 12
+    return {
+      land: 16,
+      buildings,
+      machinery: Math.round(buildings * (industrial ? 10 : 4)),
+      vehicles: Math.round(buildings * 4),
+      furniture: Math.round(buildings * 6),
+      otherEquipment: Math.round(buildings * 2),
+    }
+  }
+
+  const scale =
+    org.scenarioId === SCENARIO.UNDERUTILIZED
+      ? 1.05
+      : org.status === SOE_STATUS.DORMANT
+        ? 0.65
+        : 1
+  const buildings = Math.max(3, Math.round((industrial ? 6 : 4) * scale))
+  return {
+    land: Math.max(3, Math.round(4 * scale)),
+    buildings,
+    machinery: Math.round(buildings * (industrial ? 12 : 5) * scale),
+    vehicles: Math.round(buildings * (industrial ? 3 : 2) * scale),
+    furniture: Math.round(buildings * (industrial ? 5 : 4) * scale),
+    otherEquipment: Math.round(buildings * 1.5 * scale),
+  }
 }
 
 function buildAssets(): {
@@ -699,27 +981,30 @@ function buildAssets(): {
   const geo: GeoFeature[] = []
   const history: AssetHistoryEvent[] = []
   const documents: DocumentMeta[] = []
-  const types = [
-    ASSET_TYPE.LAND,
-    ASSET_TYPE.BUILDING,
-    ASSET_TYPE.MACHINERY,
-    ASSET_TYPE.VEHICLE,
-    ASSET_TYPE.OTHER_EQUIPMENT,
-  ]
 
   for (const org of ORG_SPECS) {
-    const count =
-      org.scenarioId === SCENARIO.ASSET_RICH
-        ? 40
-        : org.scenarioId === SCENARIO.UNDERUTILIZED
-          ? 32
-          : 24
+    const mix = assetMixForOrg(org)
+    const assetSpecs: Array<{ type: AssetType; forceFurniture?: boolean }> = [
+      ...Array.from({ length: mix.land }, () => ({ type: ASSET_TYPE.LAND as AssetType })),
+      ...Array.from({ length: mix.buildings }, () => ({ type: ASSET_TYPE.BUILDING as AssetType })),
+      ...Array.from({ length: mix.machinery }, () => ({ type: ASSET_TYPE.MACHINERY as AssetType })),
+      ...Array.from({ length: mix.vehicles }, () => ({ type: ASSET_TYPE.VEHICLE as AssetType })),
+      ...Array.from({ length: mix.furniture }, () => ({
+        type: ASSET_TYPE.OTHER_EQUIPMENT as AssetType,
+        forceFurniture: true,
+      })),
+      ...Array.from({ length: mix.otherEquipment }, () => ({
+        type: ASSET_TYPE.OTHER_EQUIPMENT as AssetType,
+      })),
+    ]
 
     let firstLandId: string | undefined
+    let landIndex = 0
 
-    for (let i = 0; i < count; i++) {
-      const type = types[i % types.length]
-      const id = `asset-${org.abbreviation.toLowerCase()}-${String(i + 1).padStart(3, '0')}`
+    for (let i = 0; i < assetSpecs.length; i++) {
+      const { type, forceFurniture } = assetSpecs[i]
+      const landSlot = type === ASSET_TYPE.LAND ? landIndex : -1
+      const id = `asset-${org.abbreviation.toLowerCase()}-${String(i + 1).padStart(4, '0')}`
       const seed = `${id}-v`
       const book = money(seed, type === ASSET_TYPE.LAND ? 800_000_000 : 120_000_000)
       const marketMult =
@@ -745,26 +1030,26 @@ function buildAssets(): {
           utilizationPercent = Math.round(15 + unit(seed) * 20)
         }
       }
-      if (type === ASSET_TYPE.LAND && i % 9 === 0) {
+      if (type === ASSET_TYPE.LAND && landSlot % 9 === 0) {
         utilizationStatus = ASSET_UTILIZATION.UNUSED
         utilizationPercent = 0
       }
 
       const litigationStatus =
         (org.scenarioId === SCENARIO.LITIGATION_HEAVY && i % 5 === 0) ||
-        (type === ASSET_TYPE.LAND && i === 2)
+        (type === ASSET_TYPE.LAND && landSlot === 2)
           ? ASSET_LITIGATION_STATUS.ACTIVE
           : ASSET_LITIGATION_STATUS.CLEAR
 
       // Phase 20: ensure Punjabi land parcels exist with encroached status (not only ICT).
-      // Avoid i % 9 === 0 — those parcels are cleared for the vacant-industrial GIS demo.
+      // Avoid landSlot % 9 === 0 — those parcels are cleared for the vacant-industrial GIS demo.
       const encroachmentStatus =
         type === ASSET_TYPE.LAND &&
-        ((org.scenarioId === SCENARIO.ASSET_RICH && i % 7 === 0) ||
-          (org.province === 'Punjab' && i % 10 === 0 && i % 9 !== 0) ||
-          i === 5)
+        ((org.scenarioId === SCENARIO.ASSET_RICH && landSlot % 7 === 0) ||
+          (org.province === 'Punjab' && landSlot % 10 === 0 && landSlot % 9 !== 0) ||
+          landSlot === 5)
           ? ENCROACHMENT_STATUS.ENCROACHED
-          : type === ASSET_TYPE.LAND && i % 11 === 0
+          : type === ASSET_TYPE.LAND && landSlot % 11 === 0
             ? ENCROACHMENT_STATUS.SUSPECTED
             : ENCROACHMENT_STATUS.CLEAR
 
@@ -802,7 +1087,7 @@ function buildAssets(): {
         litigationStatus,
         encroachmentStatus,
         leaseStatus:
-          type === ASSET_TYPE.LAND && i % 6 === 0 ? LEASE_STATUS.ACTIVE : LEASE_STATUS.NONE,
+          type === ASSET_TYPE.LAND && landSlot % 6 === 0 ? LEASE_STATUS.ACTIVE : LEASE_STATUS.NONE,
         evidenceStatus,
         linkedLitigationId:
           litigationStatus === ASSET_LITIGATION_STATUS.ACTIVE
@@ -836,16 +1121,17 @@ function buildAssets(): {
         asset.surveyNumber = `S-${hash(id) % 9000 + 1000}`
         asset.khasraNumber = `K-${hash(id) % 900 + 100}`
         asset.occupancyStatus =
-          utilizationStatus === ASSET_UTILIZATION.UNUSED || i % 9 === 0
+          utilizationStatus === ASSET_UTILIZATION.UNUSED || landSlot % 9 === 0
             ? ASSET_OCCUPANCY.VACANT
             : ASSET_OCCUPANCY.OCCUPIED
         asset.useClassification = pick(seed, [
           LAND_USE_CLASS.INDUSTRIAL,
           LAND_USE_CLASS.COMMERCIAL,
+          LAND_USE_CLASS.RESIDENTIAL,
           LAND_USE_CLASS.AGRICULTURAL,
           LAND_USE_CLASS.UNUSED,
         ])
-        if (i % 9 === 0) {
+        if (landSlot % 9 === 0) {
           // Phase 18 demo scenario: vacant industrial land > 20 acres, no litigation
           asset.useClassification = LAND_USE_CLASS.INDUSTRIAL
           asset.occupancyStatus = ASSET_OCCUPANCY.VACANT
@@ -856,6 +1142,7 @@ function buildAssets(): {
           asset.litigationStatus = ASSET_LITIGATION_STATUS.CLEAR
           asset.encroachmentStatus = ENCROACHMENT_STATUS.CLEAR
         }
+        landIndex += 1
       }
 
       if (type === ASSET_TYPE.BUILDING) {
@@ -911,18 +1198,22 @@ function buildAssets(): {
       }
 
       if (type === ASSET_TYPE.OTHER_EQUIPMENT) {
-        asset.equipmentCategory = pick(seed, [
-          'furniture',
-          'computers',
-          'servers',
-          'laboratory_equipment',
-          'tools',
-          'communication_equipment',
-        ])
-        if (i % 7 === 0) {
-          asset.assetType = ASSET_TYPE.IT_EQUIPMENT
-          asset.equipmentCategory = 'computers'
-          asset.name = `${org.abbreviation} IT equipment ${i + 1}`
+        if (forceFurniture) {
+          asset.equipmentCategory = 'furniture'
+          asset.name = `${org.abbreviation} furniture ${i + 1}`
+        } else {
+          asset.equipmentCategory = pick(seed, [
+            'computers',
+            'servers',
+            'laboratory_equipment',
+            'tools',
+            'communication_equipment',
+          ])
+          if (i % 7 === 0) {
+            asset.assetType = ASSET_TYPE.IT_EQUIPMENT
+            asset.equipmentCategory = 'computers'
+            asset.name = `${org.abbreviation} IT equipment ${i + 1}`
+          }
         }
       }
 
@@ -936,7 +1227,7 @@ function buildAssets(): {
       assets.push(asset)
 
       if (!missingCoordinates) {
-        const isPolygon = type === ASSET_TYPE.LAND && (i % 11 === 0 || i === 1 || i % 9 === 0)
+        const isPolygon = type === ASSET_TYPE.LAND && (landSlot % 11 === 0 || landSlot === 1 || landSlot % 9 === 0)
         geo.push({
           id: `geo-${id}`,
           assetId: id,
@@ -1159,14 +1450,19 @@ function buildPeople() {
 
     if (!noBoard) {
       const boardSize = 7
+      const vacantCount = boardVacantSeatCount(org.scenarioId)
+      const expiredCount = boardExpiredSeatCount(org.scenarioId)
       for (let i = 0; i < boardSize; i++) {
-        const isVacancy = highVacancy && (i === 5 || i === 6)
+        const isVacancy = i >= boardSize - vacantCount
         let expiryDate = `2027-${String((i % 9) + 3).padStart(2, '0')}-15`
         if (highVacancy && i === 0) expiryDate = '2026-07-01' // expired
         if (highVacancy && i === 1) expiryDate = '2026-09-05' // ≤30 days from 2026-08-08
         if (highVacancy && i === 2) expiryDate = '2026-10-20' // ≤90
         if (highVacancy && i === 3) expiryDate = '2027-01-20' // ≤180
         if (!highVacancy && i === 0) expiryDate = '2026-09-10'
+        if (!isVacancy && !highVacancy && i < expiredCount) {
+          expiryDate = i === 0 ? '2026-07-01' : '2026-06-18'
+        }
 
         const memberType =
           i === 0
@@ -1211,6 +1507,9 @@ function buildPeople() {
           cnic: isVacancy
             ? undefined
             : `${20000 + i}${hash(org.id) % 1000}-1234567-${i + 1}`,
+          assignedFacilities: isVacancy
+            ? undefined
+            : boardAssignedFacilities(org.id, i, memberType),
           isDummyDemonstrationData: true,
         })
       }
@@ -1517,6 +1816,21 @@ function buildBudgetLines(metrics: FinancialMetric[]): BudgetLine[] {
     })
   }
   return lines
+}
+
+function buildProcurementPlans(organizations: Organization[]): ProcurementAnnualPlan[] {
+  return organizations.slice(0, 12).map((org, i) => ({
+    id: `pplan-${org.id}`,
+    organizationId: org.id,
+    fiscalYear: '2025-26',
+    title: `Annual procurement plan FY2025-26`,
+    category: i % 2 === 0 ? 'Goods and services' : 'Works and consultancy',
+    estimatedValue: 45_000_000 + i * 8_500_000,
+    method: i % 3 === 0 ? 'open_tender' : 'limited_tender',
+    status: i % 4 === 0 ? 'draft' : 'approved',
+    responsibleFunction: 'Procurement',
+    isDummyDemonstrationData: true as const,
+  }))
 }
 
 function buildIndustrial(): IndustrialPerformance[] {
@@ -2024,6 +2338,309 @@ function buildPhase12Intelligence(args: {
     })
   }
 
+  const tusdecOrgId = 'org-tusdec'
+  const tusdecSubmissions = {
+    financeFy2027: args.submissions.find((s) => s.id === 'sub-tusdec-finance-fy2027'),
+    financeFy2026: args.submissions.find((s) => s.id === 'sub-tusdec-finance-fy2026'),
+    enterpriseFy2027: args.submissions.find((s) => s.id === 'sub-tusdec-enterprise-fy2027'),
+    assetsFy2027: args.submissions.find((s) => s.id === 'sub-tusdec-assets-fy2027'),
+    documentsFy2027: args.submissions.find((s) => s.id === 'sub-tusdec-documents-fy2027'),
+    complianceFy2027: args.submissions.find((s) => s.id === 'sub-tusdec-compliance-fy2027'),
+    industrialFy2027: args.submissions.find((s) => s.id === 'sub-tusdec-industrial-fy2027'),
+  }
+
+  const tusdecEvents: Array<Omit<SubmissionHistoryEvent, 'id'>> = []
+
+  if (tusdecSubmissions.financeFy2027) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'finance',
+        occurredAt: '2026-07-02T09:00:00Z',
+        actorRole: 'finance_officer',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.1',
+        comment: 'FY2027 finance pack opened',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'finance',
+        occurredAt: '2026-07-18T11:30:00Z',
+        actorRole: 'finance_officer',
+        action: 'section_complete',
+        status: 'in_progress',
+        relatedVersion: '0.6',
+        comment: 'Statements and subsidy lines completed',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'finance',
+        occurredAt: '2026-08-04T14:00:00Z',
+        actorRole: 'cfo',
+        action: 'certification',
+        status: 'certified',
+        relatedVersion: '1.0',
+        comment: 'CFO certified — pending MoIP submission',
+      },
+    )
+  }
+
+  if (tusdecSubmissions.financeFy2026) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2026.id,
+        reportingPeriodId: 'period-fy2026',
+        module: 'finance',
+        occurredAt: '2025-08-20T10:00:00Z',
+        actorRole: 'finance_officer',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.2',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2026.id,
+        reportingPeriodId: 'period-fy2026',
+        module: 'finance',
+        occurredAt: '2025-09-05T12:00:00Z',
+        actorRole: 'ceo',
+        action: 'submission',
+        status: 'submitted',
+        relatedVersion: '1.0',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2026.id,
+        reportingPeriodId: 'period-fy2026',
+        module: 'finance',
+        occurredAt: '2025-09-18T09:30:00Z',
+        actorRole: 'moip_reviewer',
+        action: 'approval',
+        status: 'approved',
+        relatedVersion: '1.0',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.financeFy2026.id,
+        reportingPeriodId: 'period-fy2026',
+        module: 'finance',
+        occurredAt: '2025-09-18T09:35:00Z',
+        actorRole: 'system',
+        action: 'lock',
+        status: 'locked',
+        relatedVersion: '1.0',
+        comment: 'Approved snapshot locked',
+      },
+    )
+  }
+
+  if (tusdecSubmissions.enterpriseFy2027) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.enterpriseFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'enterprise',
+        occurredAt: '2026-07-10T08:45:00Z',
+        actorRole: 'company_secretary',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.1',
+        comment: 'Enterprise profile draft started',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.enterpriseFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'enterprise',
+        occurredAt: '2026-07-25T16:20:00Z',
+        actorRole: 'company_secretary',
+        action: 'field_update',
+        status: 'draft',
+        relatedVersion: '0.3',
+        comment: 'Ownership composition updated',
+      },
+    )
+  }
+
+  if (tusdecSubmissions.assetsFy2027) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.assetsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'assets',
+        occurredAt: '2026-06-18T10:00:00Z',
+        actorRole: 'asset_officer',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.4',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.assetsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'assets',
+        occurredAt: '2026-07-03T13:00:00Z',
+        actorRole: 'asset_officer',
+        action: 'submission',
+        status: 'submitted',
+        relatedVersion: '0.9',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.assetsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'assets',
+        occurredAt: '2026-07-12T11:00:00Z',
+        actorRole: 'moip_reviewer',
+        action: 'clarification',
+        status: 'clarification_requested',
+        relatedVersion: '0.9',
+        comment: 'Confirm land utilization for Lahore centre',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.assetsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'assets',
+        occurredAt: '2026-07-22T15:30:00Z',
+        actorRole: 'asset_officer',
+        action: 'resubmission',
+        status: 'resubmitted',
+        relatedVersion: '1.0',
+      },
+    )
+  }
+
+  if (tusdecSubmissions.documentsFy2027) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.documentsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'documents',
+        occurredAt: '2026-06-05T09:00:00Z',
+        actorRole: 'soe_focal_person',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.5',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.documentsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'documents',
+        occurredAt: '2026-06-20T10:30:00Z',
+        actorRole: 'soe_focal_person',
+        action: 'submission',
+        status: 'submitted',
+        relatedVersion: '0.9',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.documentsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'documents',
+        occurredAt: '2026-07-08T14:15:00Z',
+        actorRole: 'moip_reviewer',
+        action: 'approval',
+        status: 'approved',
+        relatedVersion: '1.0',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.documentsFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'documents',
+        occurredAt: '2026-07-08T14:20:00Z',
+        actorRole: 'system',
+        action: 'lock',
+        status: 'locked',
+        relatedVersion: '1.0',
+      },
+    )
+  }
+
+  if (tusdecSubmissions.complianceFy2027) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.complianceFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'compliance',
+        occurredAt: '2026-07-14T09:00:00Z',
+        actorRole: 'internal_audit',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.7',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.complianceFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'compliance',
+        occurredAt: '2026-07-28T12:00:00Z',
+        actorRole: 'internal_audit',
+        action: 'submission',
+        status: 'submitted',
+        relatedVersion: '0.9',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.complianceFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'compliance',
+        occurredAt: '2026-08-03T10:45:00Z',
+        actorRole: 'moip_reviewer',
+        action: 'clarification',
+        status: 'clarification_requested',
+        relatedVersion: '0.9',
+        comment: 'Attach board resolution for policy exception',
+      },
+    )
+  }
+
+  if (tusdecSubmissions.industrialFy2027) {
+    tusdecEvents.push(
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.industrialFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'industrial',
+        occurredAt: '2026-07-06T11:00:00Z',
+        actorRole: 'industrial_officer',
+        action: 'draft_created',
+        status: 'draft',
+        relatedVersion: '0.4',
+      },
+      {
+        organizationId: tusdecOrgId,
+        submissionId: tusdecSubmissions.industrialFy2027.id,
+        reportingPeriodId: 'period-fy2027',
+        module: 'industrial',
+        occurredAt: '2026-07-30T09:30:00Z',
+        actorRole: 'moip_reviewer',
+        action: 'reviewer_action',
+        status: 'returned',
+        relatedVersion: '0.8',
+        comment: 'Capacity utilization evidence incomplete',
+      },
+    )
+  }
+
+  tusdecEvents.forEach((e, i) => {
+    submissionHistory.push({ ...e, id: `subhist-tusdec-${i + 1}` })
+  })
+
   fieldChanges.push(
     {
       id: 'fc-psm-rev-1',
@@ -2114,7 +2731,7 @@ function buildPhase12Intelligence(args: {
           kind: 'kpi',
           label: 'Land book value',
           detail: 'Asset registry KPI',
-          route: '/soe/assets/registry',
+          route: '/soe/assets/land',
         },
         {
           id: 'a2',
@@ -2122,7 +2739,7 @@ function buildPhase12Intelligence(args: {
           label: land ? `Asset ${land.name}` : 'Land asset',
           recordType: 'asset',
           recordId: land?.id,
-          route: land ? `/soe/assets/${land.id}` : '/soe/assets/registry',
+          route: land ? `/soe/assets/${land.id}` : '/soe/assets/land',
         },
         {
           id: 'a3',
@@ -3182,6 +3799,7 @@ export function createSeedDataset() {
   } = buildPeople()
   const financialMetrics = buildFinance()
   const budgetLines = buildBudgetLines(financialMetrics)
+  const procurementAnnualPlans = buildProcurementPlans(organizations)
   const industrial = buildIndustrial()
   const { loans, grants, guarantees, repayments: loanRepayments } = buildFiscal()
   const {
@@ -3289,6 +3907,7 @@ export function createSeedDataset() {
     grants,
     guarantees,
     procurement,
+    procurementAnnualPlans,
     contracts,
     auditRegisters,
     auditParas: audits,

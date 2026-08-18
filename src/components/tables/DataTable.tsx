@@ -23,6 +23,9 @@ interface DataTableProps<T> {
   showSearch?: boolean
   /** Sticky leftmost columns for horizontal scroll context (default 1). */
   stickyColumnCount?: number
+  /** Highlight the row matching this id (registry edit selection). */
+  selectedRowId?: string | null
+  getRowId?: (row: T) => string
 }
 
 export function DataTable<T>({
@@ -34,6 +37,8 @@ export function DataTable<T>({
   density = 'standard',
   showSearch = true,
   stickyColumnCount = 1,
+  selectedRowId,
+  getRowId,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -112,10 +117,16 @@ export function DataTable<T>({
                 ))}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map((row) => (
+                {table.getRowModel().rows.map((row) => {
+                  const rowKey = getRowId ? getRowId(row.original) : row.id
+                  const selected = selectedRowId != null && selectedRowId === rowKey
+                  return (
                   <tr
                     key={row.id}
-                    className="border-t border-soe-border hover:bg-[var(--color-surface-selected)]"
+                    className={cn(
+                      'border-t border-soe-border hover:bg-[var(--color-surface-selected)]',
+                      selected && 'bg-[var(--color-info-soft)]',
+                    )}
                   >
                     {row.getVisibleCells().map((cell, index) => {
                       const sticky = index < stickyColumnCount
@@ -134,7 +145,8 @@ export function DataTable<T>({
                       )
                     })}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

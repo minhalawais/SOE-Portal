@@ -169,13 +169,6 @@ export function AdvancedSearchWorkspace({
     setSearchParams(next)
   }
 
-  const applyPreset = (id: string) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('preset', id)
-    next.set('mode', 'builder')
-    setSearchParams(next)
-  }
-
   const updateCondition = (index: number, patch: Partial<SearchCondition>) => {
     setConditions((prev) =>
       prev.map((c, i) => {
@@ -248,27 +241,10 @@ export function AdvancedSearchWorkspace({
     [],
   )
 
-  const subtitle =
-    portal === 'soe'
-      ? 'Own SOE scope · structured filters · no AI search'
-      : portal === 'pmo'
-        ? 'Strategic approved scope · filter-driven queries'
-        : portal === 'secretary' || portal === 'minister'
-          ? 'Portfolio query · approved/aggregate focus · no operational bypass'
-          : 'Portfolio intelligence query · permissions enforced'
-
   return (
     <RequirePermission permission={permissionFor(portal)}>
       <div>
-        <PageHeader
-          title={title}
-          subtitle={subtitle}
-          actions={
-            <span className="rounded-control border border-soe-border px-2 py-1 text-[11px] text-soe-slate">
-              Filter-driven · AI search future
-            </span>
-          }
-        />
+        <PageHeader title={title} />
 
         <div className="mb-3 flex flex-wrap gap-2">
           <Button
@@ -277,7 +253,7 @@ export function AdvancedSearchWorkspace({
             variant={mode === 'builder' ? 'primary' : 'secondary'}
             onClick={() => setMode('builder')}
           >
-            Intelligence query
+            Search by filters
           </Button>
           <Button
             type="button"
@@ -285,12 +261,12 @@ export function AdvancedSearchWorkspace({
             variant={mode === 'global' ? 'primary' : 'secondary'}
             onClick={() => setMode('global')}
           >
-            Global search
+            Search by Keyword
           </Button>
         </div>
 
         {mode === 'global' ? (
-          <Card title="Global search" subtitle="SOE name, asset ID/name, case number, audit para ID, document title">
+          <Card title="Search by keyword">
             <TextField
               label="Search text"
               value={globalQ}
@@ -339,26 +315,10 @@ export function AdvancedSearchWorkspace({
 
         {mode === 'builder' ? (
           <div className="space-y-3">
-            <Card title="Saved queries" subtitle="Roadmap examples and role presets · prototype">
-              <div className="flex flex-wrap gap-2">
-                {(presets.data ?? []).map((p) => (
-                  <Button
-                    key={p.id}
-                    type="button"
-                    size="sm"
-                    variant={presetId === p.id ? 'teal' : 'secondary'}
-                    onClick={() => applyPreset(p.id)}
-                  >
-                    {p.label}
-                  </Button>
-                ))}
-              </div>
-            </Card>
-
-            <Card title="Query builder" subtitle="Dataset → conditions → AND/OR → sort → run">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Card title="Filters">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <SelectField
-                  label="Dataset"
+                  label="Select Module"
                   value={dataset}
                   onChange={(e) => {
                     setDataset(e.target.value as SearchDataset)
@@ -387,15 +347,6 @@ export function AdvancedSearchWorkspace({
                   }
                 />
                 <SelectField
-                  label="Logic"
-                  value={logic}
-                  onChange={(e) => setLogic(e.target.value as 'and' | 'or')}
-                  options={[
-                    { value: 'and', label: 'AND (all conditions)' },
-                    { value: 'or', label: 'OR (any condition)' },
-                  ]}
-                />
-                <SelectField
                   label="Sort by"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
@@ -407,7 +358,7 @@ export function AdvancedSearchWorkspace({
               </div>
 
               <div className="mt-3 space-y-2">
-                <p className="text-xs font-medium text-soe-slate">Conditions</p>
+                <p className="text-xs font-medium text-soe-slate">Filter rules</p>
                 {conditions.map((c, i) => {
                   const def = fields.find((f) => f.key === c.field)
                   const ops = def?.operators ?? Object.values(SEARCH_OPERATOR)
@@ -420,16 +371,16 @@ export function AdvancedSearchWorkspace({
                       className="grid gap-2 rounded-control border border-soe-border p-2 sm:grid-cols-4"
                     >
                       <SelectField
-                        label="Field"
+                        label="What to search"
                         value={c.field}
                         onChange={(e) => updateCondition(i, { field: e.target.value })}
                         options={[
-                          { value: '', label: 'Select field' },
+                          { value: '', label: 'Choose a field' },
                           ...fields.map((f) => ({ value: f.key, label: f.label })),
                         ]}
                       />
                       <SelectField
-                        label="Operator"
+                        label="How to match"
                         value={c.operator}
                         onChange={(e) =>
                           updateCondition(i, { operator: e.target.value as SearchOperator })
@@ -442,7 +393,7 @@ export function AdvancedSearchWorkspace({
                       {needsValue ? (
                         def?.type === 'boolean' ? (
                           <SelectField
-                            label="Value"
+                            label="Enter value"
                             value={String(c.value ?? '')}
                             onChange={(e) =>
                               updateCondition(i, {
@@ -450,18 +401,18 @@ export function AdvancedSearchWorkspace({
                               })
                             }
                             options={[
-                              { value: '', label: 'Select' },
-                              { value: 'true', label: 'True' },
-                              { value: 'false', label: 'False' },
+                              { value: '', label: 'Choose yes or no' },
+                              { value: 'true', label: 'Yes' },
+                              { value: 'false', label: 'No' },
                             ]}
                           />
                         ) : def?.type === 'organization' ? (
                           <SelectField
-                            label="Value"
+                            label="Enter value"
                             value={String(c.value ?? '')}
                             onChange={(e) => updateCondition(i, { value: e.target.value })}
                             options={[
-                              { value: '', label: 'Select SOE' },
+                              { value: '', label: 'Choose SOE' },
                               ...(options.data?.organizations.map((o) => ({
                                 value: o.id,
                                 label: o.label,
@@ -470,11 +421,11 @@ export function AdvancedSearchWorkspace({
                           />
                         ) : def?.type === 'province' ? (
                           <SelectField
-                            label="Value"
+                            label="Enter value"
                             value={String(c.value ?? '')}
                             onChange={(e) => updateCondition(i, { value: e.target.value })}
                             options={[
-                              { value: '', label: 'Select province' },
+                              { value: '', label: 'Choose province' },
                               ...(options.data?.provinces.map((p) => ({
                                 value: p,
                                 label: p,
@@ -483,17 +434,17 @@ export function AdvancedSearchWorkspace({
                           />
                         ) : def?.options?.length ? (
                           <SelectField
-                            label="Value"
+                            label="Enter value"
                             value={String(c.value ?? '')}
                             onChange={(e) => updateCondition(i, { value: e.target.value })}
                             options={[
-                              { value: '', label: 'Select' },
+                              { value: '', label: 'Choose a value' },
                               ...def.options,
                             ]}
                           />
                         ) : (
                           <TextField
-                            label={c.operator === SEARCH_OPERATOR.BETWEEN ? 'From' : 'Value'}
+                            label={c.operator === SEARCH_OPERATOR.BETWEEN ? 'From value' : 'Enter value'}
                             value={String(c.value ?? '')}
                             onChange={(e) => {
                               const raw = e.target.value
@@ -508,11 +459,11 @@ export function AdvancedSearchWorkspace({
                           />
                         )
                       ) : (
-                        <div className="text-xs text-soe-slate self-end pb-2">No value</div>
+                        <div className="text-xs text-soe-slate self-end pb-2">No value needed</div>
                       )}
                       {c.operator === SEARCH_OPERATOR.BETWEEN ? (
                         <TextField
-                          label="To"
+                          label="To value"
                           value={String(c.valueTo ?? '')}
                           onChange={(e) => {
                             const raw = e.target.value
@@ -550,19 +501,13 @@ export function AdvancedSearchWorkspace({
                     variant="secondary"
                     onClick={() => setConditions((prev) => [...prev, emptyCondition()])}
                   >
-                    Add condition
+                    Add filter
                   </Button>
                   <Button type="button" size="sm" variant="primary" onClick={runQuery}>
-                    Run query
+                    Search
                   </Button>
                   <Button type="button" size="sm" variant="tertiary" onClick={clearFilters}>
                     Clear filters
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" disabled>
-                    Export (placeholder)
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" disabled>
-                    Save query (placeholder)
                   </Button>
                 </div>
               </div>
@@ -619,12 +564,7 @@ export function AdvancedSearchWorkspace({
                   {results.data?.isZeroResult ? (
                     <EmptyState
                       title="No results match the selected filters."
-                      hint="Clear or adjust conditions, or try a saved query."
-                      action={
-                        <Button type="button" size="sm" variant="secondary" onClick={clearFilters}>
-                          Clear filters
-                        </Button>
-                      }
+                      hint="Try adjusting the filter rules."
                     />
                   ) : null}
                   {results.data && !results.data.isZeroResult ? (
@@ -678,8 +618,8 @@ export function AdvancedSearchWorkspace({
               </>
             ) : (
               <EmptyState
-                title="Configure conditions and run a query"
-                hint="Or select a saved query above."
+                title="Set filters and search"
+                hint="Choose a module, add filter rules, then select Search."
               />
             )}
           </div>

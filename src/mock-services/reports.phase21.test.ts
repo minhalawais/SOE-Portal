@@ -5,7 +5,7 @@ import {
 } from '@/constants'
 import { db, resetMockDb } from '@/mock-data'
 import { resetMockRuntime } from '@/mock-data/runtime'
-import { mockReportsService } from '@/mock-services'
+import { mockReportsService, PMO_DASHBOARD_REPORT_ORDER } from '@/mock-services/reports.service'
 import { formatCurrencyPkr } from '@/utils'
 import { REPORT_DEFINITIONS } from '@/workflow/reportCatalogue'
 
@@ -128,5 +128,16 @@ describe('Phase 21 reports and executive briefings', () => {
     const grouped = await mockReportsService.getCatalogueGrouped('minister')
     expect(grouped.some((g) => g.label === 'Executive')).toBe(true)
     expect(grouped.every((g) => g.items.length > 0)).toBe(true)
+  })
+
+  it('returns curated PM dashboard report cards with hooks', async () => {
+    const cards = await mockReportsService.getPmoDashboardReportCards({
+      reportingPeriodId: 'period-fy2027',
+    })
+    expect(cards.map((card) => card.reportId)).toEqual(PMO_DASHBOARD_REPORT_ORDER)
+    expect(cards[0]?.name).toBe('Cabinet Brief')
+    expect(cards[0]?.reportType).toBe('Brief')
+    expect(cards[0]?.hook.length).toBeGreaterThan(10)
+    expect(cards.every((card) => card.dataStatusLabel.length > 0)).toBe(true)
   })
 })

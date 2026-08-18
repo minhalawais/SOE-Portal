@@ -47,6 +47,20 @@ function formatCompactValue(value: number): string {
   })}${unit.suffix}`
 }
 
+export function parseNumericInput(value: unknown): number | null {
+  if (value === '' || value === null || value === undefined) return null
+  const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+/** Compact in-field preview for large PKR amounts — e.g. 2.1B, 700.7M, 199.9K */
+export function formatCompactPkrPreview(value: unknown, minAbs = 1_000): string | null {
+  const n = parseNumericInput(value)
+  if (n === null || n === 0) return null
+  if (Math.abs(n) < minAbs) return null
+  return formatCompactValue(n)
+}
+
 export function formatCurrencyPkr(
   value: number,
   options: { mode?: CurrencyFormatMode } = {},

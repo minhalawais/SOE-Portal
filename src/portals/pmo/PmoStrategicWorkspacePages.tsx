@@ -436,7 +436,7 @@ export function PmoFiscalBurdenPage() {
     <RequirePermission permission={PERMISSION.FINANCE_READ}>
       <div>
         <PageHeader
-          title="Fiscal burden"
+          title="Financials"
           subtitle="Separate components · contingent liabilities distinct · provisional"
         />
         {options.data ? (

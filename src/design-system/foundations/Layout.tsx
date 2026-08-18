@@ -59,5 +59,5 @@ export function HelperText({
 }
 
 export function LabelText({ children }: PropsWithChildren) {
-  return <span className="text-xs font-medium text-soe-ink">{children}</span>
+  return <span className="text-xs font-semibold text-soe-navy">{children}</span>
 }

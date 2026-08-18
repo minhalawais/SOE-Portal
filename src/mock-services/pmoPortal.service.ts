@@ -10,9 +10,12 @@ import {
   ENCROACHMENT_STATUS,
   LAND_USE_CLASS,
   ASSET_LITIGATION_STATUS,
+  LENDER_CATEGORY,
+  SHAREHOLDER_CATEGORY,
 } from '@/constants'
 import { db } from '@/mock-data'
 import { formatCurrencyPkr, simulateLatency } from '@/utils'
+import { calcDebtRatio } from '@/workflow/financeKpis'
 
 export interface PmoFilter {
   reportingPeriodId?: string
@@ -20,10 +23,18 @@ export interface PmoFilter {
   province?: string
 }
 
+export interface PmoShareholdingCounts {
+  government: number
+  private: number
+  foreign: number
+  provincialGovernment: number
+}
+
 export interface PmoNationalOverview {
   asOf: string
   reportingPeriodId: string
   soeCount: number
+  soeCountByShareholding: PmoShareholdingCounts
   governmentCapitalEmployed: number
   aggregateAssetBookValue: number
   aggregateAssetMarketValue: number
@@ -100,6 +111,11 @@ export interface PmoFiscalBurdenView {
   losses: number
   debt: number
   grants: number
+  annualBudget: number
+  workingCapital: number
+  payables: number
+  debtRatio: number | null
+  financialStatementsCount: number
   note: string
   isCombinedOfficialNumber: false
   trend: Array<{
@@ -136,7 +152,12 @@ export interface PmoContingentLiabilitiesView {
 
 export interface PmoLandBankView {
   totalLandAreaAcres: number
+  vacantAcres: number
+  occupiedAcres: number
   industrialLandAcres: number
+  commercialLandAcres: number
+  residentialLandAcres: number
+  agriculturalLandAcres: number
   vacantUnusedAcres: number
   unencumberedAcres: number
   marketValue: number
@@ -160,11 +181,14 @@ export interface PmoEmploymentIndustrialView {
   capacityUtilization: number | null
   exportContribution: number
   domesticSales: number
+  imports: number
   bySector: Array<{
     sector: string
     employment: number
     production: number
     exports: number
+    domesticSales: number
+    imports: number
     capacityUtilization: number | null
   }>
 }
@@ -183,6 +207,20 @@ export interface PmoPrivatizationPotentialView {
     potentialValueNote: string
   }>
   potentialValueNote: string
+}
+
+export interface PmoLoansView {
+  totalOutstanding: number
+  loanCount: number
+  byLenderCategory: Record<
+    | typeof LENDER_CATEGORY.GOVERNMENT
+    | typeof LENDER_CATEGORY.BANK
+    | typeof LENDER_CATEGORY.FOREIGN
+    | typeof LENDER_CATEGORY.ADB
+    | typeof LENDER_CATEGORY.WORLD_BANK
+    | typeof LENDER_CATEGORY.CHINA,
+    number
+  >
 }
 
 export interface PmoStrategicIndicator {
@@ -239,6 +277,30 @@ function workforceCount(orgId: string) {
   return db.employees.filter((e) => e.organizationId === orgId).length
 }
 
+function soeCountByShareholding(orgIds: Set<string>): PmoShareholdingCounts {
+  const withGovernment = new Set<string>()
+  const withPrivate = new Set<string>()
+  const withForeign = new Set<string>()
+  const withProvincial = new Set<string>()
+
+  for (const line of db.ownershipLines) {
+    if (!orgIds.has(line.organizationId) || line.percentage <= 0) continue
+    if (line.category === SHAREHOLDER_CATEGORY.GOVERNMENT) withGovernment.add(line.organizationId)
+    if (line.category === SHAREHOLDER_CATEGORY.PRIVATE) withPrivate.add(line.organizationId)
+    if (line.category === SHAREHOLDER_CATEGORY.FOREIGN) withForeign.add(line.organizationId)
+    if (line.category === SHAREHOLDER_CATEGORY.PROVINCIAL_GOVERNMENT) {
+      withProvincial.add(line.organizationId)
+    }
+  }
+
+  return {
+    government: withGovernment.size,
+    private: withPrivate.size,
+    foreign: withForeign.size,
+    provincialGovernment: withProvincial.size,
+  }
+}
+
 const CAPITAL_DEFINITION =
   'Government capital employed (provisional) = sum of SOE paid-up capital × government ownership %. Formal MoF definition pending stakeholder confirmation.'
 
@@ -259,6 +321,7 @@ export interface PmoPortalService {
   getLandBank(filter?: PmoFilter): Promise<PmoLandBankView>
   getEmploymentIndustrial(filter?: PmoFilter): Promise<PmoEmploymentIndustrialView>
   getPrivatizationPotential(filter?: PmoFilter): Promise<PmoPrivatizationPotentialView>
+  getLoansSummary(filter?: PmoFilter): Promise<PmoLoansView>
   getStrategicIndicators(filter?: PmoFilter): Promise<PmoStrategicIndicator[]>
 }
 
@@ -315,6 +378,7 @@ export const mockPmoPortalService: PmoPortalService = {
       asOf: DEMO_AS_OF_DATE,
       reportingPeriodId,
       soeCount: orgs.length,
+      soeCountByShareholding: soeCountByShareholding(orgIds),
       governmentCapitalEmployed,
       aggregateAssetBookValue: assets.reduce((s, a) => s + (a.bookValue ?? 0), 0),
       aggregateAssetMarketValue: assets.reduce((s, a) => s + (a.marketValue ?? 0), 0),
@@ -470,6 +534,11 @@ export const mockPmoPortalService: PmoPortalService = {
     let debt = 0
     let grants = 0
     let guarantees = 0
+    let annualBudget = 0
+    let workingCapital = 0
+    let payables = 0
+    let totalAssets = 0
+    let financialStatementsCount = 0
     const sectorMap = new Map<
       string,
       { subsidies: number; debt: number; losses: number; guarantees: number }
@@ -487,6 +556,11 @@ export const mockPmoPortalService: PmoPortalService = {
       debt += d
       losses += loss
       guarantees += g
+      if (fin) financialStatementsCount += 1
+      annualBudget += fin?.annualBudget ?? 0
+      workingCapital += fin?.workingCapital ?? 0
+      payables += fin?.payables ?? 0
+      totalAssets += fin?.totalAssets ?? 0
       grants += db.grants
         .filter((x) => x.organizationId === org.id)
         .reduce((s, x) => s + x.amount, 0)
@@ -533,6 +607,11 @@ export const mockPmoPortalService: PmoPortalService = {
       losses,
       debt,
       grants,
+      annualBudget,
+      workingCapital,
+      payables,
+      debtRatio: calcDebtRatio({ totalDebt: debt, totalAssets }),
+      financialStatementsCount,
       note: FISCAL_NOTE,
       isCombinedOfficialNumber: false,
       trend,
@@ -593,6 +672,21 @@ export const mockPmoPortalService: PmoPortalService = {
     const industrial = land.filter(
       (a) => a.useClassification === LAND_USE_CLASS.INDUSTRIAL,
     )
+    const commercial = land.filter(
+      (a) => a.useClassification === LAND_USE_CLASS.COMMERCIAL,
+    )
+    const residential = land.filter(
+      (a) => a.useClassification === LAND_USE_CLASS.RESIDENTIAL,
+    )
+    const agricultural = land.filter(
+      (a) => a.useClassification === LAND_USE_CLASS.AGRICULTURAL,
+    )
+    const vacantByOccupancy = land.filter(
+      (a) => a.occupancyStatus === ASSET_OCCUPANCY.VACANT,
+    )
+    const occupiedByOccupancy = land.filter(
+      (a) => a.occupancyStatus === ASSET_OCCUPANCY.OCCUPIED,
+    )
     const vacant = land.filter(
       (a) =>
         a.occupancyStatus === ASSET_OCCUPANCY.VACANT ||
@@ -620,7 +714,12 @@ export const mockPmoPortalService: PmoPortalService = {
 
     return simulateLatency({
       totalLandAreaAcres: sumAcres(land),
+      vacantAcres: sumAcres(vacantByOccupancy),
+      occupiedAcres: sumAcres(occupiedByOccupancy),
       industrialLandAcres: sumAcres(industrial),
+      commercialLandAcres: sumAcres(commercial),
+      residentialLandAcres: sumAcres(residential),
+      agriculturalLandAcres: sumAcres(agricultural),
       vacantUnusedAcres: sumAcres(vacant),
       unencumberedAcres: sumAcres(unencumbered),
       marketValue: land.reduce((s, a) => s + (a.marketValue ?? 0), 0),
@@ -646,6 +745,7 @@ export const mockPmoPortalService: PmoPortalService = {
     let industrialProduction = 0
     let exportContribution = 0
     let domesticSales = 0
+    let imports = 0
     let utilSum = 0
     let utilN = 0
     const sectorMap = new Map<
@@ -654,6 +754,8 @@ export const mockPmoPortalService: PmoPortalService = {
         employment: number
         production: number
         exports: number
+        domesticSales: number
+        imports: number
         utilSum: number
         utilN: number
       }
@@ -664,10 +766,13 @@ export const mockPmoPortalService: PmoPortalService = {
       const emp = ind?.employment ?? workforceCount(org.id)
       const prod = ind?.actualProduction ?? 0
       const exp = ind?.exports ?? 0
+      const dom = ind?.domesticSales ?? 0
+      const imp = ind?.imports ?? 0
       industrialEmployment += ind?.employment ?? 0
       industrialProduction += prod
       exportContribution += exp
-      domesticSales += ind?.domesticSales ?? 0
+      domesticSales += dom
+      imports += imp
       if (ind?.capacityUtilization != null) {
         utilSum += ind.capacityUtilization
         utilN += 1
@@ -676,12 +781,16 @@ export const mockPmoPortalService: PmoPortalService = {
         employment: 0,
         production: 0,
         exports: 0,
+        domesticSales: 0,
+        imports: 0,
         utilSum: 0,
         utilN: 0,
       }
       row.employment += emp
       row.production += prod
       row.exports += exp
+      row.domesticSales += dom
+      row.imports += imp
       if (ind?.capacityUtilization != null) {
         row.utilSum += ind.capacityUtilization
         row.utilN += 1
@@ -697,15 +806,18 @@ export const mockPmoPortalService: PmoPortalService = {
       capacityUtilization: utilN ? utilSum / utilN : null,
       exportContribution,
       domesticSales,
+      imports,
       bySector: [...sectorMap.entries()]
         .map(([sector, v]) => ({
           sector,
           employment: v.employment,
           production: v.production,
           exports: v.exports,
+          domesticSales: v.domesticSales,
+          imports: v.imports,
           capacityUtilization: v.utilN ? v.utilSum / v.utilN : null,
         }))
-        .sort((a, b) => b.employment - a.employment),
+        .sort((a, b) => b.domesticSales - a.domesticSales),
     } satisfies PmoEmploymentIndustrialView)
   },
 
@@ -735,6 +847,35 @@ export const mockPmoPortalService: PmoPortalService = {
       potentialValueNote:
         'No speculative transaction proceeds are presented as official. Dummy pipeline staging only.',
     } satisfies PmoPrivatizationPotentialView)
+  },
+
+  async getLoansSummary(filter) {
+    const orgs = filterOrgs(filter)
+    const orgIds = new Set(orgs.map((o) => o.id))
+    const loans = db.loans.filter((loan) => orgIds.has(loan.organizationId))
+    const byLenderCategory = {
+      [LENDER_CATEGORY.GOVERNMENT]: 0,
+      [LENDER_CATEGORY.BANK]: 0,
+      [LENDER_CATEGORY.FOREIGN]: 0,
+      [LENDER_CATEGORY.ADB]: 0,
+      [LENDER_CATEGORY.WORLD_BANK]: 0,
+      [LENDER_CATEGORY.CHINA]: 0,
+    }
+
+    let totalOutstanding = 0
+    for (const loan of loans) {
+      totalOutstanding += loan.outstanding
+      if (loan.lenderCategory in byLenderCategory) {
+        byLenderCategory[loan.lenderCategory as keyof typeof byLenderCategory] +=
+          loan.outstanding
+      }
+    }
+
+    return simulateLatency({
+      totalOutstanding,
+      loanCount: loans.length,
+      byLenderCategory,
+    } satisfies PmoLoansView)
   },
 
   async getStrategicIndicators(filter) {

@@ -1,4 +1,4 @@
-import type { Employee, SanctionedPost } from '@/types/domain'
+import type { Consultant, DailyWager, Employee, SanctionedPost } from '@/types/domain'
 import { EMPLOYMENT_TYPE } from '@/constants'
 
 export interface PeopleValidationIssue {
@@ -54,6 +54,50 @@ export function validateEmployee(emp: Partial<Employee>): PeopleValidationIssue[
       field: 'assetDeclarationStatus',
       message: 'Asset declaration overdue.',
       severity: 'warning',
+    })
+  }
+  return issues
+}
+
+export function validateDailyWager(row: Partial<DailyWager>): PeopleValidationIssue[] {
+  const issues: PeopleValidationIssue[] = []
+  if (!row.name?.trim()) {
+    issues.push({ field: 'name', message: 'Name is required.', severity: 'error' })
+  }
+  if (!row.roleLabel?.trim()) {
+    issues.push({ field: 'roleLabel', message: 'Role is required.', severity: 'error' })
+  }
+  if (row.durationMonths != null && row.durationMonths <= 0) {
+    issues.push({ field: 'durationMonths', message: 'Duration must be positive.', severity: 'error' })
+  }
+  if (row.dailyRatePkr != null && row.dailyRatePkr < 0) {
+    issues.push({ field: 'dailyRatePkr', message: 'Daily rate cannot be negative.', severity: 'error' })
+  }
+  return issues
+}
+
+export function validateConsultant(row: Partial<Consultant>): PeopleValidationIssue[] {
+  const issues: PeopleValidationIssue[] = []
+  if (!row.name?.trim()) {
+    issues.push({ field: 'name', message: 'Consultant name is required.', severity: 'error' })
+  }
+  if (!row.project?.trim()) {
+    issues.push({ field: 'project', message: 'Project is required.', severity: 'error' })
+  }
+  if (row.contractStart && row.contractEnd) {
+    if (new Date(row.contractEnd) < new Date(row.contractStart)) {
+      issues.push({
+        field: 'contractEnd',
+        message: 'Contract end must be after start.',
+        severity: 'error',
+      })
+    }
+  }
+  if (row.monthlyRemunerationPkr != null && row.monthlyRemunerationPkr < 0) {
+    issues.push({
+      field: 'monthlyRemunerationPkr',
+      message: 'Remuneration cannot be negative.',
+      severity: 'error',
     })
   }
   return issues

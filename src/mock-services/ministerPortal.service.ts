@@ -17,6 +17,7 @@ import {
   STRATEGIC_OPPORTUNITY_KIND,
   SUBMISSION_STATUS,
   type PortfolioHealthBand,
+  type LegalStatus,
   type SoeStatus,
   type StrategicOpportunityKind,
 } from '@/constants'
@@ -99,6 +100,7 @@ export interface MinisterHealthRow {
   name: string
   sector: string
   province: string
+  legalStatus: LegalStatus
   status: SoeStatus
   financialPosition: 'profitable' | 'loss' | 'persistent_loss' | 'unavailable'
   governanceCondition: 'ok' | 'attention' | 'critical'
@@ -313,6 +315,7 @@ function buildHealthRows(filter?: MinisterFilter): MinisterHealthRow[] {
       name: org.name,
       sector: org.sector,
       province: orgProvince(org.id),
+      legalStatus: org.legalStatus,
       status: org.status,
       financialPosition,
       governanceCondition,

@@ -394,7 +394,7 @@ export function SoeExecutiveDashboardPage() {
             <div className="mt-5 space-y-4">
               <div className="flex items-center justify-between border-b border-soe-border pb-3"><span className="flex items-center gap-2 text-xs text-soe-slate"><CalendarClock size={15} /> Board terms expiring</span><span className="font-semibold text-soe-navy">{d.people.termsExpiring}</span></div>
               <div className="flex items-center justify-between border-b border-soe-border pb-3"><span className="flex items-center gap-2 text-xs text-soe-slate"><Users size={15} /> Critical workforce gaps</span><span className="font-semibold text-soe-navy">{d.people.criticalVacancies}</span></div>
-              <Link to="/soe/people/calendar" className="inline-flex items-center gap-1 text-xs font-medium text-soe-blue">Open governance calendar <ArrowRight size={13} /></Link>
+              <Link to="/soe/people/executives" className="inline-flex items-center gap-1 text-xs font-medium text-soe-blue">Open executives <ArrowRight size={13} /></Link>
             </div>
           </ChartPanel>
         </div>
@@ -451,7 +451,7 @@ export function SoeExecutiveDashboardPage() {
           </ChartPanel>
           <ChartPanel title="Asset geography" subtitle="Value concentration by province">
             <div className="space-y-4">{d.assets.byProvince.slice(0, 6).map((item) => <div key={item.province}><div className="mb-1.5 flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs text-soe-navy"><MapPinned size={13} className="text-soe-slate" />{item.province}</span><span className="text-xs font-medium text-soe-navy">{formatCurrencyPkr(item.value)}</span></div><ProgressBar value={d.assets.marketValue ? (item.value / d.assets.marketValue) * 100 : 0} tone="bg-soe-blue" /></div>)}</div>
-            <Link to="/soe/assets/map" className="mt-6 inline-flex items-center gap-1 text-xs font-medium text-soe-blue">Open asset map <ArrowRight size={13} /></Link>
+            <Link to="/soe/assets/land" className="mt-6 inline-flex items-center gap-1 text-xs font-medium text-soe-blue">Open land assets <ArrowRight size={13} /></Link>
           </ChartPanel>
         </div>
       </section>

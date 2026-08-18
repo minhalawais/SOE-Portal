@@ -34,12 +34,22 @@ export interface BoardService {
   getCommittees(organizationId?: string): Promise<BoardCommittee[]>
   getExecutives(organizationId?: string): Promise<Executive[]>
   getExecutive(id: string): Promise<Executive>
+  createExecutive(payload: Omit<Executive, 'id'> & { id?: string }): Promise<Executive>
   updateExecutive(id: string, patch: Partial<Executive>): Promise<Executive>
   getBoardSummary(organizationId?: string, portfolioScope?: boolean): Promise<BoardSummary>
   getCalendar(
     organizationId?: string,
     view?: 'upcoming' | 'overdue' | 'all',
   ): Promise<GovernanceCalendarEvent[]>
+  getCalendarEvent(id: string): Promise<GovernanceCalendarEvent>
+  createCalendarEvent(
+    payload: Omit<GovernanceCalendarEvent, 'id'> & { id?: string },
+  ): Promise<GovernanceCalendarEvent>
+  updateCalendarEvent(
+    id: string,
+    patch: Partial<GovernanceCalendarEvent>,
+  ): Promise<GovernanceCalendarEvent>
+  createBoardMember(payload: Omit<BoardMember, 'id'> & { id?: string }): Promise<BoardMember>
   updateBoardMember(id: string, patch: Partial<BoardMember>): Promise<BoardMember>
 }
 
@@ -165,6 +175,20 @@ export const mockBoardService: BoardService = {
     return simulateLatency(row)
   },
 
+  async createExecutive(payload) {
+    const id = payload.id ?? `exec-new-${Date.now()}`
+    const next: Executive = { ...payload, id, isDummyDemonstrationData: true }
+    if (next.salaryPkr != null && next.salaryPkr < 0) {
+      throw new AppError('Salary cannot be negative', 'VALIDATION')
+    }
+    if (next.bonusPkr != null && next.bonusPkr < 0) {
+      throw new AppError('Bonus cannot be negative', 'VALIDATION')
+    }
+    if (!next.name?.trim()) throw new AppError('Executive name is required.', 'VALIDATION')
+    db.executives.push(next)
+    return simulateMutation(next)
+  },
+
   async updateExecutive(id, patch) {
     const idx = db.executives.findIndex((e) => e.id === id)
     if (idx < 0) throw new AppError('Executive not found', 'NOT_FOUND')
@@ -197,6 +221,55 @@ export const mockBoardService: BoardService = {
     }
     items.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     return simulateLatency(items)
+  },
+
+  async getCalendarEvent(id) {
+    const row = db.governanceCalendar.find((e) => e.id === id)
+    if (!row) throw new AppError('Calendar event not found', 'NOT_FOUND')
+    return simulateLatency(row)
+  },
+
+  async createCalendarEvent(payload) {
+    const id = payload.id ?? `gcal-new-${Date.now()}`
+    if (!payload.title?.trim()) throw new AppError('Calendar item title is required.', 'VALIDATION')
+    if (!payload.dueDate?.trim()) throw new AppError('Due date is required.', 'VALIDATION')
+    const status =
+      payload.status ??
+      (daysUntil(payload.dueDate, DEMO_AS_OF_DATE) < 0
+        ? 'overdue'
+        : daysUntil(payload.dueDate, DEMO_AS_OF_DATE) <= 30
+          ? 'due_soon'
+          : 'upcoming')
+    const next: GovernanceCalendarEvent = { ...payload, id, status }
+    db.governanceCalendar.push(next)
+    return simulateMutation(next)
+  },
+
+  async updateCalendarEvent(id, patch) {
+    const idx = db.governanceCalendar.findIndex((e) => e.id === id)
+    if (idx < 0) throw new AppError('Calendar event not found', 'NOT_FOUND')
+    const merged = { ...db.governanceCalendar[idx], ...patch, id }
+    if (merged.dueDate) {
+      merged.status =
+        daysUntil(merged.dueDate, DEMO_AS_OF_DATE) < 0
+          ? 'overdue'
+          : daysUntil(merged.dueDate, DEMO_AS_OF_DATE) <= 30
+            ? 'due_soon'
+            : 'upcoming'
+    }
+    db.governanceCalendar[idx] = merged
+    return simulateMutation(merged)
+  },
+
+  async createBoardMember(payload) {
+    const id = payload.id ?? `board-new-${Date.now()}`
+    const next: BoardMember = { ...payload, id, isDummyDemonstrationData: true }
+    if (!next.name?.trim()) throw new AppError('Board member name is required.', 'VALIDATION')
+    if (new Date(next.appointmentDate) > new Date(next.expiryDate)) {
+      throw new AppError('Appointment date must be before expiry', 'VALIDATION')
+    }
+    db.boardMembers.push(next)
+    return simulateMutation(next)
   },
 
   async updateBoardMember(id, patch) {

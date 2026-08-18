@@ -4,6 +4,7 @@ import { resetMockDb } from '@/mock-data'
 import { resetMockRuntime } from '@/mock-data/runtime'
 import { mockSoePortalService } from '@/mock-services'
 import { modulesForRole, REPORTING_MODULES } from '@/workflow/moduleCatalog'
+import { getPortalDefinitionForRole } from '@/app/config/navigation'
 
 describe('Phase 6 SOE portal', () => {
   beforeEach(() => {
@@ -87,5 +88,27 @@ describe('Phase 6 SOE portal', () => {
   it('searches modules and documents', async () => {
     const hits = await mockSoePortalService.search('org-psm', 'finance')
     expect(hits.some((h) => h.type === 'module')).toBe(true)
+  })
+
+  it('hides finance analytics routes from contributor navigation', () => {
+    const def = getPortalDefinitionForRole('soe', ROLE.SOE_FOCAL_PERSON)
+    const finance = def.navigation.find((n) => n.id === 'soe-finance')
+    const routes = (finance?.children ?? []).map((c) => c.route)
+    expect(routes).not.toContain('/soe/finance/performance')
+    expect(routes).not.toContain('/soe/finance/budget')
+    expect(routes).not.toContain('/soe/finance/statements')
+    expect(routes).not.toContain('/soe/finance/exposure')
+    expect(routes).not.toContain('/soe/finance/compare')
+    expect(routes).toContain('/soe/finance/form')
+  })
+
+  it('keeps module stats on dashboard and reporting only', async () => {
+    const dash = await mockSoePortalService.getDashboard(
+      'org-psm',
+      'period-fy2027',
+      ROLE.SOE_FOCAL_PERSON,
+    )
+    expect(dash.overallCompletion).toBeGreaterThanOrEqual(0)
+    expect(dash.modules.every((m) => typeof m.submission.completeness === 'number')).toBe(true)
   })
 })

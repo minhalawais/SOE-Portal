@@ -30,13 +30,12 @@ import {
   AlertDetailWorkspace,
   EscalationDetailWorkspace,
   MinisterAlertsPage,
-  MoipTasksEarlyWarningPage,
+  MoipLogsEarlyWarningPage,
   SoeAlertsPage,
   SoeNotificationsPage,
   TaskDetailWorkspace,
 } from '@/portals/shared/TasksEarlyWarningWorkspacePages'
-import { FinanceOverviewPage } from '@/portals/soe/finance/FinanceOverviewPage'
-import { FinanceFormPage } from '@/portals/soe/finance/FinanceFormPage'
+import { SoeLogsPage } from '@/portals/shared/LogsWorkspacePages'
 import { FinanceReviewPage } from '@/portals/soe/finance/FinanceReviewPage'
 import { FinanceCertifyPage } from '@/portals/soe/finance/FinanceCertifyPage'
 import { FinanceClarificationPage } from '@/portals/soe/finance/FinanceClarificationPage'
@@ -52,7 +51,6 @@ import {
   MoipFinanceIntelligencePage,
 } from '@/portals/shared/FinanceFiscalWorkspacePages'
 import {
-  AssetsModulePage,
   AuditModulePage,
   BoardModulePage,
   ComplianceModulePage,
@@ -62,7 +60,6 @@ import {
   EnterpriseProfilePage,
   EnterpriseStructurePage,
   ExecutivesModulePage,
-  GovernanceCalendarPage,
   IndustrialModulePage,
   LitigationModulePage,
   LoansModulePage,
@@ -103,12 +100,10 @@ import {
   MoipEnterpriseStructurePage,
 } from '@/portals/shared/EnterpriseWorkspacePages'
 import {
-  AssetCreateWorkspace,
   MinisterAssetDetailPage,
   MoipAssetDetailPage,
   MoipAssetsPage,
   SoeAssetDetailPage,
-  SoeAssetMapPage,
   SoeBuildingAssetsPage,
   SoeEquipmentAssetsPage,
   SoeLandAssetsPage,
@@ -124,7 +119,6 @@ import {
   MinisterIntelligencePage,
   MoipIntelligencePage,
   SecretaryIntelligencePage,
-  SoeIntelligencePage,
 } from '@/portals/shared/IntelligenceRiskWorkspacePages'
 import {
   MinisterAdvancedSearchPage,
@@ -170,7 +164,7 @@ import {
   MoipSoeAdministrationDetailPage,
   MoipUserAdministrationDetailPage,
 } from '@/portals/moip/MoipAdministrationDetailPages'
-import { TasksNotificationsPage } from '@/portals/soe/finance/ReportingAndTasksPages'
+import { FinanceOverviewPage } from '@/portals/soe/finance/FinanceOverviewPage'
 import {
   MinisterFinanceDrillPage,
 } from '@/portals/minister/MinisterFinancePages'
@@ -200,12 +194,17 @@ import { useSessionStore } from '@/state/session'
 
 /** Must return Route elements directly — RR v6 rejects custom wrapper components as Routes children. */
 function placeholderRoutes(portal: PortalId) {
+  const portalPrefix = `/${portal}`
   return flattenNavigation(portalDefinitions[portal].navigation)
+    .filter(
+      (item) =>
+        item.route === portalPrefix || item.route.startsWith(`${portalPrefix}/`),
+    )
     .filter((item) => !implementedRoutes.has(item.route))
     .map((item) => (
       <Route
         key={item.route}
-        path={item.route.replace(`/${portal}/`, '')}
+        path={item.route.replace(`${portalPrefix}/`, '')}
         element={<ModulePlaceholderPage />}
       />
     ))
@@ -269,15 +268,9 @@ export function AppRouter() {
               <Route path="enterprise/locations" element={<EnterpriseLocationsPage />} />
               <Route path="enterprise/history" element={<EnterpriseHistoryPage />} />
 
-              <Route path="assets" element={<Navigate to="/soe/assets/registry" replace />} />
-              <Route
-                path="assets/registry"
-                element={
-                  <RequirePermission permission={PERMISSION.ASSETS_READ}>
-                    <AssetsModulePage />
-                  </RequirePermission>
-                }
-              />
+              <Route path="assets" element={<Navigate to="/soe/assets/land" replace />} />
+              <Route path="assets/registry" element={<Navigate to="/soe/assets/land" replace />} />
+              <Route path="assets/new" element={<Navigate to="/soe/assets/land" replace />} />
               <Route
                 path="assets/land"
                 element={
@@ -320,19 +313,7 @@ export function AppRouter() {
               />
               <Route
                 path="assets/map"
-                element={
-                  <RequirePermission permission={PERMISSION.ASSETS_READ}>
-                    <SoeAssetMapPage />
-                  </RequirePermission>
-                }
-              />
-              <Route
-                path="assets/new"
-                element={
-                  <RequirePermission permission={PERMISSION.ASSETS_CREATE}>
-                    <AssetCreateWorkspace />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/soe/assets/land" replace />}
               />
               <Route
                 path="assets/:assetId"
@@ -349,8 +330,8 @@ export function AppRouter() {
               <Route path="people/board/:memberId" element={<BoardMemberDetailWorkspace />} />
               <Route path="people/executives" element={<ExecutivesModulePage />} />
               <Route path="people/executives/:executiveId" element={<ExecutiveDetailWorkspace />} />
-              <Route path="people/calendar" element={<GovernanceCalendarPage />} />
-              <Route path="people" element={<Navigate to="/soe/people/workforce" replace />} />
+              <Route path="people/calendar" element={<Navigate to="/soe/people/executives" replace />} />
+              <Route path="people" element={<Navigate to="/soe/people/executives" replace />} />
 
               <Route path="finance" element={<FinanceOverviewPage />} />
               <Route path="finance/performance" element={<FinancePerformancePage />} />
@@ -358,7 +339,7 @@ export function AppRouter() {
               <Route path="finance/statements" element={<FinanceStatementsPage />} />
               <Route path="finance/exposure" element={<FinanceExposurePage />} />
               <Route path="finance/compare" element={<FinanceComparePage />} />
-              <Route path="finance/form" element={<FinanceFormPage />} />
+              <Route path="finance/form" element={<Navigate to="/soe/finance" replace />} />
               <Route path="finance/review" element={<FinanceReviewPage />} />
               <Route path="finance/certify" element={<FinanceCertifyPage />} />
               <Route path="finance/clarification" element={<FinanceClarificationPage />} />
@@ -367,6 +348,10 @@ export function AppRouter() {
               <Route path="finance/loans/:loanId" element={<LoanDetailWorkspace portal="soe" />} />
 
               <Route path="accountability/procurement" element={<ProcurementModulePage />} />
+              <Route
+                path="accountability"
+                element={<Navigate to="/soe/accountability/procurement" replace />}
+              />
               <Route
                 path="accountability/procurement/:id"
                 element={
@@ -406,14 +391,6 @@ export function AppRouter() {
 
               <Route path="industrial" element={<IndustrialModulePage />} />
               <Route
-                path="intelligence"
-                element={
-                  <RequirePermission permission={PERMISSION.FINANCE_READ}>
-                    <SoeIntelligencePage />
-                  </RequirePermission>
-                }
-              />
-              <Route
                 path="reports"
                 element={
                   <RequirePermission permission={PERMISSION.ORGANIZATION_READ}>
@@ -438,8 +415,9 @@ export function AppRouter() {
                   </RequirePermission>
                 }
               />
-              <Route path="tasks" element={<TasksNotificationsPage />} />
-              <Route path="tasks/:taskId" element={<TaskDetailWorkspace portal="soe" />} />
+              <Route path="logs" element={<SoeLogsPage />} />
+              <Route path="tasks" element={<Navigate to="/soe/logs" replace />} />
+              <Route path="tasks/:taskId" element={<Navigate to="/soe/logs" replace />} />
               <Route path="notifications" element={<SoeNotificationsPage />} />
               <Route path="alerts" element={<SoeAlertsPage />} />
               <Route path="alerts/:alertId" element={<AlertDetailWorkspace portal="soe" />} />
@@ -590,8 +568,9 @@ export function AppRouter() {
                   </RequirePermission>
                 }
               />
-              <Route path="tasks" element={<MoipTasksEarlyWarningPage />} />
-              <Route path="tasks/:taskId" element={<TaskDetailWorkspace portal="moip" />} />
+              <Route path="logs" element={<MoipLogsEarlyWarningPage />} />
+              <Route path="tasks" element={<Navigate to="/moip/logs" replace />} />
+              <Route path="tasks/:taskId" element={<Navigate to="/moip/logs" replace />} />
               <Route path="alerts/:alertId" element={<AlertDetailWorkspace portal="moip" />} />
               <Route path="escalations/:id" element={<EscalationDetailWorkspace portal="moip" />} />
               <Route

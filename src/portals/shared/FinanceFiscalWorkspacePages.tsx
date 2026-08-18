@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -15,11 +15,13 @@ import {
   YAxis,
 } from 'recharts'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ContributorModuleLayout, EntryFormSection, EntryFormShell, ExecutiveModuleSectionNav, RegistryTabBar } from '@/components/soe'
 import { DataTable } from '@/components/tables/DataTable'
 import { Button } from '@/design-system/components/Button'
 import { Card } from '@/design-system/components/Card'
 import { ChartContainer } from '@/design-system/components/ChartContainer'
 import { EmptyState, ErrorState, LoadingBlock, Alert } from '@/design-system/components/Feedback'
+import { CurrencyField, PkrAmountInput, TextField } from '@/design-system/components/Fields'
 import { KpiCard } from '@/design-system/components/KpiCard'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
 import { RequirePermission } from '@/app/router/guards'
@@ -28,6 +30,7 @@ import {
   LENDER_CATEGORY_LABEL,
   LOAN_GUARANTEE_STATUS_LABEL,
   LOAN_REPAYMENT_STATUS_LABEL,
+  MODULE,
   type LenderCategoryConst,
 } from '@/constants'
 import {
@@ -50,6 +53,7 @@ import type {
   LoanRepayment,
 } from '@/types/domain'
 import { AppError, cn, formatCurrencyPkr } from '@/utils'
+import { useGrantEntry, useBudgetLineEntry, useLoanEntry } from '@/portals/shared/financeEntryForms'
 import {
   calcBudgetVariance,
   formatPct,
@@ -81,37 +85,6 @@ const inputClass =
 
 function periodLabel(id: string, periods: Array<{ id: string; label: string }>) {
   return periods.find((p) => p.id === id)?.label ?? id
-}
-
-function FinanceIntelNav() {
-  return (
-    <nav className="mb-4 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-      <Link className={linkClass} to="/soe/finance">
-        Reporting
-      </Link>
-      <Link className={linkClass} to="/soe/finance/performance">
-        Performance
-      </Link>
-      <Link className={linkClass} to="/soe/finance/budget">
-        Budget
-      </Link>
-      <Link className={linkClass} to="/soe/finance/statements">
-        Statements
-      </Link>
-      <Link className={linkClass} to="/soe/finance/exposure">
-        Exposure
-      </Link>
-      <Link className={linkClass} to="/soe/finance/compare">
-        Compare
-      </Link>
-      <Link className={linkClass} to="/soe/finance/loans">
-        Loans & grants
-      </Link>
-      <Link className={linkClass} to="/soe/industrial">
-        Industrial
-      </Link>
-    </nav>
-  )
 }
 
 export function FinancePerformancePage() {
@@ -160,8 +133,6 @@ function FinancePerformanceContent() {
         title="Financial performance"
         subtitle={`${org.data?.abbreviation ?? 'SOE'} · dummy demonstration data · ratios provisional`}
       />
-      <FinanceIntelNav />
-
       {consecutiveLossYears >= 3 ? (
         <Alert
           tone="critical"
@@ -326,6 +297,17 @@ export function FinanceBudgetPage() {
 function FinanceBudgetContent() {
   const organizationId = useSessionStore((s) => s.organizationId)
   const reportingPeriodId = useSessionStore((s) => s.reportingPeriodId)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const budgetLineId = searchParams.get('budgetLineId')
+
+  const selectLine = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('budgetLineId', id)
+    else next.delete('budgetLineId')
+    setSearchParams(next)
+  }
+  const budgetEntry = useBudgetLineEntry(budgetLineId, organizationId, reportingPeriodId, selectLine)
+
   const query = useQuery({
     queryKey: ['budget-lines', organizationId, reportingPeriodId],
     queryFn: () => mockFinanceService.getBudgetLines(organizationId, reportingPeriodId),
@@ -333,7 +315,19 @@ function FinanceBudgetContent() {
 
   const columns = useMemo<ColumnDef<BudgetLine, unknown>[]>(
     () => [
-      { accessorKey: 'category', header: 'Category' },
+      {
+        accessorKey: 'category',
+        header: 'Category',
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="text-soe-navy hover:underline"
+            onClick={() => selectLine(row.original.id)}
+          >
+            {row.original.category}
+          </button>
+        ),
+      },
       {
         accessorKey: 'budget',
         header: 'Budget',
@@ -358,7 +352,7 @@ function FinanceBudgetContent() {
         },
       },
     ],
-    [],
+    [selectLine],
   )
 
   const chartData =
@@ -368,13 +362,8 @@ function FinanceBudgetContent() {
       actual: r.actual,
     })) ?? []
 
-  return (
-    <div>
-      <PageHeader
-        title="Annual budget"
-        subtitle="Budget vs actual by category · provisional classifications · demo data"
-      />
-      <FinanceIntelNav />
+  const registryBody = (
+    <>
       {query.isLoading ? <LoadingBlock /> : null}
       {query.isError ? <ErrorState title="Unable to load budget lines" /> : null}
       {query.data && query.data.length === 0 ? (
@@ -382,9 +371,14 @@ function FinanceBudgetContent() {
       ) : null}
       {query.data && query.data.length > 0 ? (
         <>
-          <div className="mb-4">
-            <DataTable data={query.data} columns={columns} density="compact" showSearch={false} />
-          </div>
+          <DataTable
+            data={query.data}
+            columns={columns}
+            density="compact"
+            showSearch={false}
+            selectedRowId={budgetLineId}
+            getRowId={(r) => r.id}
+          />
           <ChartContainer
             title="Budget vs actual"
             isEmpty={chartData.length === 0}
@@ -404,7 +398,31 @@ function FinanceBudgetContent() {
           </ChartContainer>
         </>
       ) : null}
-    </div>
+    </>
+  )
+
+  return (
+    <ContributorModuleLayout
+      moduleId={MODULE.FINANCE}
+      title="Annual budget"
+      entry={budgetEntry.entry}
+      onSave={budgetEntry.onSave}
+      onCancel={budgetEntry.onCancel}
+      saving={budgetEntry.saving}
+      saveDisabled={budgetEntry.saveDisabled}
+      showFormActions={budgetEntry.showFormActions}
+      saveLabel={budgetEntry.saveLabel}
+      cancelLabel="Clear form"
+      actions={
+        budgetLineId ? (
+          <Button size="sm" variant="secondary" onClick={() => selectLine(null)}>
+            Add new
+          </Button>
+        ) : null
+      }
+      registryTitle="Budget lines"
+      registry={registryBody}
+    />
   )
 }
 
@@ -416,7 +434,6 @@ export function FinanceStatementsPage() {
           title="Financial statement evidence"
           subtitle="Metadata placeholders — no real file storage"
         />
-        <FinanceIntelNav />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             'Balance Sheet',
@@ -483,8 +500,6 @@ function FinanceExposureContent({ portal }: { portal: PortalMode }) {
         title={portal === 'soe' ? 'Government exposure' : 'Fiscal exposure'}
         subtitle="Prototype aggregation — methodology not formally approved · demo data"
       />
-      {portal === 'soe' ? <FinanceIntelNav /> : null}
-
       <Alert tone="info" title="Prototype aggregation — not formally approved methodology" className="mb-3" />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -582,7 +597,6 @@ function FinanceCompareContent() {
         title="Period comparison"
         subtitle="Cross-period metrics · dummy demonstration data"
       />
-      <FinanceIntelNav />
       {compare.isLoading || periodsQ.isLoading ? <LoadingBlock /> : null}
       {compare.isError ? <ErrorState title="Unable to build comparison" /> : null}
       {compare.data ? (
@@ -626,6 +640,28 @@ function FinanceCompareContent() {
 export function LoansRegistryWorkspace({ portal = 'soe' }: { portal?: PortalMode }) {
   const organizationId = useSessionStore((s) => s.organizationId)
   const scoped = portal === 'soe' ? organizationId : undefined
+  const [searchParams, setSearchParams] = useSearchParams()
+  const registryTab = (searchParams.get('tab') ?? 'loans') as 'loans' | 'grants'
+  const loanId = searchParams.get('loanId')
+  const grantId = searchParams.get('grantId')
+
+  const selectRecord = (param: string, id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set(param, id)
+    else next.delete(param)
+    setSearchParams(next)
+  }
+  const loanEntry = useLoanEntry(
+    portal === 'soe' && registryTab === 'loans' ? loanId : null,
+    organizationId,
+    (id) => selectRecord('loanId', id),
+  )
+  const grantEntry = useGrantEntry(
+    portal === 'soe' && registryTab === 'grants' ? grantId : null,
+    organizationId,
+    (id) => selectRecord('grantId', id),
+  )
+
   const loans = useQuery({
     queryKey: ['loans-registry', scoped ?? 'all'],
     queryFn: () => mockLoanService.getLoans(scoped),
@@ -638,16 +674,28 @@ export function LoansRegistryWorkspace({ portal = 'soe' }: { portal?: PortalMode
   const detailBase =
     portal === 'moip' ? '/moip/finance/loans' : portal === 'minister' ? '/minister/fiscal/loans' : '/soe/finance/loans'
 
+  const selectLoan = (id: string) => selectRecord('loanId', id)
+  const selectGrant = (id: string) => selectRecord('grantId', id)
+
   const columns = useMemo<ColumnDef<Loan, unknown>[]>(
     () => [
       {
         accessorKey: 'id',
         header: 'Loan ID',
-        cell: ({ row }) => (
-          <Link className={linkClass} to={`${detailBase}/${row.original.id}`}>
-            {row.original.id}
-          </Link>
-        ),
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectLoan(row.original.id)}
+            >
+              {row.original.id}
+            </button>
+          ) : (
+            <Link className={linkClass} to={`${detailBase}/${row.original.id}`}>
+              {row.original.id}
+            </Link>
+          ),
       },
       { accessorKey: 'lender', header: 'Lender' },
       {
@@ -692,8 +740,129 @@ export function LoansRegistryWorkspace({ portal = 'soe' }: { portal?: PortalMode
       },
       { accessorKey: 'defaultStatus', header: 'Default' },
     ],
-    [detailBase],
+    [detailBase, portal, selectLoan],
   )
+
+  const grantColumns = useMemo<ColumnDef<Grant, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'source',
+        header: 'Source',
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectGrant(row.original.id)}
+            >
+              {row.original.source}
+            </button>
+          ) : (
+            row.original.source
+          ),
+      },
+      { accessorKey: 'project', header: 'Project' },
+      {
+        accessorKey: 'amount',
+        header: 'Amount',
+        cell: ({ getValue }) => formatCurrencyPkr(Number(getValue())),
+      },
+      {
+        accessorKey: 'utilized',
+        header: 'Utilized',
+        cell: ({ getValue }) => formatCurrencyPkr(Number(getValue())),
+      },
+      { accessorKey: 'status', header: 'Status' },
+    ],
+    [portal, selectGrant],
+  )
+
+  const tabFilters = (
+    <RegistryTabBar
+      tabs={[
+        { id: 'loans' as const, label: 'Loans' },
+        { id: 'grants' as const, label: 'Grants & subsidies' },
+      ]}
+      active={registryTab}
+      onChange={(id) => {
+        const next = new URLSearchParams(searchParams)
+        next.set('tab', id)
+        next.delete('loanId')
+        next.delete('grantId')
+        setSearchParams(next)
+      }}
+    />
+  )
+
+  const loansRegistry = (
+    <>
+      {loans.isLoading ? <LoadingBlock label="Loading loans…" /> : null}
+      {loans.isError ? <ErrorState title="Unable to load loans" /> : null}
+      {loans.data?.length ? (
+        <DataTable
+          data={loans.data}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? loanId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : loans.data ? (
+        <EmptyState title="No loans" />
+      ) : null}
+    </>
+  )
+
+  const grantsRegistry = (
+    <>
+      {grants.isLoading ? <LoadingBlock label="Loading grants…" /> : null}
+      {grants.data?.length ? (
+        <DataTable
+          data={grants.data}
+          columns={grantColumns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? grantId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : grants.data ? (
+        <EmptyState title="No grants" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    const activeEntry = registryTab === 'grants' ? grantEntry : loanEntry
+    return (
+      <RequirePermission permission={PERMISSION.FINANCE_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.LOANS}
+          title="Loans & grants"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-finance" />}
+          entry={activeEntry.entry}
+          onSave={activeEntry.onSave}
+          onCancel={activeEntry.onCancel}
+          saving={activeEntry.saving}
+          saveDisabled={activeEntry.saveDisabled}
+          showFormActions={activeEntry.showFormActions}
+          saveLabel={activeEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            registryTab === 'loans' && loanId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectRecord('loanId', null)}>
+                Add new
+              </Button>
+            ) : registryTab === 'grants' && grantId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectRecord('grantId', null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle={registryTab === 'grants' ? 'Grants registry' : 'Loans registry'}
+          filters={tabFilters}
+          registry={registryTab === 'grants' ? grantsRegistry : loansRegistry}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.FINANCE_READ}>
@@ -702,7 +871,6 @@ export function LoansRegistryWorkspace({ portal = 'soe' }: { portal?: PortalMode
           title="Loans & grants"
           subtitle="Debt registry · dummy demonstration data"
         />
-        {portal === 'soe' ? <FinanceIntelNav /> : null}
         {loans.isLoading ? <LoadingBlock label="Loading loans…" /> : null}
         {loans.isError ? <ErrorState title="Unable to load loans" /> : null}
         {loans.data ? (
@@ -823,12 +991,14 @@ export function LoanDetailWorkspace({ portal = 'soe' }: { portal?: PortalMode })
           }
         />
 
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Principal" value={formatCurrencyPkr(l.principal)} />
-          <KpiCard label="Outstanding" value={formatCurrencyPkr(l.outstanding)} />
-          <KpiCard label="Interest" value={`${l.interestRate}%`} />
-          <KpiCard label="Next due" value={l.nextDueDate} />
-        </div>
+        {portal !== 'soe' ? (
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard label="Principal" value={formatCurrencyPkr(l.principal)} />
+            <KpiCard label="Outstanding" value={formatCurrencyPkr(l.outstanding)} />
+            <KpiCard label="Interest" value={`${l.interestRate}%`} />
+            <KpiCard label="Next due" value={l.nextDueDate} />
+          </div>
+        ) : null}
 
         {canEdit && draft ? (
           <Card title="Modify current data" className="mb-4">
@@ -843,11 +1013,11 @@ export function LoanDetailWorkspace({ portal = 'soe' }: { portal?: PortalMode })
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-xs font-semibold text-soe-slate">Principal PKR</span>
-                <input className={inputClass} min={0} type="number" value={draft.principal} onChange={(e) => setDraft({ ...draft, principal: Number(e.target.value) })} />
+                <PkrAmountInput className={inputClass} min={0} value={draft.principal} onChange={(e) => setDraft({ ...draft, principal: Number(e.target.value) })} />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-xs font-semibold text-soe-slate">Outstanding PKR</span>
-                <input className={inputClass} min={0} type="number" value={draft.outstanding} onChange={(e) => setDraft({ ...draft, outstanding: Number(e.target.value) })} />
+                <PkrAmountInput className={inputClass} min={0} value={draft.outstanding} onChange={(e) => setDraft({ ...draft, outstanding: Number(e.target.value) })} />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-xs font-semibold text-soe-slate">Interest %</span>
@@ -986,7 +1156,19 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
   }
 
   const row = rowQ.data
-  const edit: IndustrialDraft = draft ?? {
+  const edit: IndustrialDraft = draft ?? (canEdit ? {
+    installedCapacity: 0,
+    actualProduction: 0,
+    exports: 0,
+    imports: 0,
+    domesticSales: 0,
+    employment: 0,
+    energyConsumption: 0,
+    energyUnit: 'MWh',
+    carbonEmissions: 0,
+    carbonUnit: 'MT',
+    capacityUnit: 'Units',
+  } : {
     installedCapacity: row.installedCapacity,
     actualProduction: row.actualProduction,
     exports: row.exports,
@@ -998,7 +1180,7 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
     carbonEmissions: row.carbonEmissions,
     carbonUnit: row.carbonUnit,
     capacityUnit: row.capacityUnit,
-  }
+  })
 
   const chartData =
     histQ.data?.map((h) => {
@@ -1012,6 +1194,45 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
       }
     }) ?? []
 
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.FINANCE_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.INDUSTRIAL}
+          title="Industrial performance"
+          onSave={canEdit ? () => save.mutate() : undefined}
+          saveDisabled={!draft || save.isPending}
+          saving={save.isPending}
+          saveLabel="Save industrial data"
+          showFormActions={canEdit}
+          entry={
+            <EntryFormShell
+              title="Industrial performance"
+              subtitle="Period-scoped production, trade and environment data"
+              mode={canEdit ? 'edit' : 'view'}
+              columns={3}
+            >
+              <EntryFormSection title="Production" />
+                <TextField label="Installed capacity" type="number" min={0} value={edit.installedCapacity} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, installedCapacity: Number(e.target.value) })} />
+                <TextField label="Capacity unit" value={edit.capacityUnit} disabled={!canEdit} onChange={(e) => setDraft({ ...edit, capacityUnit: e.target.value })} />
+                <TextField label="Actual production" type="number" min={0} value={edit.actualProduction} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, actualProduction: Number(e.target.value) })} />
+                <TextField label="Employment" type="number" min={0} value={edit.employment} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, employment: Number(e.target.value) })} />
+              <EntryFormSection title="Trade" />
+                <CurrencyField label="Exports (PKR)" min={0} value={edit.exports} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, exports: Number(e.target.value) })} />
+                <CurrencyField label="Imports (PKR)" min={0} value={edit.imports} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, imports: Number(e.target.value) })} />
+                <CurrencyField label="Domestic sales (PKR)" min={0} value={edit.domesticSales} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, domesticSales: Number(e.target.value) })} />
+              <EntryFormSection title="Energy & environment" />
+                <TextField label="Energy consumption" type="number" min={0} value={edit.energyConsumption} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, energyConsumption: Number(e.target.value) })} />
+                <TextField label="Energy unit" value={edit.energyUnit} disabled={!canEdit} onChange={(e) => setDraft({ ...edit, energyUnit: e.target.value })} />
+                <TextField label="Carbon emissions" type="number" min={0} value={edit.carbonEmissions} disabled={!canEdit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...edit, carbonEmissions: Number(e.target.value) })} />
+                <TextField label="Carbon unit" value={edit.carbonUnit} disabled={!canEdit} onChange={(e) => setDraft({ ...edit, carbonUnit: e.target.value })} />
+            </EntryFormShell>
+          }
+        />
+      </RequirePermission>
+    )
+  }
+
   return (
     <RequirePermission permission={PERMISSION.FINANCE_READ}>
       <div>
@@ -1019,7 +1240,6 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
           title="Industrial performance"
           subtitle="Production, trade, energy · units shown · demo data"
         />
-        {portal === 'soe' ? <FinanceIntelNav /> : null}
 
         <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard
@@ -1097,9 +1317,8 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
               </label>
               <label className="text-xs font-medium text-soe-slate">
                 Exports
-                <input
+                <PkrAmountInput
                   className={cn(inputClass, 'mt-1')}
-                  type="number"
                   min={0}
                   value={edit.exports}
                   onChange={(e) =>
@@ -1112,9 +1331,8 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
               </label>
               <label className="text-xs font-medium text-soe-slate">
                 Imports
-                <input
+                <PkrAmountInput
                   className={cn(inputClass, 'mt-1')}
-                  type="number"
                   min={0}
                   value={edit.imports}
                   onChange={(e) =>
@@ -1127,9 +1345,8 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
               </label>
               <label className="text-xs font-medium text-soe-slate">
                 Domestic sales
-                <input
+                <PkrAmountInput
                   className={cn(inputClass, 'mt-1')}
-                  type="number"
                   min={0}
                   value={edit.domesticSales}
                   onChange={(e) =>

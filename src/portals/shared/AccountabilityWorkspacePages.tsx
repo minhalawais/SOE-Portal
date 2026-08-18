@@ -3,12 +3,14 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ContributorModuleLayout, ContributorRegistryLayout, ExecutiveModuleSectionNav, RegistryTabBar } from '@/components/soe'
 import { DataTable } from '@/components/tables/DataTable'
 import { Button } from '@/design-system/components/Button'
 import { Card } from '@/design-system/components/Card'
 import { Alert, EmptyState, ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import { KpiCard } from '@/design-system/components/KpiCard'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
+import { PkrAmountInput } from '@/design-system/components/Fields'
 import { RequirePermission } from '@/app/router/guards'
 import {
   AUDIT_PARA_STATUS,
@@ -25,8 +27,8 @@ import {
   PRIVATIZATION_STAGE_ORDER,
   PRIVATIZATION_STAGE_STATUS,
   TRANSFORMATION_TYPE_LABEL,
+  MODULE,
   type AuditType,
-  type ComplianceStatus,
   type PrivatizationStage,
 } from '@/constants'
 import {
@@ -51,10 +53,22 @@ import type {
   LitigationCase,
   PacObservation,
   PrivatizationMilestone,
+  ProcurementAnnualPlan,
   ProcurementContract,
   TransformationInitiative,
 } from '@/types/domain'
 import { AppError, cn, formatCurrencyPkr } from '@/utils'
+import {
+  useAuditParaEntry,
+  useAuditRegisterEntry,
+  useComplianceItemEntry,
+  useLitigationEntry,
+  usePacObservationEntry,
+  usePrivatizationCaseEntry,
+  useProcurementEntry,
+  useProcurementPlanEntry,
+  useTransformationEntry,
+} from '@/portals/shared/accountabilityEntryForms'
 
 type PortalMode = 'soe' | 'moip' | 'minister' | 'secretary'
 
@@ -159,10 +173,9 @@ function EditNumber({
   return (
     <label className="block text-sm">
       <span className="mb-1 block text-xs font-semibold text-soe-slate">{label}</span>
-      <input
+      <PkrAmountInput
         className={inputClass}
         min={0}
-        type="number"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
       />
@@ -192,28 +205,6 @@ function EditSelect({
         ))}
       </select>
     </label>
-  )
-}
-
-function AccountabilityNav({ portal }: { portal: PortalMode }) {
-  if (portal !== 'soe') return null
-  const tabs = [
-    { to: '/soe/accountability/procurement', label: 'Procurement' },
-    { to: '/soe/accountability/audit', label: 'Audit' },
-    { to: '/soe/accountability/audit/pac', label: 'PAC' },
-    { to: '/soe/accountability/litigation', label: 'Litigation' },
-    { to: '/soe/accountability/compliance', label: 'Compliance' },
-    { to: '/soe/privatization', label: 'Privatization' },
-    { to: '/soe/privatization/transformation', label: 'Transformation' },
-  ]
-  return (
-    <nav className="mb-4 flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label="Accountability sections">
-      {tabs.map((t) => (
-        <Link key={t.to} className={linkClass} to={t.to}>
-          {t.label}
-        </Link>
-      ))}
-    </nav>
   )
 }
 
@@ -287,8 +278,34 @@ export function ProcurementRegistryWorkspace({ portal = 'soe' }: { portal?: Port
   const organizationId = useSessionStore((s) => s.organizationId)
   const scoped = scopedOrg(portal, organizationId)
   const [searchParams, setSearchParams] = useSearchParams()
+  const procTab = (searchParams.get('procTab') ?? 'contracts') as 'contracts' | 'plans'
   const method = searchParams.get('method') ?? ''
   const status = searchParams.get('status') ?? ''
+  const procurementId = searchParams.get('procurementId')
+  const planId = searchParams.get('planId')
+
+  const selectProcurement = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('procurementId', id)
+    else next.delete('procurementId')
+    setSearchParams(next)
+  }
+  const selectPlan = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('planId', id)
+    else next.delete('planId')
+    setSearchParams(next)
+  }
+  const procurementEntry = useProcurementEntry(
+    portal === 'soe' && procTab === 'contracts' ? procurementId : null,
+    organizationId,
+    selectProcurement,
+  )
+  const planEntry = useProcurementPlanEntry(
+    portal === 'soe' && procTab === 'plans' ? planId : null,
+    organizationId,
+    selectPlan,
+  )
 
   const allQ = useQuery({
     queryKey: ['procurement-all', scoped ?? 'portfolio'],
@@ -307,6 +324,42 @@ export function ProcurementRegistryWorkspace({ portal = 'soe' }: { portal?: Port
     queryFn: () => mockOrganizationService.getOrganization(organizationId),
     enabled: portal === 'soe',
   })
+  const plansQ = useQuery({
+    queryKey: ['procurement-plans', scoped ?? 'portfolio'],
+    queryFn: () => mockAuditService.getProcurementAnnualPlans(scoped),
+    enabled: procTab === 'plans' || portal !== 'soe',
+  })
+
+  const planColumns = useMemo<ColumnDef<ProcurementAnnualPlan, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'title',
+        header: 'Plan',
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectPlan(row.original.id)}
+            >
+              {row.original.title}
+            </button>
+          ) : (
+            row.original.title
+          ),
+      },
+      { accessorKey: 'fiscalYear', header: 'Fiscal year' },
+      { accessorKey: 'category', header: 'Category' },
+      {
+        accessorKey: 'estimatedValue',
+        header: 'Estimated value',
+        cell: ({ getValue }) => <MoneyCell value={Number(getValue())} />,
+      },
+      { accessorKey: 'method', header: 'Method' },
+      { accessorKey: 'status', header: 'Status' },
+    ],
+    [portal, selectPlan],
+  )
 
   const kpis = useMemo(() => {
     const rows = allQ.data ?? []
@@ -323,11 +376,20 @@ export function ProcurementRegistryWorkspace({ portal = 'soe' }: { portal?: Port
       {
         accessorKey: 'title',
         header: 'Title',
-        cell: ({ row }) => (
-          <Link className={linkClass} to={procurementPath(portal, row.original.id)}>
-            {row.original.title}
-          </Link>
-        ),
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectProcurement(row.original.id)}
+            >
+              {row.original.title}
+            </button>
+          ) : (
+            <Link className={linkClass} to={procurementPath(portal, row.original.id)}>
+              {row.original.title}
+            </Link>
+          ),
       },
       { accessorKey: 'vendor', header: 'Vendor' },
       {
@@ -362,71 +424,162 @@ export function ProcurementRegistryWorkspace({ portal = 'soe' }: { portal?: Port
         },
       },
     ],
-    [portal],
+    [portal, selectProcurement],
   )
 
-  return (
-    <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
-      <div>
-        <PageHeader
-          title="Procurement register"
-          subtitle={`${org.data?.abbreviation ?? 'Portfolio'} · exception-first · demo data · high-value ≥ ${formatCurrencyPkr(PROCUREMENT_HIGH_VALUE_THRESHOLD_PKR)} (provisional)`}
-        />
-        <AccountabilityNav portal={portal} />
-        <AccountabilityExceptionsBanner portal={portal} />
+  const filterControls = (
+    <div className="flex flex-wrap gap-2">
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={method}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('method', e.target.value)
+          else next.delete('method')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All methods</option>
+        {Object.values(PROCUREMENT_METHOD).map((m) => (
+          <option key={m} value={m}>
+            {PROCUREMENT_METHOD_LABEL[m]}
+          </option>
+        ))}
+      </select>
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={status}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('status', e.target.value)
+          else next.delete('status')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All statuses</option>
+        {Object.entries(CONTRACT_STATUS_LABEL).map(([k, v]) => (
+          <option key={k} value={k}>
+            {v}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 
+  const registryBody = (
+    <>
+      <AccountabilityExceptionsBanner portal={portal} />
+      {portal !== 'soe' ? (
         <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard label="Overdue" value={String(kpis.overdue)} />
           <KpiCard label="High value" value={String(kpis.highValue)} />
           <KpiCard label="Missing evidence" value={String(kpis.missingEvidence)} />
           <KpiCard label="Total records" value={String(kpis.total)} />
         </div>
+      ) : null}
+      {filteredQ.isLoading ? <LoadingBlock label="Loading procurement…" /> : null}
+      {filteredQ.isError ? <ErrorState title="Unable to load procurement" /> : null}
+      {filteredQ.data?.items.length ? (
+        <DataTable
+          data={filteredQ.data.items}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? procurementId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : filteredQ.data ? (
+        <EmptyState title="No procurement records" hint="Adjust filters or seed data." />
+      ) : null}
+    </>
+  )
 
-        <div className="mb-3 flex flex-wrap gap-2">
-          <select
-            className={cn(inputClass, 'w-auto min-w-[140px]')}
-            value={method}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams)
-              if (e.target.value) next.set('method', e.target.value)
-              else next.delete('method')
-              setSearchParams(next)
-            }}
-          >
-            <option value="">All methods</option>
-            {Object.values(PROCUREMENT_METHOD).map((m) => (
-              <option key={m} value={m}>
-                {PROCUREMENT_METHOD_LABEL[m]}
-              </option>
-            ))}
-          </select>
-          <select
-            className={cn(inputClass, 'w-auto min-w-[140px]')}
-            value={status}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams)
-              if (e.target.value) next.set('status', e.target.value)
-              else next.delete('status')
-              setSearchParams(next)
-            }}
-          >
-            <option value="">All statuses</option>
-            {Object.entries(CONTRACT_STATUS_LABEL).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </div>
+  const tabBar = portal === 'soe' ? (
+    <RegistryTabBar
+      tabs={[
+        { id: 'contracts', label: 'Contracts' },
+        { id: 'plans', label: 'Annual plans' },
+      ]}
+      active={procTab}
+      onChange={(id) => {
+        const next = new URLSearchParams(searchParams)
+        next.set('procTab', id)
+        setSearchParams(next)
+      }}
+    />
+  ) : null
 
-        {filteredQ.isLoading ? <LoadingBlock label="Loading procurement…" /> : null}
-        {filteredQ.isError ? <ErrorState title="Unable to load procurement" /> : null}
-        {filteredQ.data?.items.length ? (
-          <DataTable data={filteredQ.data.items} columns={columns} density="compact" />
-        ) : filteredQ.data ? (
-          <EmptyState title="No procurement records" hint="Adjust filters or seed data." />
-        ) : null}
-      </div>
+  const planRegistryBody = (
+    <>
+      {plansQ.isLoading ? <LoadingBlock label="Loading annual plans…" /> : null}
+      {plansQ.data?.length ? (
+        <DataTable
+          data={plansQ.data}
+          columns={planColumns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? planId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : plansQ.data ? (
+        <EmptyState title="No annual procurement plans" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.PROCUREMENT}
+          title="Procurement register"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
+          entry={procTab === 'contracts' ? procurementEntry.entry : planEntry.entry}
+          onSave={procTab === 'contracts' ? procurementEntry.onSave : planEntry.onSave}
+          onCancel={procTab === 'contracts' ? procurementEntry.onCancel : planEntry.onCancel}
+          saving={procTab === 'contracts' ? procurementEntry.saving : planEntry.saving}
+          saveDisabled={
+            procTab === 'contracts' ? procurementEntry.saveDisabled : planEntry.saveDisabled
+          }
+          showFormActions={
+            procTab === 'contracts'
+              ? procurementEntry.showFormActions
+              : planEntry.showFormActions
+          }
+          saveLabel={procTab === 'contracts' ? procurementEntry.saveLabel : planEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            procTab === 'contracts' && procurementId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectProcurement(null)}>
+                Add new
+              </Button>
+            ) : procTab === 'plans' && planId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectPlan(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle={procTab === 'contracts' ? 'Procurement registry' : 'Annual plan registry'}
+          filters={
+            <>
+              {tabBar}
+              {procTab === 'contracts' ? filterControls : null}
+            </>
+          }
+          registry={procTab === 'contracts' ? registryBody : planRegistryBody}
+        />
+      </RequirePermission>
+    )
+  }
+
+  return (
+    <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+      <ContributorRegistryLayout
+        moduleId={MODULE.PROCUREMENT}
+        title="Procurement register"
+        subtitle={`${org.data?.abbreviation ?? 'Portfolio'} · exception-first · demo data · high-value ≥ ${formatCurrencyPkr(PROCUREMENT_HIGH_VALUE_THRESHOLD_PKR)} (provisional)`}
+        filters={filterControls}
+      >
+        {registryBody}
+      </ContributorRegistryLayout>
     </RequirePermission>
   )
 }
@@ -491,8 +644,6 @@ export function ProcurementDetailWorkspace({ portal = 'soe' }: { portal?: Portal
             </Link>
           }
         />
-        {portal === 'soe' ? <AccountabilityNav portal={portal} /> : null}
-
         {alerts.map((a) => (
           <Alert
             key={a.code}
@@ -700,6 +851,19 @@ export function ContractDetailWorkspace({ portal = 'soe' }: { portal?: PortalMod
 export function AuditRegisterWorkspace({ portal = 'soe' }: { portal?: PortalMode }) {
   const organizationId = useSessionStore((s) => s.organizationId)
   const scoped = scopedOrg(portal, organizationId)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const registerId = searchParams.get('registerId')
+  const selectRegister = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('registerId', id)
+    else next.delete('registerId')
+    setSearchParams(next)
+  }
+  const auditEntry = useAuditRegisterEntry(
+    portal === 'soe' ? registerId : null,
+    organizationId,
+    selectRegister,
+  )
   const registers = useQuery({
     queryKey: ['audit-registers', scoped ?? 'portfolio'],
     queryFn: () => mockAuditService.getAuditRegisters(scoped),
@@ -707,7 +871,22 @@ export function AuditRegisterWorkspace({ portal = 'soe' }: { portal?: PortalMode
 
   const columns = useMemo<ColumnDef<AuditRegister, unknown>[]>(
     () => [
-      { accessorKey: 'id', header: 'Register ID' },
+      {
+        accessorKey: 'id',
+        header: 'Register ID',
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectRegister(row.original.id)}
+            >
+              {row.original.id}
+            </button>
+          ) : (
+            row.original.id
+          ),
+      },
       {
         accessorKey: 'auditType',
         header: 'Type',
@@ -723,26 +902,66 @@ export function AuditRegisterWorkspace({ portal = 'soe' }: { portal?: PortalMode
       },
       { accessorKey: 'status', header: 'Status' },
     ],
-    [],
+    [portal, selectRegister],
   )
+
+  const registryBody = (
+    <>
+      <div className="mb-3">
+        <Link className={linkClass} to="/soe/accountability/audit/paras">
+          Open audit para registry →
+        </Link>
+      </div>
+      {registers.isLoading ? <LoadingBlock /> : null}
+      {registers.isError ? <ErrorState title="Unable to load audit register" /> : null}
+      {registers.data?.length ? (
+        <DataTable
+          data={registers.data}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? registerId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : registers.data ? (
+        <EmptyState title="No audit registers" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.AUDIT}
+          title="Audit register"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
+          entry={auditEntry.entry}
+          onSave={auditEntry.onSave}
+          onCancel={auditEntry.onCancel}
+          saving={auditEntry.saving}
+          saveDisabled={auditEntry.saveDisabled}
+          showFormActions={auditEntry.showFormActions}
+          saveLabel={auditEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            registerId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectRegister(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="Audit register"
+          registry={registryBody}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
         <PageHeader title="Audit register" subtitle="Register entries · demo data · lifecycle provisional" />
-        <AccountabilityNav portal={portal} />
-        <div className="mb-3">
-          <Link className={linkClass} to="/soe/accountability/audit/paras">
-            Open audit para registry →
-          </Link>
-        </div>
-        {registers.isLoading ? <LoadingBlock /> : null}
-        {registers.isError ? <ErrorState title="Unable to load audit register" /> : null}
-        {registers.data?.length ? (
-          <DataTable data={registers.data} columns={columns} density="compact" />
-        ) : registers.data ? (
-          <EmptyState title="No audit registers" />
-        ) : null}
+        {registryBody}
       </div>
     </RequirePermission>
   )
@@ -751,6 +970,21 @@ export function AuditRegisterWorkspace({ portal = 'soe' }: { portal?: PortalMode
 export function AuditParaRegistryWorkspace({ portal = 'soe' }: { portal?: PortalMode }) {
   const organizationId = useSessionStore((s) => s.organizationId)
   const scoped = scopedOrg(portal, organizationId)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const paraId = searchParams.get('paraId')
+
+  const selectPara = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('paraId', id)
+    else next.delete('paraId')
+    setSearchParams(next)
+  }
+  const paraEntry = useAuditParaEntry(
+    portal === 'soe' ? paraId : null,
+    organizationId,
+    selectPara,
+  )
+
   const paras = useQuery({
     queryKey: ['audit-paras', scoped ?? 'portfolio'],
     queryFn: () => mockAuditService.getAuditParas(scoped),
@@ -761,11 +995,20 @@ export function AuditParaRegistryWorkspace({ portal = 'soe' }: { portal?: Portal
       {
         accessorKey: 'title',
         header: 'Para',
-        cell: ({ row }) => (
-          <Link className={linkClass} to={auditParaPath(portal, row.original.id)}>
-            {row.original.title || row.original.observation}
-          </Link>
-        ),
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectPara(row.original.id)}
+            >
+              {row.original.title || row.original.observation}
+            </button>
+          ) : (
+            <Link className={linkClass} to={auditParaPath(portal, row.original.id)}>
+              {row.original.title || row.original.observation}
+            </Link>
+          ),
       },
       { accessorKey: 'auditId', header: 'Audit' },
       {
@@ -800,20 +1043,60 @@ export function AuditParaRegistryWorkspace({ portal = 'soe' }: { portal?: Portal
         cell: ({ row }) => String(auditParaAgeDays(row.original.dateRaised)),
       },
     ],
-    [portal],
+    [portal, selectPara],
   )
+
+  const registryBody = (
+    <>
+      {paras.isLoading ? <LoadingBlock /> : null}
+      {paras.data?.length ? (
+        <DataTable
+          data={paras.data}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? paraId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : paras.data ? (
+        <EmptyState title="No audit paras" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.AUDIT}
+          title="Audit paras"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
+          entry={paraEntry.entry}
+          onSave={paraEntry.onSave}
+          onCancel={paraEntry.onCancel}
+          saving={paraEntry.saving}
+          saveDisabled={paraEntry.saveDisabled}
+          showFormActions={paraEntry.showFormActions}
+          saveLabel={paraEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            paraId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectPara(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="Audit para registry"
+          registry={registryBody}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
         <PageHeader title="Audit paras" subtitle="Recovery and PAC linkage · demo data" />
-        <AccountabilityNav portal={portal} />
-        {paras.isLoading ? <LoadingBlock /> : null}
-        {paras.data?.length ? (
-          <DataTable data={paras.data} columns={columns} density="compact" />
-        ) : paras.data ? (
-          <EmptyState title="No audit paras" />
-        ) : null}
+        {registryBody}
       </div>
     </RequirePermission>
   )
@@ -882,12 +1165,14 @@ export function AuditParaDetailWorkspace({ portal = 'soe' }: { portal?: PortalMo
           }
         />
 
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Amount involved" value={formatCurrencyPkr(p.amountInvolved)} />
-          <KpiCard label="Recovered" value={formatCurrencyPkr(p.amountRecovered)} />
-          <KpiCard label="Recovery %" value={`${pct}%`} />
-          <KpiCard label="Age (days)" value={String(auditParaAgeDays(p.dateRaised))} />
-        </div>
+        {portal !== 'soe' ? (
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard label="Amount involved" value={formatCurrencyPkr(p.amountInvolved)} />
+            <KpiCard label="Recovered" value={formatCurrencyPkr(p.amountRecovered)} />
+            <KpiCard label="Recovery %" value={`${pct}%`} />
+            <KpiCard label="Age (days)" value={String(auditParaAgeDays(p.dateRaised))} />
+          </div>
+        ) : null}
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card title="Para details">
@@ -956,8 +1241,7 @@ export function AuditParaDetailWorkspace({ portal = 'soe' }: { portal?: PortalMo
               </label>
               <label className="text-xs font-medium text-soe-slate">
                 Amount recovered (PKR)
-                <input
-                  type="number"
+                <PkrAmountInput
                   min={0}
                   className={cn(inputClass, 'mt-1')}
                   value={recoveryDraft ?? p.amountRecovered}
@@ -987,6 +1271,21 @@ export function AuditParaDetailWorkspace({ portal = 'soe' }: { portal?: PortalMo
 export function PacObservationsWorkspace({ portal = 'soe' }: { portal?: PortalMode }) {
   const organizationId = useSessionStore((s) => s.organizationId)
   const scoped = scopedOrg(portal, organizationId)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const pacId = searchParams.get('pacId')
+
+  const selectPac = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('pacId', id)
+    else next.delete('pacId')
+    setSearchParams(next)
+  }
+  const pacEntry = usePacObservationEntry(
+    portal === 'soe' ? pacId : null,
+    organizationId,
+    selectPac,
+  )
+
   const rows = useQuery({
     queryKey: ['pac-observations', scoped ?? 'portfolio'],
     queryFn: () => mockAuditService.getPacObservations(scoped),
@@ -994,7 +1293,22 @@ export function PacObservationsWorkspace({ portal = 'soe' }: { portal?: PortalMo
 
   const columns = useMemo<ColumnDef<PacObservation, unknown>[]>(
     () => [
-      { accessorKey: 'observation', header: 'Observation' },
+      {
+        accessorKey: 'observation',
+        header: 'Observation',
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectPac(row.original.id)}
+            >
+              {row.original.observation}
+            </button>
+          ) : (
+            row.original.observation
+          ),
+      },
       { accessorKey: 'observationDate', header: 'Date' },
       { accessorKey: 'dueDate', header: 'Due' },
       {
@@ -1014,20 +1328,60 @@ export function PacObservationsWorkspace({ portal = 'soe' }: { portal?: PortalMo
         ),
       },
     ],
-    [portal],
+    [portal, selectPac],
   )
+
+  const registryBody = (
+    <>
+      {rows.isLoading ? <LoadingBlock /> : null}
+      {rows.data?.length ? (
+        <DataTable
+          data={rows.data}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? pacId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : rows.data ? (
+        <EmptyState title="No PAC observations" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.AUDIT}
+          title="PAC observations"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
+          entry={pacEntry.entry}
+          onSave={pacEntry.onSave}
+          onCancel={pacEntry.onCancel}
+          saving={pacEntry.saving}
+          saveDisabled={pacEntry.saveDisabled}
+          showFormActions={pacEntry.showFormActions}
+          saveLabel={pacEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            pacId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectPac(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="PAC registry"
+          registry={registryBody}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
         <PageHeader title="PAC observations" subtitle="Linked to audit paras · demo data" />
-        <AccountabilityNav portal={portal} />
-        {rows.isLoading ? <LoadingBlock /> : null}
-        {rows.data?.length ? (
-          <DataTable data={rows.data} columns={columns} density="compact" />
-        ) : rows.data ? (
-          <EmptyState title="No PAC observations" />
-        ) : null}
+        {registryBody}
       </div>
     </RequirePermission>
   )
@@ -1039,6 +1393,19 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
   const [searchParams, setSearchParams] = useSearchParams()
   const court = searchParams.get('court') ?? ''
   const status = searchParams.get('status') ?? ''
+  const caseId = searchParams.get('caseId')
+
+  const selectCase = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('caseId', id)
+    else next.delete('caseId')
+    setSearchParams(next)
+  }
+  const litigationEntry = useLitigationEntry(
+    portal === 'soe' ? caseId : null,
+    organizationId,
+    selectCase,
+  )
 
   const cases = useQuery({
     queryKey: ['litigation', scoped, court, status],
@@ -1059,11 +1426,20 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
       {
         accessorKey: 'caseNumber',
         header: 'Case',
-        cell: ({ row }) => (
-          <Link className={linkClass} to={litigationPath(portal, row.original.id)}>
-            {row.original.caseNumber}
-          </Link>
-        ),
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectCase(row.original.id)}
+            >
+              {row.original.caseNumber}
+            </button>
+          ) : (
+            <Link className={linkClass} to={litigationPath(portal, row.original.id)}>
+              {row.original.caseNumber}
+            </Link>
+          ),
       },
       { accessorKey: 'court', header: 'Court' },
       { accessorKey: 'nature', header: 'Nature' },
@@ -1079,56 +1455,101 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
       },
       { accessorKey: 'nextHearing', header: 'Next hearing' },
     ],
-    [portal],
+    [portal, selectCase],
   )
+
+  const filterControls = (
+    <div className="mb-3 flex flex-wrap gap-2">
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={court}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('court', e.target.value)
+          else next.delete('court')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All courts</option>
+        {courts.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={status}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('status', e.target.value)
+          else next.delete('status')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All statuses</option>
+        {Object.entries(LITIGATION_STATUS_LABEL).map(([k, v]) => (
+          <option key={k} value={k}>
+            {v}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
+  const registryBody = (
+    <>
+      {cases.isLoading ? <LoadingBlock /> : null}
+      {cases.data?.length ? (
+        <DataTable
+          data={cases.data}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? caseId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : cases.data ? (
+        <EmptyState title="No litigation cases" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.LITIGATION}
+          title="Litigation register"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
+          entry={litigationEntry.entry}
+          onSave={litigationEntry.onSave}
+          onCancel={litigationEntry.onCancel}
+          saving={litigationEntry.saving}
+          saveDisabled={litigationEntry.saveDisabled}
+          showFormActions={litigationEntry.showFormActions}
+          saveLabel={litigationEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            caseId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectCase(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="Litigation registry"
+          filters={filterControls}
+          registry={registryBody}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
         <PageHeader title="Litigation register" subtitle="Sorted by next hearing · demo data" />
-        <AccountabilityNav portal={portal} />
-        <div className="mb-3 flex flex-wrap gap-2">
-          <select
-            className={cn(inputClass, 'w-auto min-w-[140px]')}
-            value={court}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams)
-              if (e.target.value) next.set('court', e.target.value)
-              else next.delete('court')
-              setSearchParams(next)
-            }}
-          >
-            <option value="">All courts</option>
-            {courts.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            className={cn(inputClass, 'w-auto min-w-[140px]')}
-            value={status}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams)
-              if (e.target.value) next.set('status', e.target.value)
-              else next.delete('status')
-              setSearchParams(next)
-            }}
-          >
-            <option value="">All statuses</option>
-            {Object.entries(LITIGATION_STATUS_LABEL).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </div>
-        {cases.isLoading ? <LoadingBlock /> : null}
-        {cases.data?.length ? (
-          <DataTable data={cases.data} columns={columns} density="compact" />
-        ) : cases.data ? (
-          <EmptyState title="No litigation cases" />
-        ) : null}
+        {filterControls}
+        {registryBody}
       </div>
     </RequirePermission>
   )
@@ -1271,117 +1692,115 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
 
 export function ComplianceMatrixWorkspace({ portal = 'soe' }: { portal?: PortalMode }) {
   const organizationId = useSessionStore((s) => s.organizationId)
-  const role = useSessionStore((s) => s.role)
   const scoped = scopedOrg(portal, organizationId)
-  const canEdit = portal === 'soe' && hasPermission(role, PERMISSION.COMPLIANCE_EDIT)
-  const pushToast = useUiStore((s) => s.pushToast)
-  const qc = useQueryClient()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [statusDraft, setStatusDraft] = useState<ComplianceStatus | ''>('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const itemId = searchParams.get('complianceId')
+
+  const selectItem = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('complianceId', id)
+    else next.delete('complianceId')
+    setSearchParams(next)
+  }
+  const complianceEntry = useComplianceItemEntry(
+    portal === 'soe' ? itemId : null,
+    organizationId,
+    selectItem,
+  )
 
   const items = useQuery({
     queryKey: ['compliance-matrix', scoped ?? 'portfolio'],
     queryFn: () => mockComplianceService.getComplianceItems(scoped),
   })
 
-  const save = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: ComplianceStatus }) =>
-      mockComplianceService.updateComplianceItem(id, { status }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['compliance-matrix'] })
-      pushToast({ title: 'Compliance status updated.', tone: 'success' })
-      setEditingId(null)
-      setStatusDraft('')
-    },
-    onError: (err: unknown) => {
-      pushToast({
-        title: err instanceof AppError ? err.message : 'Update failed',
-        tone: 'critical',
-      })
-    },
-  })
-
   const columns = useMemo<ColumnDef<ComplianceItem, unknown>[]>(
     () => [
-      { accessorKey: 'area', header: 'Area' },
+      {
+        accessorKey: 'area',
+        header: 'Area',
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectItem(row.original.id)}
+            >
+              {row.original.area}
+            </button>
+          ) : (
+            row.original.area
+          ),
+      },
       { accessorKey: 'reportingFrequency', header: 'Frequency' },
       { accessorKey: 'dueDate', header: 'Due date' },
       { accessorKey: 'responsibleFunction', header: 'Owner' },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => {
-          const item = row.original
-          if (canEdit && editingId === item.id) {
-            return (
-              <div className="flex items-center gap-2">
-                <select
-                  className={cn(inputClass, 'h-8 w-auto')}
-                  value={statusDraft || item.status}
-                  onChange={(e) => setStatusDraft(e.target.value as ComplianceStatus)}
-                >
-                  {Object.values(COMPLIANCE_STATUS).map((s) => (
-                    <option key={s} value={s}>
-                      {COMPLIANCE_STATUS_LABEL[s]}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  className="h-8"
-                  disabled={save.isPending}
-                  onClick={() =>
-                    save.mutate({
-                      id: item.id,
-                      status: (statusDraft || item.status) as ComplianceStatus,
-                    })
-                  }
-                >
-                  Save
-                </Button>
-              </div>
-            )
-          }
-          return (
-            <StatusBadge
-              status={item.status}
-              family="reporting"
-              label={COMPLIANCE_STATUS_LABEL[item.status]}
-            />
-          )
-        },
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) =>
-          canEdit ? (
-            <button
-              type="button"
-              className="text-xs text-soe-blue underline"
-              onClick={() => {
-                setEditingId(row.original.id)
-                setStatusDraft(row.original.status)
-              }}
-            >
-              Edit
-            </button>
-          ) : null,
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.status}
+            family="reporting"
+            label={COMPLIANCE_STATUS_LABEL[row.original.status]}
+          />
+        ),
       },
     ],
-    [canEdit, editingId, save.isPending, statusDraft],
+    [portal, selectItem],
   )
+
+  const registryBody = (
+    <>
+      {items.isLoading ? <LoadingBlock /> : null}
+      {items.data?.length ? (
+        <DataTable
+          data={items.data}
+          columns={columns}
+          density="compact"
+          showSearch={false}
+          selectedRowId={portal === 'soe' ? itemId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : items.data ? (
+        <EmptyState title="No compliance items" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.COMPLIANCE}
+          title="Compliance matrix"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
+          entry={complianceEntry.entry}
+          onSave={complianceEntry.onSave}
+          onCancel={complianceEntry.onCancel}
+          saving={complianceEntry.saving}
+          saveDisabled={complianceEntry.saveDisabled}
+          showFormActions={complianceEntry.showFormActions}
+          saveLabel={complianceEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            itemId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectItem(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="Compliance registry"
+          registry={registryBody}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
         <PageHeader title="Compliance matrix" subtitle="Obligations by area · demo data" />
-        <AccountabilityNav portal={portal} />
-        {items.isLoading ? <LoadingBlock /> : null}
-        {items.data?.length ? (
-          <DataTable data={items.data} columns={columns} density="compact" showSearch={false} />
-        ) : items.data ? (
-          <EmptyState title="No compliance items" />
-        ) : null}
+        {registryBody}
       </div>
     </RequirePermission>
   )
@@ -1397,12 +1816,24 @@ export function PrivatizationPipelineWorkspace({ portal = 'soe' }: { portal?: Po
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('caseId')
 
+  const selectCase = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('caseId', id)
+    else next.delete('caseId')
+    setSearchParams(next)
+  }
+  const createCaseEntry = usePrivatizationCaseEntry(
+    portal === 'soe' && !selectedId,
+    organizationId,
+    selectCase,
+  )
+
   const casesQ = useQuery({
     queryKey: ['priv-cases', scoped ?? 'portfolio'],
     queryFn: () => mockPrivatizationService.getCases(scoped),
   })
 
-  const activeCaseId = selectedId ?? casesQ.data?.[0]?.id
+  const activeCaseId = selectedId ?? undefined
   const caseQ = useQuery({
     queryKey: ['priv-case', activeCaseId],
     enabled: Boolean(activeCaseId),
@@ -1453,10 +1884,117 @@ export function PrivatizationPipelineWorkspace({ portal = 'soe' }: { portal?: Po
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
-      <div>
-        <PageHeader title="Privatization pipeline" subtitle="Stage model provisional · demo data" />
-        <AccountabilityNav portal={portal} />
+      {portal === 'soe' ? (
+        <ContributorModuleLayout
+          moduleId={MODULE.PRIVATIZATION}
+          title="Privatization pipeline"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-privatization" />}
+          entry={createCaseEntry.entry}
+          onSave={createCaseEntry.onSave}
+          onCancel={createCaseEntry.onCancel}
+          saving={createCaseEntry.saving}
+          saveDisabled={createCaseEntry.saveDisabled}
+          showFormActions={createCaseEntry.showFormActions}
+          saveLabel={createCaseEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            selectedId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectCase(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="Pipeline cases"
+          registry={
+            <>
+              {casesQ.isLoading ? <LoadingBlock /> : null}
+              {casesQ.data?.length ? (
+                <Card title="Cases" className="mb-4">
+                  <ul className="space-y-1 text-sm">
+                    {casesQ.data.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className={cn(
+                            'w-full rounded px-2 py-1.5 text-left hover:bg-[var(--color-pending-soft)]',
+                            activeCaseId === c.id && 'bg-[var(--color-pending-soft)] font-medium',
+                          )}
+                          onClick={() => selectCase(c.id)}
+                        >
+                          {c.id} · {PRIVATIZATION_STAGE_LABEL[c.currentStage as PrivatizationStage] ?? c.currentStage} · {c.status}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              ) : casesQ.data ? (
+                <EmptyState title="No privatization cases" />
+              ) : null}
 
+              {caseQ.data ? (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm">
+                      Current stage:{' '}
+                      <strong>
+                        {PRIVATIZATION_STAGE_LABEL[caseQ.data.currentStage as PrivatizationStage] ??
+                          caseQ.data.currentStage}
+                      </strong>
+                      {caseQ.data.blocker ? (
+                        <span className="ml-2 text-soe-warning">Blocker: {caseQ.data.blocker}</span>
+                      ) : null}
+                    </p>
+                    {canEdit ? (
+                      <Button disabled={advance.isPending} onClick={() => advance.mutate()}>
+                        Advance stage
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className="mb-4 flex flex-wrap gap-1">
+                    {PRIVATIZATION_STAGE_ORDER.map((stage, i) => {
+                      const curIdx = PRIVATIZATION_STAGE_ORDER.indexOf(
+                        caseQ.data!.currentStage as PrivatizationStage,
+                      )
+                      const ms = milestonesQ.data?.find((m) => m.stage === stage)
+                      const blocked = ms?.status === PRIVATIZATION_STAGE_STATUS.BLOCKED
+                      return (
+                        <div
+                          key={stage}
+                          className={cn(
+                            'rounded border px-2 py-1 text-xs',
+                            i <= curIdx ? 'border-soe-blue bg-[var(--color-info-soft)]' : 'border-soe-border',
+                            blocked && 'border-soe-warning',
+                          )}
+                        >
+                          {PRIVATIZATION_STAGE_LABEL[stage]}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {milestonesQ.data?.length ? (
+                    <DataTable data={milestonesQ.data} columns={msColumns} density="compact" showSearch={false} />
+                  ) : null}
+
+                  {activeCaseId ? (
+                    <div className="mt-3">
+                      <Link className={linkClass} to={privatizationDetailPath(portal, activeCaseId)}>
+                        Open case detail →
+                      </Link>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          }
+        />
+      ) : (
+      <ContributorRegistryLayout
+        moduleId={MODULE.PRIVATIZATION}
+        title="Privatization pipeline"
+        subtitle="Stage model provisional · demo data"
+      >
         {casesQ.isLoading ? <LoadingBlock /> : null}
         {casesQ.data?.length ? (
           <Card title="Cases" className="mb-4">
@@ -1540,7 +2078,8 @@ export function PrivatizationPipelineWorkspace({ portal = 'soe' }: { portal?: Po
             ) : null}
           </>
         ) : null}
-      </div>
+      </ContributorRegistryLayout>
+      )}
     </RequirePermission>
   )
 }
@@ -1622,6 +2161,21 @@ export function PrivatizationDetailWorkspace({ portal: _portal = 'soe' }: { port
 export function TransformationTrackerWorkspace({ portal = 'soe' }: { portal?: PortalMode }) {
   const organizationId = useSessionStore((s) => s.organizationId)
   const scoped = scopedOrg(portal, organizationId)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initiativeId = searchParams.get('initiativeId')
+
+  const selectInitiative = (id: string | null) => {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set('initiativeId', id)
+    else next.delete('initiativeId')
+    setSearchParams(next)
+  }
+  const transformationEntry = useTransformationEntry(
+    portal === 'soe' ? initiativeId : null,
+    organizationId,
+    selectInitiative,
+  )
+
   const rows = useQuery({
     queryKey: ['transformations', scoped ?? 'portfolio'],
     queryFn: () => mockPrivatizationService.getTransformations(scoped),
@@ -1629,7 +2183,22 @@ export function TransformationTrackerWorkspace({ portal = 'soe' }: { portal?: Po
 
   const columns = useMemo<ColumnDef<TransformationInitiative, unknown>[]>(
     () => [
-      { accessorKey: 'initiative', header: 'Initiative' },
+      {
+        accessorKey: 'initiative',
+        header: 'Initiative',
+        cell: ({ row }) =>
+          portal === 'soe' ? (
+            <button
+              type="button"
+              className="text-soe-navy hover:underline"
+              onClick={() => selectInitiative(row.original.id)}
+            >
+              {row.original.initiative}
+            </button>
+          ) : (
+            row.original.initiative
+          ),
+      },
       {
         accessorKey: 'type',
         header: 'Type',
@@ -1654,20 +2223,60 @@ export function TransformationTrackerWorkspace({ portal = 'soe' }: { portal?: Po
         },
       },
     ],
-    [],
+    [portal, selectInitiative],
   )
+
+  const registryBody = (
+    <>
+      {rows.isLoading ? <LoadingBlock /> : null}
+      {rows.data?.length ? (
+        <DataTable
+          data={rows.data}
+          columns={columns}
+          density="compact"
+          selectedRowId={portal === 'soe' ? initiativeId : null}
+          getRowId={(r) => r.id}
+        />
+      ) : rows.data ? (
+        <EmptyState title="No transformation initiatives" />
+      ) : null}
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+        <ContributorModuleLayout
+          moduleId={MODULE.PRIVATIZATION}
+          title="Transformation tracker"
+          sectionNav={<ExecutiveModuleSectionNav moduleId="soe-privatization" />}
+          entry={transformationEntry.entry}
+          onSave={transformationEntry.onSave}
+          onCancel={transformationEntry.onCancel}
+          saving={transformationEntry.saving}
+          saveDisabled={transformationEntry.saveDisabled}
+          showFormActions={transformationEntry.showFormActions}
+          saveLabel={transformationEntry.saveLabel}
+          cancelLabel="Clear form"
+          actions={
+            initiativeId ? (
+              <Button size="sm" variant="secondary" onClick={() => selectInitiative(null)}>
+                Add new
+              </Button>
+            ) : null
+          }
+          registryTitle="Transformation registry"
+          registry={registryBody}
+        />
+      </RequirePermission>
+    )
+  }
 
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
         <PageHeader title="Transformation tracker" subtitle="Initiatives and milestones · demo data" />
-        <AccountabilityNav portal={portal} />
-        {rows.isLoading ? <LoadingBlock /> : null}
-        {rows.data?.length ? (
-          <DataTable data={rows.data} columns={columns} density="compact" />
-        ) : rows.data ? (
-          <EmptyState title="No transformation initiatives" />
-        ) : null}
+        {registryBody}
       </div>
     </RequirePermission>
   )

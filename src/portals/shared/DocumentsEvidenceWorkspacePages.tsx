@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AuditTimeline } from '@/components/timeline/AuditTimeline'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ContributorModuleLayout, EntryFormSection, EntryFormShell, ExecutiveModuleSectionNav } from '@/components/soe'
 import { DataTable } from '@/components/tables/DataTable'
 import { RequirePermission } from '@/app/router/guards'
 import { Button } from '@/design-system/components/Button'
@@ -22,6 +23,7 @@ import {
   DOCUMENT_CATEGORY_LABEL,
   DOCUMENT_EVIDENCE_STATUS,
   DOCUMENT_EVIDENCE_STATUS_LABEL,
+  MODULE,
 } from '@/constants'
 import {
   mockDocumentService,
@@ -124,35 +126,26 @@ function DetailDl({ children }: { children: ReactNode }) {
   return <dl className="space-y-0">{children}</dl>
 }
 
-function DocumentsNav() {
-  const tabs = [
-    { to: '/soe/documents', label: 'Repository' },
-    { to: '/soe/documents/submission-history', label: 'Submission history' },
-    { to: '/soe/documents/enterprise-timeline', label: 'Enterprise timeline' },
-    { to: '/soe/documents/lineage', label: 'Lineage' },
-    { to: '/soe/documents/field-changes', label: 'Field changes' },
-  ]
-  return (
-    <nav className="mb-4 flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label="Documents sections">
-      {tabs.map((t) => (
-        <Link key={t.to} className={linkClass} to={t.to}>
-          {t.label}
-        </Link>
-      ))}
-    </nav>
-  )
-}
-
 export function DocumentUploadPanel({
   organizationId: orgOverride,
   linkedRecordType,
   linkedRecordId,
   onSuccess,
+  hideSubmit = false,
+  onRegisterActions,
 }: {
   organizationId?: string
   linkedRecordType?: string
   linkedRecordId?: string
   onSuccess?: () => void
+  /** When true, submit is handled by ContributorModuleLayout FormActions */
+  hideSubmit?: boolean
+  onRegisterActions?: (actions: {
+    submit: () => void
+    reset: () => void
+    disabled: boolean
+    pending: boolean
+  } | null) => void
 }) {
   const sessionOrg = useSessionStore((s) => s.organizationId)
   const role = useSessionStore((s) => s.role)
@@ -199,6 +192,28 @@ export function DocumentUploadPanel({
       }),
   })
 
+  const resetDraft = () => {
+    setTitle('')
+    setNotes('')
+    setFileName('evidence.pdf')
+    setCategory(DOCUMENT_CATEGORY.FINANCIAL_STATEMENTS)
+  }
+
+  useEffect(() => {
+    if (!onRegisterActions) return
+    if (!canUpload) {
+      onRegisterActions(null)
+      return
+    }
+    onRegisterActions({
+      submit: () => upload.mutate(),
+      reset: resetDraft,
+      disabled: !title.trim(),
+      pending: upload.isPending,
+    })
+    return () => onRegisterActions(null)
+  }, [canUpload, fileName, onRegisterActions, title, upload.isPending, upload.mutate])
+
   if (!canUpload) return null
 
   const categoryOptions = Object.values(DOCUMENT_CATEGORY).map((c) => ({
@@ -207,8 +222,8 @@ export function DocumentUploadPanel({
   }))
 
   return (
-    <Card title="Upload">
-      <div className="space-y-3">
+    <EntryFormShell title="Document" subtitle="Upload evidence to the repository" mode="create">
+      <EntryFormSection title="Metadata" />
         <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
         <SelectField
           label="Category"
@@ -216,32 +231,36 @@ export function DocumentUploadPanel({
           options={categoryOptions}
           onChange={(e) => setCategory(e.target.value)}
         />
-        <MockFileControl label="Select file" />
-        <TextField
-          label="File name"
-          value={fileName}
-          onChange={(e) => setFileName(e.target.value)}
-        />
         <TextareaField
           label="Notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
         />
+      <EntryFormSection title="File" />
+        <MockFileControl label="Select file" />
+        <TextField
+          label="File name"
+          value={fileName}
+          onChange={(e) => setFileName(e.target.value)}
+        />
         {linkedRecordType && linkedRecordId ? (
-          <p className="text-xs text-soe-slate">
+          <p className="col-span-full text-xs text-soe-slate">
             Linked record: {linkedRecordType} · {linkedRecordId}
           </p>
         ) : null}
-        <Button
-          disabled={!title.trim()}
-          loading={upload.isPending}
-          onClick={() => upload.mutate()}
-        >
-          Upload
-        </Button>
-      </div>
-    </Card>
+        {!hideSubmit ? (
+          <div className="col-span-full">
+            <Button
+              disabled={!title.trim()}
+              loading={upload.isPending}
+              onClick={() => upload.mutate()}
+            >
+              Add document
+            </Button>
+          </div>
+        ) : null}
+    </EntryFormShell>
   )
 }
 
@@ -396,87 +415,83 @@ function DocumentRepositoryContent({ portal }: { portal: PortalMode }) {
 
   const showUpload =
     portal === 'soe' && hasPermission(role, PERMISSION.DOCUMENT_UPLOAD)
+  const [uploadActions, setUploadActions] = useState<{
+    submit: () => void
+    reset: () => void
+    disabled: boolean
+    pending: boolean
+  } | null>(null)
 
-  return (
-    <div>
-      <PageHeader title="Documents & evidence" subtitle={subtitle} />
-      {portal === 'soe' ? <DocumentsNav /> : null}
+  const filterBar = (
+    <div className="flex flex-wrap gap-2">
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+      >
+        <option value="">All categories</option>
+        {Object.values(DOCUMENT_CATEGORY).map((c) => (
+          <option key={c} value={c}>
+            {DOCUMENT_CATEGORY_LABEL[c] ?? c}
+          </option>
+        ))}
+      </select>
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={linkedModule}
+        onChange={(e) => setLinkedModule(e.target.value)}
+      >
+        <option value="">All modules</option>
+        {REPORTING_MODULES.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={period}
+        onChange={(e) => setPeriod(e.target.value)}
+      >
+        <option value="">All periods</option>
+        {(periods.data ?? []).map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      <select
+        className={cn(inputClass, 'w-auto min-w-[140px]')}
+        value={evidenceStatus}
+        onChange={(e) => setEvidenceStatus(e.target.value)}
+      >
+        <option value="">All evidence statuses</option>
+        {Object.values(DOCUMENT_EVIDENCE_STATUS).map((s) => (
+          <option key={s} value={s}>
+            {DOCUMENT_EVIDENCE_STATUS_LABEL[s] ?? s}
+          </option>
+        ))}
+      </select>
+      <input
+        className={cn(inputClass, 'min-w-[180px] flex-1')}
+        placeholder="Search title, file, ID…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      {!period && reportingPeriodId ? (
+        <span className="self-center text-xs text-soe-slate">
+          Session period: {periodLabel(reportingPeriodId, periods.data ?? [])}
+        </span>
+      ) : null}
+    </div>
+  )
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiCard label="Total" value={String(kpis.total)} />
-        <KpiCard label="Missing" value={String(kpis.missing)} />
-        <KpiCard label="Pending review" value={String(kpis.pendingReview)} />
-        <KpiCard label="Verified" value={String(kpis.verified)} />
-        <KpiCard label="Superseded" value={String(kpis.superseded)} />
-      </div>
-
-      <div className="mb-3 flex flex-wrap gap-2">
-        <select
-          className={cn(inputClass, 'w-auto min-w-[140px]')}
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          <option value="">All categories</option>
-          {Object.values(DOCUMENT_CATEGORY).map((c) => (
-            <option key={c} value={c}>
-              {DOCUMENT_CATEGORY_LABEL[c] ?? c}
-            </option>
-          ))}
-        </select>
-        <select
-          className={cn(inputClass, 'w-auto min-w-[140px]')}
-          value={linkedModule}
-          onChange={(e) => setLinkedModule(e.target.value)}
-        >
-          <option value="">All modules</option>
-          {REPORTING_MODULES.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className={cn(inputClass, 'w-auto min-w-[140px]')}
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-        >
-          <option value="">All periods</option>
-          {(periods.data ?? []).map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className={cn(inputClass, 'w-auto min-w-[140px]')}
-          value={evidenceStatus}
-          onChange={(e) => setEvidenceStatus(e.target.value)}
-        >
-          <option value="">All evidence statuses</option>
-          {Object.values(DOCUMENT_EVIDENCE_STATUS).map((s) => (
-            <option key={s} value={s}>
-              {DOCUMENT_EVIDENCE_STATUS_LABEL[s] ?? s}
-            </option>
-          ))}
-        </select>
-        <input
-          className={cn(inputClass, 'min-w-[180px] flex-1')}
-          placeholder="Search title, file, ID…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        {!period && reportingPeriodId ? (
-          <span className="self-center text-xs text-soe-slate">
-            Session period: {periodLabel(reportingPeriodId, periods.data ?? [])}
-          </span>
-        ) : null}
-      </div>
-
+  const tableBlock = (
+    <>
       {allQ.isLoading || filteredQ.isLoading ? (
         <LoadingBlock label="Loading documents…" />
       ) : null}
       {filteredQ.isError ? <ErrorState title="Unable to load documents" /> : null}
-
       <div className={cn(showUpload ? 'grid gap-4 lg:grid-cols-3' : '')}>
         <div className={showUpload ? 'lg:col-span-2' : ''}>
           {filteredQ.data?.items.length ? (
@@ -490,10 +505,71 @@ function DocumentRepositoryContent({ portal }: { portal: PortalMode }) {
             <EmptyState title="No documents" hint="Adjust filters or upload evidence." />
           ) : null}
         </div>
-        {showUpload ? (
-          <DocumentUploadPanel organizationId={organizationId} />
-        ) : null}
+        {showUpload ? <DocumentUploadPanel organizationId={organizationId} /> : null}
       </div>
+    </>
+  )
+
+  if (portal === 'soe') {
+    return (
+      <ContributorModuleLayout
+        moduleId={MODULE.DOCUMENTS}
+        title="Documents & evidence"
+        sectionNav={<ExecutiveModuleSectionNav moduleId="soe-documents" />}
+        entry={
+          showUpload ? (
+            <DocumentUploadPanel
+              organizationId={organizationId}
+              hideSubmit
+              onRegisterActions={setUploadActions}
+            />
+          ) : undefined
+        }
+        onSave={showUpload ? () => uploadActions?.submit() : undefined}
+        onCancel={showUpload ? () => uploadActions?.reset() : undefined}
+        saving={uploadActions?.pending ?? false}
+        saveDisabled={!uploadActions || uploadActions.disabled}
+        saveLabel="Add document"
+        cancelLabel="Clear form"
+        showFormActions={showUpload}
+        registryTitle="Document registry"
+        filters={filterBar}
+        registry={
+          <>
+            {allQ.isLoading || filteredQ.isLoading ? (
+              <LoadingBlock label="Loading documents…" />
+            ) : null}
+            {filteredQ.isError ? <ErrorState title="Unable to load documents" /> : null}
+            {filteredQ.data?.items.length ? (
+              <DataTable
+                data={filteredQ.data.items}
+                columns={columns}
+                density="compact"
+                showSearch={false}
+              />
+            ) : filteredQ.data ? (
+              <EmptyState title="No documents" hint="Adjust filters or upload evidence." />
+            ) : null}
+          </>
+        }
+      />
+    )
+  }
+
+  return (
+    <div>
+      <PageHeader title="Documents & evidence" subtitle={subtitle} />
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <KpiCard label="Total" value={String(kpis.total)} />
+        <KpiCard label="Missing" value={String(kpis.missing)} />
+        <KpiCard label="Pending review" value={String(kpis.pendingReview)} />
+        <KpiCard label="Verified" value={String(kpis.verified)} />
+        <KpiCard label="Superseded" value={String(kpis.superseded)} />
+      </div>
+
+      <div className="mb-3">{filterBar}</div>
+      {tableBlock}
     </div>
   )
 }
@@ -604,8 +680,6 @@ function EvidenceViewerContent({ portal }: { portal: PortalMode }) {
           </Link>
         }
       />
-      {portal === 'soe' ? <DocumentsNav /> : null}
-
       {d.isRestricted || d.isSensitive ? (
         <Alert
           tone="warning"
@@ -835,8 +909,7 @@ function SubmissionHistoryContent() {
         title="Submission history"
         subtitle={`${org.data?.abbreviation ?? 'SOE'} · workflow audit trail · demo data`}
       />
-      <DocumentsNav />
-
+      <ExecutiveModuleSectionNav moduleId="soe-documents" />
       <div className="mb-3 max-w-xs">
         <SelectField
           label="Module filter"
@@ -909,8 +982,6 @@ function EnterpriseTimelineContent() {
         title="Enterprise timeline"
         subtitle={`${org.data?.abbreviation ?? 'SOE'} · cross-module events · demo data`}
       />
-      <DocumentsNav />
-
       <div className="mb-3 flex flex-wrap gap-2">
         {chips.map((c) => (
           <button
@@ -985,8 +1056,6 @@ function FieldChangeComparisonContent() {
         title="Field change comparison"
         subtitle={`${org.data?.abbreviation ?? 'SOE'} · current vs previous values · demo data`}
       />
-      <DocumentsNav />
-
       {changes.isLoading ? <LoadingBlock label="Loading field changes…" /> : null}
       {changes.isError ? <ErrorState title="Unable to load field changes" /> : null}
       {changes.data?.length ? (
@@ -1080,8 +1149,6 @@ function LineageExplorerContent({ portal }: { portal: PortalMode }) {
         title="Lineage explorer"
         subtitle={`${org.data?.abbreviation ?? 'SOE'} · three demo KPI→evidence paths · demo data`}
       />
-      {portal === 'soe' ? <DocumentsNav /> : null}
-
       {paths.isLoading ? <LoadingBlock label="Loading lineage paths…" /> : null}
       {paths.isError ? <ErrorState title="Unable to load lineage paths" /> : null}
 

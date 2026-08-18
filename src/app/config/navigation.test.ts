@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MODULE_SECTIONS, isModuleSectionTabActive } from '@/app/config/moduleSections'
 import { filterNavigation, getPortalDefinitionForRole, portalDefinitions } from '@/app/config/navigation'
 import { ROLE } from '@/constants'
 import { getPortalForRole, hasPermission } from '@/permissions'
@@ -9,17 +10,99 @@ function childLabels(group: string) {
 }
 
 describe('portal navigation config', () => {
-  it('maps executive viewer to the merged executive portal without edit chrome', () => {
+  it('maps executive viewer to the merged executive portal with operational edit on SOE modules', () => {
     expect(getPortalForRole(ROLE.EXECUTIVE_VIEWER)).toBe('minister')
     expect(portalDefinitions.minister.name).toBe('Executive Viewer')
     expect(portalDefinitions.minister.allowsOperationalEdit).toBe(false)
+    const definition = getPortalDefinitionForRole('minister', ROLE.EXECUTIVE_VIEWER)
+    expect(definition.allowsOperationalEdit).toBe(true)
     const labels = JSON.stringify(portalDefinitions.minister.navigation)
     expect(labels).toContain('Secretary View')
     expect(labels).toContain('Minister View')
     expect(labels).toContain('PMO View')
   })
 
-  it('exposes the final Executive Viewer sidebar lenses', () => {
+  it('shows National Dashboard and SOE contributor modules for executive viewer', () => {
+    const definition = getPortalDefinitionForRole('minister', ROLE.EXECUTIVE_VIEWER)
+    const nav = filterNavigation(definition.navigation, ROLE.EXECUTIVE_VIEWER, hasPermission)
+    expect(nav.map((item) => item.label)).toEqual([
+      'National Dashboard',
+      'Search & Intelligence',
+      'Data Entry',
+      'User Management',
+      'Logs & Alerts',
+      'Reports',
+    ])
+    expect(nav[0]?.route).toBe('/pmo/dashboard')
+    const dataEntry = nav.find((item) => item.label === 'Data Entry')
+    expect(dataEntry?.children?.map((item) => item.label)).toEqual([
+      'Enterprise',
+      'Assets & Property',
+      'People & Governance',
+      'Financial & Fiscal',
+      'Accountability & Compliance',
+      'Industrial Performance',
+      'Privatization & Transformation',
+      'Documents',
+      'Submissions & Approvals',
+    ])
+    expect(dataEntry?.children?.find((item) => item.label === 'Enterprise')?.route).toBe(
+      '/soe/enterprise/profile',
+    )
+    const assets = dataEntry?.children?.find((item) => item.label === 'Assets & Property')
+    expect(assets?.route).toBe('/soe/assets/land')
+    expect(assets?.children).toBeUndefined()
+    expect(MODULE_SECTIONS['soe-assets'].map((tab) => tab.label)).toEqual([
+      'Land',
+      'Buildings',
+      'Machinery',
+      'Vehicles',
+      'Other Equipment',
+    ])
+    const people = dataEntry?.children?.find((item) => item.label === 'People & Governance')
+    expect(people?.route).toBe('/soe/people/executives')
+    expect(people?.children).toBeUndefined()
+    expect(MODULE_SECTIONS['soe-people'].map((tab) => tab.label)).toEqual([
+      'Executive',
+      'Board Member',
+      'Workforce',
+    ])
+    expect(dataEntry?.children?.find((item) => item.label === 'Financial & Fiscal')?.children).toBeUndefined()
+    expect(
+      dataEntry?.children?.find((item) => item.label === 'Submissions & Approvals')?.children?.map(
+        (item) => item.label,
+      ),
+    ).toEqual([
+      'Reporting Workspace',
+      'Clarifications',
+      'Validation & Readiness',
+      'Submission Readiness',
+    ])
+  })
+
+  it('shows National Dashboard and SOE contributor modules in PMO portal sidebar', () => {
+    const nav = filterNavigation(portalDefinitions.pmo.navigation, ROLE.PMO, hasPermission)
+    expect(nav.map((item) => item.label)).toEqual([
+      'National Dashboard',
+      'Search & Intelligence',
+      'Data Entry',
+      'Logs & Alerts',
+      'Reports',
+    ])
+    expect(nav.find((item) => item.label === 'Data Entry')?.children?.map((item) => item.label)).toEqual([
+      'Enterprise',
+      'Assets & Property',
+      'People & Governance',
+      'Financial & Fiscal',
+      'Accountability & Compliance',
+      'Industrial Performance',
+      'Privatization & Transformation',
+      'Documents',
+      'Submissions & Approvals',
+    ])
+  })
+
+  it('exposes the final Executive Viewer sidebar lenses in minister portal config', () => {
     expect(childLabels('Secretary View')).toEqual([
       'Command Centre',
       'Critical Matters',
@@ -99,5 +182,13 @@ describe('portal navigation config', () => {
     expect(nav).not.toContain('Financial & Fiscal')
     expect(nav).not.toContain('Industrial Performance')
     expect(nav).not.toContain('Privatization & Transformation')
+  })
+
+  it('highlights only PAC Observations when that section is open', () => {
+    const tabs = MODULE_SECTIONS['soe-accountability']
+    const active = tabs
+      .filter((tab) => isModuleSectionTabActive(tab, '/soe/accountability/audit/pac', tabs))
+      .map((tab) => tab.label)
+    expect(active).toEqual(['PAC Observations'])
   })
 })

@@ -5,6 +5,7 @@ export { Button, IconButton } from '@/design-system/components/Button'
 export {
   TextField,
   CurrencyField,
+  PkrAmountInput,
   PercentField,
   DateField,
   SelectField,

@@ -12,7 +12,7 @@ describe('AppRouter smoke', () => {
     )
 
     expect(
-      await screen.findByRole('heading', { name: 'SOE dashboard' }),
+      await screen.findByRole('heading', { name: 'National Overview' }),
     ).toBeInTheDocument()
   })
 })

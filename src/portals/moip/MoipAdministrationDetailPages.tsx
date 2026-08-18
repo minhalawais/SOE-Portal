@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/design-system/components/Button'
 import { Card } from '@/design-system/components/Card'
+import { AdminMetricStrip, AdminPanel } from '@/portals/moip/AdminPanel'
 import { CheckboxField, DateField, SelectField, TextareaField, TextField } from '@/design-system/components/Fields'
 import { EmptyState, ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
@@ -286,21 +287,24 @@ export function MoipUserAdministrationDetailPage() {
 
   return <div className="space-y-4">
     <Link to="/moip/admin/users" className="inline-flex items-center gap-1 text-sm font-medium text-soe-blue"><ArrowLeft size={15} />User management</Link>
-    <PageHeader title={account.name} subtitle={`${account.email} · secure identity and access administration`} />
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      <Card><DetailMetric label="Account status" value={account.status} /></Card>
-      <Card><DetailMetric label="MFA" value={account.mfaEnabled ? 'Enrolled' : 'Not enrolled'} /></Card>
-      <Card><DetailMetric label="Failed logins" value={account.failedLoginCount} /></Card>
-      <Card><DetailMetric label="Active sessions" value={account.activeSessions.length} /></Card>
-      <Card><DetailMetric label="Last successful login" value={formatDate(account.lastLoginAt)} /></Card>
-    </div>
+    <PageHeader title={account.name} subtitle={account.email} />
+    <AdminMetricStrip
+      items={[
+        { label: 'Status', value: account.status.replaceAll('_', ' ') },
+        { label: 'MFA', value: account.mfaEnabled ? 'Enrolled' : 'Not enrolled' },
+        { label: 'Failed logins', value: account.failedLoginCount },
+        { label: 'Sessions', value: account.activeSessions.length },
+        { label: 'Last login', value: formatDate(account.lastLoginAt) },
+      ]}
+    />
 
-    <Card
-      title="Roles and access scope"
-      subtitle="Predefined roles, optional custom module permissions, SOEs and time-bound access"
+    <AdminPanel
+      title="Roles and access"
+      subtitle="Roles, SOE scope and time-bound access"
       actions={
         <Button
           size="sm"
+          variant="secondary"
           disabled={!canSaveAccess}
           loading={mutation.isPending}
           onClick={() =>
@@ -403,31 +407,153 @@ export function MoipUserAdministrationDetailPage() {
           <p className="mt-2 text-xs text-soe-slate">No SOE selected: ministry or portfolio scope applies.</p>
         ) : null}
       </fieldset>
-    </Card>
+    </AdminPanel>
 
     <div className="grid gap-4 xl:grid-cols-2">
-      <Card title="Authentication security" subtitle="Passwords are never visible to administrators">
-        <div className="grid gap-3 sm:grid-cols-2"><DetailMetric label="Invitation" value={account.invitationStatus} /><DetailMetric label="Invitation expiry" value={formatDate(account.invitationExpiresAt)} /><DetailMetric label="Created" value={formatDate(account.createdAt)} /><DetailMetric label="Last modified" value={formatDate(account.updatedAt)} /></div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {account.invitationStatus === 'pending' ? <><Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resendInvitation(role, userId))}><MailPlus size={14} />Resend invitation</Button><Button size="sm" variant="destructive" onClick={() => mutation.mutate(() => mockAdministrationService.cancelInvitation(role, userId))}>Cancel invitation</Button></> : null}
-          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.sendPasswordReset(role, userId))}><KeyRound size={14} />Send reset link</Button>
-          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.requirePasswordChange(role, userId, !account.requirePasswordChange))}>{account.requirePasswordChange ? 'Clear password-change requirement' : 'Require password change'}</Button>
-          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resetMfa(role, userId))}><ShieldCheck size={14} />Reset MFA</Button>
+      <AdminPanel title="Authentication" subtitle="Passwords are never shown">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <DetailMetric label="Invitation" value={account.invitationStatus} />
+          <DetailMetric label="Invitation expiry" value={formatDate(account.invitationExpiresAt)} />
+          <DetailMetric label="Created" value={formatDate(account.createdAt)} />
+          <DetailMetric label="Last modified" value={formatDate(account.updatedAt)} />
         </div>
-      </Card>
-      <Card title="Account state" subtitle="Suspension, suspicious-activity lock and revocation terminate active sessions">
+        <div className="mt-4 flex flex-wrap gap-2">
+          {account.invitationStatus === 'pending' ? (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resendInvitation(role, userId))}>
+                <MailPlus size={14} />
+                Resend invitation
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => mutation.mutate(() => mockAdministrationService.cancelInvitation(role, userId))}>
+                Cancel invitation
+              </Button>
+            </>
+          ) : null}
+          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.sendPasswordReset(role, userId))}>
+            <KeyRound size={14} />
+            Send reset link
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() =>
+              mutation.mutate(() =>
+                mockAdministrationService.requirePasswordChange(role, userId, !account.requirePasswordChange),
+              )
+            }
+          >
+            {account.requirePasswordChange ? 'Clear password-change requirement' : 'Require password change'}
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resetMfa(role, userId))}>
+            <ShieldCheck size={14} />
+            Reset MFA
+          </Button>
+        </div>
+      </AdminPanel>
+      <AdminPanel title="Account state" subtitle="Lock or revoke ends active sessions">
         <TextareaField label="Reason for lock or restriction" value={lockReason} onChange={(e) => setLockReason(e.target.value)} />
-        <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => statusAction('active')}><UserCheck size={14} />Reactivate</Button><Button size="sm" variant="secondary" onClick={() => statusAction('suspended')}><UserX size={14} />Suspend</Button><Button size="sm" variant="destructive" disabled={!lockReason.trim()} onClick={() => statusAction('locked')}><LockKeyhole size={14} />Lock account</Button><Button size="sm" variant="destructive" onClick={() => statusAction('revoked')}>Revoke account</Button></div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => statusAction('active')}>
+            <UserCheck size={14} />
+            Reactivate
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => statusAction('suspended')}>
+            <UserX size={14} />
+            Suspend
+          </Button>
+          <Button size="sm" variant="destructive" disabled={!lockReason.trim()} onClick={() => statusAction('locked')}>
+            <LockKeyhole size={14} />
+            Lock account
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => statusAction('revoked')}>
+            Revoke account
+          </Button>
+        </div>
         {account.lockedReason ? <p className="mt-3 text-sm text-soe-critical">Lock reason: {account.lockedReason}</p> : null}
-      </Card>
+      </AdminPanel>
     </div>
 
-    <Card title="Active sessions" subtitle="Terminate one session or immediately sign the user out everywhere" actions={account.activeSessions.length ? <Button size="sm" variant="destructive" onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(role, userId))}><LogOut size={14} />Terminate all</Button> : undefined}>
-      {account.activeSessions.length ? <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="text-xs uppercase text-soe-slate"><tr><th className="py-2">Device</th><th>Location / IP</th><th>Started</th><th>Last active</th><th></th></tr></thead><tbody>{account.activeSessions.map((session) => <tr key={session.id} className="border-t border-soe-border"><td className="py-2 font-medium text-soe-navy">{session.device}{session.current ? ' · current' : ''}</td><td>{session.location} · {session.ipAddress}</td><td>{formatDate(session.createdAt)}</td><td>{formatDate(session.lastActiveAt)}</td><td className="text-right"><Button size="sm" variant="tertiary" onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(role, userId, session.id))}>Terminate</Button></td></tr>)}</tbody></table></div> : <EmptyState title="No active sessions" />}
-    </Card>
+    <AdminPanel
+      title="Active sessions"
+      subtitle="End one session or sign the user out everywhere"
+      actions={
+        account.activeSessions.length ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(role, userId))}
+          >
+            <LogOut size={14} />
+            Terminate all
+          </Button>
+        ) : undefined
+      }
+      padding={false}
+    >
+      {account.activeSessions.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="bg-[#e8eef3] text-[11px] font-semibold uppercase tracking-wide text-soe-navy">
+              <tr>
+                <th className="px-4 py-2.5">Device</th>
+                <th>Location / IP</th>
+                <th>Started</th>
+                <th>Last active</th>
+                <th className="pr-4" />
+              </tr>
+            </thead>
+            <tbody>
+              {account.activeSessions.map((session) => (
+                <tr key={session.id} className="border-t border-soe-border hover:bg-[#f4f7fa]">
+                  <td className="px-4 py-2.5 font-medium text-soe-navy">
+                    {session.device}
+                    {session.current ? ' · current' : ''}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    {session.location} · {session.ipAddress}
+                  </td>
+                  <td className="py-2.5 pr-3 text-xs text-soe-slate">{formatDate(session.createdAt)}</td>
+                  <td className="py-2.5 pr-3 text-xs text-soe-slate">{formatDate(session.lastActiveAt)}</td>
+                  <td className="py-2.5 pr-4 text-right">
+                    <Button
+                      size="sm"
+                      variant="tertiary"
+                      onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(role, userId, session.id))}
+                    >
+                      Terminate
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="p-4">
+          <EmptyState title="No active sessions" />
+        </div>
+      )}
+    </AdminPanel>
 
-    <Card title="Account activity" subtitle="Invitation, access, authentication and status history">
-      {account.activity.length ? <ol className="divide-y divide-soe-border">{account.activity.map((item) => <li key={item.id} className="py-3 text-sm"><p className="font-medium capitalize text-soe-navy">{item.action.replaceAll('_', ' ')}</p><p>{item.detail}</p><p className="text-xs text-soe-slate">{formatDate(item.occurredAt)}{item.actorRole ? ` · ${ROLE_LABEL[item.actorRole]}` : ''}</p></li>)}</ol> : <EmptyState title="No account activity recorded" />}
-    </Card>
+    <AdminPanel title="Account activity" subtitle="Invitation, access and status history" padding={false}>
+      {account.activity.length ? (
+        <ol className="divide-y divide-soe-border">
+          {account.activity.map((item) => (
+            <li key={item.id} className="grid gap-1 px-4 py-2.5 text-sm sm:grid-cols-[160px_1fr_auto]">
+              <p className="font-medium capitalize text-soe-navy">{item.action.replaceAll('_', ' ')}</p>
+              <p>{item.detail}</p>
+              <p className="text-xs text-soe-slate">
+                {formatDate(item.occurredAt)}
+                {item.actorRole ? ` · ${ROLE_LABEL[item.actorRole]}` : ''}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="p-4">
+          <EmptyState title="No account activity recorded" />
+        </div>
+      )}
+    </AdminPanel>
   </div>
 }

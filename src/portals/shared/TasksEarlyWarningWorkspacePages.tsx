@@ -34,6 +34,7 @@ import { useSessionStore } from '@/state/session'
 import { useUiStore } from '@/state/ui'
 import type { AlertItem, Escalation, NotificationItem, TimelineEvent } from '@/types/domain'
 import { AppError, cn } from '@/utils'
+import { LogsCentreWorkspace } from '@/portals/shared/LogsWorkspacePages'
 import { REPORTING_MODULES } from '@/workflow/moduleCatalog'
 
 type TaskPortal = 'soe' | 'moip' | 'secretary'
@@ -60,19 +61,19 @@ function moduleLabel(id?: string) {
 }
 
 function taskListPath(portal: TaskPortal) {
-  if (portal === 'moip') return '/moip/tasks'
+  if (portal === 'moip') return '/moip/logs'
   if (portal === 'secretary') return '/secretary/obligations'
-  return '/soe/tasks'
+  return '/soe/logs'
 }
 
 function taskDetailPath(portal: TaskPortal, id: string) {
-  if (portal === 'moip') return `/moip/tasks/${id}`
+  if (portal === 'moip') return `/moip/logs`
   if (portal === 'secretary') return `/secretary/obligations/${id}`
-  return `/soe/tasks/${id}`
+  return `/soe/logs`
 }
 
 function alertListPath(portal: AlertPortal) {
-  if (portal === 'moip') return '/moip/tasks'
+  if (portal === 'moip') return '/moip/logs'
   if (portal === 'secretary') return '/secretary/critical'
   if (portal === 'minister') return '/minister/alerts'
   return '/soe/alerts'
@@ -1285,11 +1286,11 @@ export function EscalationDetailWorkspace({ portal }: { portal: EscalationPortal
   )
 }
 
-function SoeTaskNav() {
+function LogsAlertsNavLinks() {
   return (
-    <nav className="mb-4 flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label="Task sections">
-      <Link className={linkClass} to="/soe/tasks">
-        Tasks
+    <nav className="mb-4 flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label="Logs sections">
+      <Link className={linkClass} to="/soe/logs">
+        Logs
       </Link>
       <Link className={linkClass} to="/soe/notifications">
         Notifications
@@ -1301,19 +1302,10 @@ function SoeTaskNav() {
   )
 }
 
-export function SoeTasksCentrePage() {
-  return (
-    <RequirePermission permission={PERMISSION.ORGANIZATION_READ}>
-      <SoeTaskNav />
-      <TaskCentreWorkspace portal="soe" />
-    </RequirePermission>
-  )
-}
-
 export function SoeNotificationsPage() {
   return (
     <RequirePermission permission={PERMISSION.ORGANIZATION_READ}>
-      <SoeTaskNav />
+      <LogsAlertsNavLinks />
       <NotificationCentreWorkspace portal="soe" />
     </RequirePermission>
   )
@@ -1322,18 +1314,18 @@ export function SoeNotificationsPage() {
 export function SoeAlertsPage() {
   return (
     <RequirePermission permission={PERMISSION.ORGANIZATION_READ}>
-      <SoeTaskNav />
+      <LogsAlertsNavLinks />
       <AlertCentreWorkspace portal="soe" />
     </RequirePermission>
   )
 }
 
-type MoipEwTab = 'tasks' | 'alerts' | 'escalations' | 'notifications'
+type MoipEwTab = 'logs' | 'alerts' | 'escalations' | 'notifications'
 
-export function MoipTasksEarlyWarningPage() {
-  const [tab, setTab] = useState<MoipEwTab>('tasks')
+export function MoipLogsEarlyWarningPage() {
+  const [tab, setTab] = useState<MoipEwTab>('logs')
   const tabs: Array<{ id: MoipEwTab; label: string }> = [
-    { id: 'tasks', label: 'Tasks' },
+    { id: 'logs', label: 'Logs' },
     { id: 'alerts', label: 'Alerts' },
     { id: 'escalations', label: 'Escalations' },
     { id: 'notifications', label: 'Notifications' },
@@ -1341,7 +1333,7 @@ export function MoipTasksEarlyWarningPage() {
 
   return (
     <RequirePermission permission={PERMISSION.PORTFOLIO_READ}>
-      <PageHeader title="Early warning" subtitle="Tasks, alerts, escalations · portfolio scope" />
+      <PageHeader title="Early warning" subtitle="Logs, alerts, escalations · portfolio scope" />
       <div className="mb-4 flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button key={t.id} type="button" className={tabClass(tab === t.id)} onClick={() => setTab(t.id)}>
@@ -1349,7 +1341,7 @@ export function MoipTasksEarlyWarningPage() {
           </button>
         ))}
       </div>
-      {tab === 'tasks' ? <TaskCentreWorkspace portal="moip" defaultView="team" embedded /> : null}
+      {tab === 'logs' ? <LogsCentreWorkspace portal="moip" embedded /> : null}
       {tab === 'alerts' ? <AlertCentreWorkspace portal="moip" embedded /> : null}
       {tab === 'escalations' ? <EscalationCentreWorkspace portal="moip" embedded /> : null}
       {tab === 'notifications' ? <NotificationCentreWorkspace portal="moip" embedded /> : null}

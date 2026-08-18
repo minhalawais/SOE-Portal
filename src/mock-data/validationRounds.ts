@@ -193,8 +193,8 @@ export const validationRounds: ValidationRoundDefinition[] = [
       {
         order: 2,
         role: ROLE.SOE_FOCAL_PERSON,
-        route: '/soe/assets/registry',
-        action: 'Open asset registry; open one land record',
+        route: '/soe/assets/land',
+        action: 'Open land assets; open one land record',
         expected: 'Evidence link visible',
       },
       {

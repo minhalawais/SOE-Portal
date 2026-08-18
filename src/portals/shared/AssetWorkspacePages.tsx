@@ -3,9 +3,11 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MapPreview } from '@/components/data-display/MapPreview'
+import { ContributorModuleLayout, ExecutiveModuleSectionNav } from '@/components/soe'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { DataTable } from '@/components/tables/DataTable'
 import { Button } from '@/design-system/components/Button'
+import { PkrAmountInput } from '@/design-system/components/Fields'
 import { EmptyState, ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
 import { MockFileControl } from '@/design-system/components/Fields'
@@ -30,6 +32,7 @@ import {
   LEASE_STATUS_LABEL,
   MACHINERY_OPERATIONAL,
   MACHINERY_OPERATIONAL_LABEL,
+  MODULE,
   type AssetEvidenceStatus,
   type AssetLitigationStatus,
   type AssetType,
@@ -39,6 +42,13 @@ import {
 import { mockAssetService, valuationVariance } from '@/mock-services/asset.service'
 import { mockOrganizationService } from '@/mock-services'
 import { RecordAttachmentsPanel } from '@/portals/shared/DocumentsEvidenceWorkspacePages'
+import {
+  AssetEntryForm,
+  assetAddLabel,
+  assetDraftToPayload,
+  emptyAssetDraft,
+  isAssetDraftValid,
+} from '@/portals/shared/assetEntryForm'
 import { hasPermission, PERMISSION } from '@/permissions'
 import { useSessionStore } from '@/state/session'
 import { useUiStore } from '@/state/ui'
@@ -56,7 +66,7 @@ function detailPath(portal: PortalMode, id: string) {
 function registryPath(portal: PortalMode) {
   if (portal === 'moip') return '/moip/assets'
   if (portal === 'minister') return '/minister/assets'
-  return '/soe/assets/registry'
+  return '/soe/assets/land'
 }
 
 const inputClass =
@@ -145,32 +155,6 @@ function SummaryCards({
         </div>
       </div>
     </div>
-  )
-}
-
-function AssetSectionNav({ portal }: { portal: PortalMode }) {
-  if (portal !== 'soe') return null
-  const tabs = [
-    { to: '/soe/assets/registry', label: 'Registry' },
-    { to: '/soe/assets/land', label: 'Land' },
-    { to: '/soe/assets/buildings', label: 'Buildings' },
-    { to: '/soe/assets/machinery', label: 'Machinery' },
-    { to: '/soe/assets/vehicles', label: 'Vehicles' },
-    { to: '/soe/assets/equipment', label: 'Other equipment' },
-    { to: '/soe/assets/map', label: 'Map' },
-  ]
-  return (
-    <nav className="mb-4 flex flex-wrap gap-1 border-b border-soe-border pb-2" aria-label="Asset sections">
-      {tabs.map((t) => (
-        <Link
-          key={t.to}
-          to={t.to}
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-soe-slate hover:bg-[var(--color-pending-soft)]"
-        >
-          {t.label}
-        </Link>
-      ))}
-    </nav>
   )
 }
 
@@ -372,160 +356,169 @@ export function AssetRegistryWorkspace({
   )
 
   const [importFile, setImportFile] = useState('assets-template.xlsx')
+  const [assetDraft, setAssetDraft] = useState(() => emptyAssetDraft(fixedType))
+
+  const resetAssetDraft = () => setAssetDraft(emptyAssetDraft(fixedType))
+
+  const createAsset = useMutation({
+    mutationFn: () => mockAssetService.createAsset(assetDraftToPayload(assetDraft, organizationId)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['assets'] })
+      void queryClient.invalidateQueries({ queryKey: ['asset-summary'] })
+      pushToast({ title: 'Asset registered.', tone: 'success' })
+      resetAssetDraft()
+    },
+    onError: (err: unknown) => {
+      pushToast({
+        title: err instanceof AppError ? err.message : 'Create failed',
+        tone: 'critical',
+      })
+    },
+  })
 
   if (assetsQuery.isError) {
     return <ErrorState title="Unable to load assets" detail="Mock service error." />
   }
 
-  return (
-    <div>
-      <PageHeader
-        title={title ?? (portal === 'soe' ? 'Asset registry' : 'Asset intelligence')}
-        subtitle={
-          portal === 'soe'
-            ? 'Register, filter and inspect SOE assets'
-            : portal === 'minister'
-              ? 'Portfolio asset intelligence (read-only)'
-              : 'Portfolio asset review (read-only)'
-        }
-        actions={
-          canCreate ? (
-            <Button size="sm" onClick={() => navigate('/soe/assets/new')}>
-              Register asset
-            </Button>
-          ) : null
-        }
+  const registryTitle = title ?? (portal === 'soe' ? 'Asset registry' : 'Asset intelligence')
+  const registrySubtitle =
+    portal === 'soe'
+      ? 'Register, filter and inspect SOE assets'
+      : portal === 'minister'
+        ? 'Portfolio asset intelligence (read-only)'
+        : 'Portfolio asset review (read-only)'
+  const registryActions =
+    portal !== 'soe' && canCreate ? (
+      <Button size="sm" onClick={() => navigate('/soe/assets/new')}>
+        Register asset
+      </Button>
+    ) : null
+
+  const assetEntryForm = canCreate ? (
+    <AssetEntryForm draft={assetDraft} onChange={setAssetDraft} fixedType={fixedType} />
+  ) : null
+
+  const filterBar = (
+    <div className="flex flex-wrap gap-2">
+      <input
+        className="h-9 rounded-md border border-soe-border px-3 text-sm"
+        placeholder="Search ID or name…"
+        value={search}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('search', e.target.value)
+          else next.delete('search')
+          setSearchParams(next)
+        }}
       />
-      <AssetSectionNav portal={portal} />
-
-      {summaryQuery.data ? (
-        <SummaryCards
-          summary={summaryQuery.data}
-          portal={portal}
-          onFilter={(p) => setFilter(p)}
-        />
-      ) : (
-        <LoadingBlock />
-      )}
-
-      <div className="mb-3 flex flex-wrap gap-2">
+      {!fixedType ? (
+        <select
+          className="h-9 rounded-md border border-soe-border px-2 text-sm"
+          value={assetTypeParam ?? ''}
+          onChange={(e) => {
+            const next = new URLSearchParams(searchParams)
+            if (e.target.value) next.set('assetType', e.target.value)
+            else next.delete('assetType')
+            setSearchParams(next)
+          }}
+        >
+          <option value="">All types</option>
+          {Object.values(ASSET_TYPE).map((t) => (
+            <option key={t} value={t}>
+              {ASSET_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <select
+        className="h-9 rounded-md border border-soe-border px-2 text-sm"
+        value={utilization}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('utilization', e.target.value)
+          else next.delete('utilization')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All utilization</option>
+        {Object.values(ASSET_UTILIZATION).map((u) => (
+          <option key={u} value={u}>
+            {ASSET_UTILIZATION_LABEL[u]}
+          </option>
+        ))}
+      </select>
+      <select
+        className="h-9 rounded-md border border-soe-border px-2 text-sm"
+        value={encroachment}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('encroachment', e.target.value)
+          else next.delete('encroachment')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All encroachment</option>
+        {Object.values(ENCROACHMENT_STATUS).map((u) => (
+          <option key={u} value={u}>
+            {ENCROACHMENT_STATUS_LABEL[u]}
+          </option>
+        ))}
+      </select>
+      <select
+        className="h-9 rounded-md border border-soe-border px-2 text-sm"
+        value={litigation}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('litigation', e.target.value)
+          else next.delete('litigation')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All litigation</option>
+        {Object.values(ASSET_LITIGATION_STATUS).map((u) => (
+          <option key={u} value={u}>
+            {ASSET_LITIGATION_STATUS_LABEL[u]}
+          </option>
+        ))}
+      </select>
+      <select
+        className="h-9 rounded-md border border-soe-border px-2 text-sm"
+        value={evidenceStatus}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('evidenceStatus', e.target.value)
+          else next.delete('evidenceStatus')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All evidence</option>
+        {Object.values(ASSET_EVIDENCE_STATUS).map((u) => (
+          <option key={u} value={u}>
+            {ASSET_EVIDENCE_STATUS_LABEL[u]}
+          </option>
+        ))}
+      </select>
+      <label className="inline-flex items-center gap-1.5 text-xs text-soe-slate">
         <input
-          className="h-9 rounded-md border border-soe-border px-3 text-sm"
-          placeholder="Search ID or name…"
-          value={search}
+          type="checkbox"
+          checked={missingValuation}
           onChange={(e) => {
             const next = new URLSearchParams(searchParams)
-            if (e.target.value) next.set('search', e.target.value)
-            else next.delete('search')
+            if (e.target.checked) next.set('missingValuation', '1')
+            else next.delete('missingValuation')
             setSearchParams(next)
           }}
         />
-        {!fixedType ? (
-          <select
-            className="h-9 rounded-md border border-soe-border px-2 text-sm"
-            value={assetTypeParam ?? ''}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams)
-              if (e.target.value) next.set('assetType', e.target.value)
-              else next.delete('assetType')
-              setSearchParams(next)
-            }}
-          >
-            <option value="">All types</option>
-            {Object.values(ASSET_TYPE).map((t) => (
-              <option key={t} value={t}>
-                {ASSET_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        <select
-          className="h-9 rounded-md border border-soe-border px-2 text-sm"
-          value={utilization}
-          onChange={(e) => {
-            const next = new URLSearchParams(searchParams)
-            if (e.target.value) next.set('utilization', e.target.value)
-            else next.delete('utilization')
-            setSearchParams(next)
-          }}
-        >
-          <option value="">All utilization</option>
-          {Object.values(ASSET_UTILIZATION).map((u) => (
-            <option key={u} value={u}>
-              {ASSET_UTILIZATION_LABEL[u]}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-9 rounded-md border border-soe-border px-2 text-sm"
-          value={encroachment}
-          onChange={(e) => {
-            const next = new URLSearchParams(searchParams)
-            if (e.target.value) next.set('encroachment', e.target.value)
-            else next.delete('encroachment')
-            setSearchParams(next)
-          }}
-        >
-          <option value="">All encroachment</option>
-          {Object.values(ENCROACHMENT_STATUS).map((u) => (
-            <option key={u} value={u}>
-              {ENCROACHMENT_STATUS_LABEL[u]}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-9 rounded-md border border-soe-border px-2 text-sm"
-          value={litigation}
-          onChange={(e) => {
-            const next = new URLSearchParams(searchParams)
-            if (e.target.value) next.set('litigation', e.target.value)
-            else next.delete('litigation')
-            setSearchParams(next)
-          }}
-        >
-          <option value="">All litigation</option>
-          {Object.values(ASSET_LITIGATION_STATUS).map((u) => (
-            <option key={u} value={u}>
-              {ASSET_LITIGATION_STATUS_LABEL[u]}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-9 rounded-md border border-soe-border px-2 text-sm"
-          value={evidenceStatus}
-          onChange={(e) => {
-            const next = new URLSearchParams(searchParams)
-            if (e.target.value) next.set('evidenceStatus', e.target.value)
-            else next.delete('evidenceStatus')
-            setSearchParams(next)
-          }}
-        >
-          <option value="">All evidence</option>
-          {Object.values(ASSET_EVIDENCE_STATUS).map((u) => (
-            <option key={u} value={u}>
-              {ASSET_EVIDENCE_STATUS_LABEL[u]}
-            </option>
-          ))}
-        </select>
-        <label className="inline-flex items-center gap-1.5 text-xs text-soe-slate">
-          <input
-            type="checkbox"
-            checked={missingValuation}
-            onChange={(e) => {
-              const next = new URLSearchParams(searchParams)
-              if (e.target.checked) next.set('missingValuation', '1')
-              else next.delete('missingValuation')
-              setSearchParams(next)
-            }}
-          />
-          Missing valuation
-        </label>
-      </div>
+        Missing valuation
+      </label>
+    </div>
+  )
 
+  const tableBlock = (
+    <>
       <p className="mb-2 text-xs text-soe-slate">
         Underutilized threshold (provisional): utilization &lt; {ASSET_UNDERUTILIZED_THRESHOLD_PCT}%
       </p>
-
       {assetsQuery.isLoading ? (
         <LoadingBlock />
       ) : !assetsQuery.data?.items.length ? (
@@ -538,36 +531,75 @@ export function AssetRegistryWorkspace({
           searchPlaceholder="Filter table…"
         />
       )}
+    </>
+  )
 
-      {canEdit ? (
-        <section className="mt-4 rounded-card border border-soe-border bg-white p-4">
-          <h3 className="mb-2 text-sm font-semibold text-soe-navy">Bulk import</h3>
-          <div className="flex flex-wrap items-end gap-3">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() =>
-                pushToast({ title: 'Template download prepared.', tone: 'info' })
-              }
-            >
-              Download template
-            </Button>
-            <MockFileControl label="Select mock file" />
-            <input
-              className={cn(inputClass, 'max-w-xs')}
-              value={importFile}
-              onChange={(e) => setImportFile(e.target.value)}
-            />
-            <Button
-              size="sm"
-              loading={importMutation.isPending}
-              onClick={() => importMutation.mutate(importFile)}
-            >
-              Validate & confirm
-            </Button>
-          </div>
-        </section>
-      ) : null}
+  const importPanel = canEdit ? (
+    <section className="rounded-card border border-soe-border bg-white p-4">
+      <h3 className="mb-2 text-sm font-semibold text-soe-navy">Bulk import</h3>
+      <div className="flex flex-wrap items-end gap-3">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => pushToast({ title: 'Template download prepared.', tone: 'info' })}
+        >
+          Download template
+        </Button>
+        <MockFileControl label="Select mock file" />
+        <input
+          className={cn(inputClass, 'max-w-xs')}
+          value={importFile}
+          onChange={(e) => setImportFile(e.target.value)}
+        />
+        <Button
+          size="sm"
+          loading={importMutation.isPending}
+          onClick={() => importMutation.mutate(importFile)}
+        >
+          Validate & confirm
+        </Button>
+      </div>
+    </section>
+  ) : null
+
+  if (portal === 'soe') {
+    return (
+      <ContributorModuleLayout
+        moduleId={MODULE.ASSETS}
+        title={registryTitle}
+        sectionNav={<ExecutiveModuleSectionNav moduleId="soe-assets" />}
+        entry={assetEntryForm ?? undefined}
+        onSave={canCreate ? () => createAsset.mutate() : undefined}
+        onCancel={canCreate ? resetAssetDraft : undefined}
+        saving={createAsset.isPending}
+        saveDisabled={!isAssetDraftValid(assetDraft, organizationId)}
+        saveLabel={assetAddLabel(fixedType)}
+        cancelLabel="Clear form"
+        showFormActions={canCreate}
+        registryTitle="Asset registry"
+        filters={filterBar}
+        registry={tableBlock}
+        footer={importPanel}
+      />
+    )
+  }
+
+  return (
+    <div>
+      <PageHeader title={registryTitle} subtitle={registrySubtitle} actions={registryActions} />
+      {summaryQuery.data ? (
+        <SummaryCards
+          summary={summaryQuery.data}
+          portal={portal}
+          onFilter={(p) => setFilter(p)}
+        />
+      ) : (
+        <LoadingBlock />
+      )}
+
+      <div className="mb-3">{filterBar}</div>
+      {tableBlock}
+      {importPanel ? <div className="mt-4">{importPanel}</div> : null}
     </div>
   )
 }
@@ -1006,7 +1038,6 @@ export function AssetMapWorkspace({ portal }: { portal: PortalMode }) {
   return (
     <div>
       <PageHeader title="Asset map" subtitle="Point and land polygon preview — list synchronized" />
-      <AssetSectionNav portal={portal} />
       <div className="grid gap-4 lg:grid-cols-2">
         <MapPreview
           features={geoQuery.data ?? []}
@@ -1326,17 +1357,13 @@ export function AssetCreateWorkspace() {
         {step === 4 ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Book value (PKR)">
-              <input
-                type="number"
-                className={inputClass}
+              <PkrAmountInput
                 value={draft.bookValue ?? ''}
                 onChange={(e) => setDraft({ ...draft, bookValue: Number(e.target.value) })}
               />
             </Field>
             <Field label="Market value (PKR)">
-              <input
-                type="number"
-                className={inputClass}
+              <PkrAmountInput
                 value={draft.marketValue ?? ''}
                 onChange={(e) => setDraft({ ...draft, marketValue: Number(e.target.value) })}
               />

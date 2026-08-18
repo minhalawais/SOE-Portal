@@ -53,3 +53,60 @@ No actionable P0, P1, or P2 visual differences remain. The persistent applicatio
 - P3: The global demo persona toolbar occupies substantial vertical space on mobile. This predates the dashboard work and can be compacted as a separate shell-level improvement.
 
 final result: passed
+
+---
+
+# Design QA - PMO SOE Footprint Map
+
+- Source visual truth: user-provided reference screenshot in the current conversation.
+- Source dimensions: 1542 x 536 px.
+- Implementation: `http://127.0.0.1:5173/pmo/dashboard`.
+- Intended desktop viewport: 1542 x 900 CSS px at device scale factor 1.
+- Intended mobile viewport: 390 x 844 CSS px at device scale factor 1.
+- State: PMO dashboard, Pakistan Asset & Industrial Footprint section, NFC selected.
+
+## Full-view comparison evidence
+
+Blocked. The required in-app browser returned no available browser instances, so a browser-rendered implementation screenshot could not be captured or placed beside the source screenshot. The local Vite route responds with HTTP 200, but that is not visual evidence.
+
+## Focused region comparison evidence
+
+Blocked for the same reason. No browser-rendered crop of the map, SOE selector, markers, or unit detail panel is available.
+
+## Automated checks completed
+
+- The SOE selector interaction is covered by a component test.
+- Unit marker selection and the formatted detail panel are covered by a component test.
+- Cross-SOE data isolation, nearest-unit assignment, asset counts, and valuation reconciliation are covered by aggregation tests.
+- Targeted ESLint passes with no warnings.
+- Four targeted tests pass.
+- Browser console errors, tile rendering, map gestures, and visual responsive behavior could not be inspected without a browser instance.
+
+## Required fidelity surfaces
+
+- Fonts and typography: implemented with the app's existing Inter/system stack and established dashboard scale; browser comparison blocked.
+- Spacing and layout rhythm: follows the existing PMO panel grid, 6 px radii, restrained overlays, and responsive map height; browser comparison blocked.
+- Colors and visual tokens: uses existing navy, blue, teal, warning, critical, border, and canvas tokens; browser comparison blocked.
+- Image quality and asset fidelity: the design uses live CARTO/OpenStreetMap raster tiles and Lucide interface icons; tile quality could not be inspected.
+- Copy and content: SOE, unit, asset, valuation, location, and registry-risk labels are populated from application data and covered by tests.
+
+## Findings
+
+- P1: Visual and interaction QA cannot be completed without a connected browser surface.
+  - Impact: map tiles, marker placement, overlay collisions, browser console health, and actual desktop/mobile rendering remain unverified.
+  - Fix: connect the in-app browser and repeat desktop/mobile capture, SOE switching, unit selection, zoom/pan, refit, close-panel, and console checks.
+
+## Comparison history
+
+- Iteration 1: implementation and automated checks completed; browser capture unavailable, so no visual fixes could be evidence-driven.
+
+## Implementation checklist
+
+- Capture the dashboard at 1542 x 900 with NFC selected.
+- Select NFC units and verify the detail overlay.
+- Switch to PSM and confirm marker/data replacement and viewport refit.
+- Capture 390 x 844 and verify selector, labels, legend, and detail panel do not conflict.
+- Check browser console and tile/network failures.
+- Compare source and implementation together, fix any P0/P1/P2 differences, and update this report.
+
+final result: blocked

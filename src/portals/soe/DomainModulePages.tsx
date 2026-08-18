@@ -24,7 +24,6 @@ import {
   PacObservationsWorkspace,
   PrivatizationPipelineWorkspace,
   ProcurementRegistryWorkspace,
-  TransformationTrackerWorkspace,
 } from '@/portals/shared/AccountabilityWorkspacePages'
 
 export function EnterpriseProfilePage() {
@@ -93,12 +92,7 @@ export function IndustrialModulePage() {
 }
 
 export function PrivatizationModulePage() {
-  return (
-    <div className="space-y-6">
-      <PrivatizationPipelineWorkspace portal="soe" />
-      <TransformationTrackerWorkspace portal="soe" />
-    </div>
-  )
+  return <PrivatizationPipelineWorkspace portal="soe" />
 }
 
 export function AssetsModulePage() {

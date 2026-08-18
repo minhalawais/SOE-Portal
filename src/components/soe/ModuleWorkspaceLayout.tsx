@@ -1,9 +1,8 @@
-import { Link } from 'react-router-dom'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { StatusBadge } from '@/design-system/components/StatusBadge'
+import { ModuleStatusStrip } from '@/components/soe/ModuleStatusStrip'
 import { Card } from '@/design-system/components/Card'
-import { ROLE_LABEL, SUBMISSION_STATUS_LABEL, type ModuleId } from '@/constants'
+import { ROLE_LABEL, type ModuleId } from '@/constants'
 import { useQuery } from '@tanstack/react-query'
 import { mockSoePortalService } from '@/mock-services'
 import { useSessionStore } from '@/state/session'
@@ -52,18 +51,7 @@ export function ModuleWorkspaceLayout({
         actions={actions}
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-soe-border bg-white px-4 py-3 text-sm">
-        <StatusBadge
-          status={row.submission.status}
-          label={SUBMISSION_STATUS_LABEL[row.submission.status]}
-        />
-        <span className="text-soe-slate">Completion {row.submission.completeness}%</span>
-        <span className="text-soe-slate">Owner: {ROLE_LABEL[row.def.ownerRole]}</span>
-        <span className="text-soe-slate">Next: {row.nextAction}</span>
-        <Link className="ml-auto text-soe-blue underline" to="/soe/reporting">
-          Workspace
-        </Link>
-      </div>
+      <ModuleStatusStrip moduleId={moduleId} workspaceLabel="Workspace" />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {overview ? <Card title="Overview">{overview}</Card> : null}

@@ -149,6 +149,15 @@ export function isImmutableStatus(status: SubmissionStatus): boolean {
   return status === SUBMISSION_STATUS.LOCKED || status === SUBMISSION_STATUS.APPROVED
 }
 
+/** Demo-only: Executive Viewer may edit approved/locked snapshots. */
+export function canOverrideWorkflowLock(role: RoleId): boolean {
+  return role === ROLE.EXECUTIVE_VIEWER
+}
+
+export function isWorkflowLockedForRole(status: SubmissionStatus, role: RoleId): boolean {
+  return isImmutableStatus(status) && !canOverrideWorkflowLock(role)
+}
+
 export function getActionDef(id: WorkflowActionId): WorkflowActionDef {
   const def = ACTION_DEFS.find((a) => a.id === id)
   if (!def) throw new Error(`Unknown workflow action: ${id}`)
@@ -203,7 +212,7 @@ export function getActionOwnerLabel(status: SubmissionStatus): string {
   }
 }
 
-export function getNextActionHint(status: SubmissionStatus): string {
+export function getNextActionHint(status: SubmissionStatus, _role?: RoleId): string {
   switch (status) {
     case SUBMISSION_STATUS.DRAFT:
       return 'Enter values, attach evidence, then mark section complete.'
@@ -250,7 +259,8 @@ export function assertTransition(from: SubmissionStatus, to: SubmissionStatus): 
 
 /** Roles allowed to edit finance source values in SOE portal */
 export function canEditFinanceSource(role: RoleId): boolean {
-  return hasPermission(role, PERMISSION.FINANCE_EDIT) && getPortalHint(role) === 'soe'
+  if (!hasPermission(role, PERMISSION.FINANCE_EDIT)) return false
+  return getPortalHint(role) === 'soe' || canOverrideWorkflowLock(role)
 }
 
 function getPortalHint(role: RoleId): 'soe' | 'moip' | 'exec' {

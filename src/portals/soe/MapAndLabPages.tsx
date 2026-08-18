@@ -51,9 +51,9 @@ export function MapFoundationPage() {
         subtitle="Foundation lab — use National Industrial Asset Map for decision-support GIS"
         actions={
           <div className="flex gap-2">
-            <Link to="/soe/assets/map">
+            <Link to="/soe/assets/land">
               <Button size="sm" variant="primary">
-                Open asset map
+                Open land assets
               </Button>
             </Link>
             <Button

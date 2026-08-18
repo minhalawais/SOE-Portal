@@ -1,5 +1,5 @@
-import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
-import { cn } from '@/utils'
+import { useEffect, useState, useId, type ChangeEvent, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { cn, formatCompactPkrPreview, parseNumericInput } from '@/utils'
 import { LabelText, HelperText } from '@/design-system/foundations/Layout'
 
 interface FieldShellProps {
@@ -45,7 +45,7 @@ function FieldShell({
 }
 
 const controlClass =
-  'w-full rounded-control border border-soe-border bg-white px-3 text-sm text-soe-ink focus:border-soe-blue focus:shadow-[var(--shadow-focus)] focus:outline-none disabled:bg-soe-canvas disabled:text-soe-slate read-only:bg-soe-canvas'
+  'w-full rounded-control border border-soe-border bg-[#f4f7fa] px-3 text-sm text-soe-ink focus:border-[#0369a1] focus:bg-white focus:shadow-[var(--shadow-focus)] focus:outline-none disabled:bg-soe-canvas disabled:text-soe-slate read-only:bg-soe-canvas'
 
 function useFieldIds(id?: string, name?: string) {
   const autoId = useId()
@@ -84,15 +84,113 @@ export function TextField({ label, error, hint, id, className, required, ...prop
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(error, hint, errorId, hintId)}
-        className={cn(controlClass, 'h-[42px]', error && 'border-soe-critical', className)}
+        className={cn(controlClass, 'h-10', error && 'border-soe-critical', className)}
         {...props}
       />
     </FieldShell>
   )
 }
 
-export function CurrencyField(props: TextFieldProps) {
-  return <TextField inputMode="decimal" {...props} />
+export function PkrAmountInput({
+  className,
+  value,
+  defaultValue,
+  previewMinAbs,
+  onChange,
+  onBlur,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { previewMinAbs?: number }) {
+  const isControlled = value !== undefined
+  const [previewSource, setPreviewSource] = useState<number | null>(() =>
+    parseNumericInput(value ?? defaultValue),
+  )
+
+  useEffect(() => {
+    if (isControlled) {
+      setPreviewSource(parseNumericInput(value))
+    }
+  }, [isControlled, value])
+
+  const preview = formatCompactPkrPreview(
+    isControlled ? value : previewSource,
+    previewMinAbs,
+  )
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!isControlled) {
+      setPreviewSource(parseNumericInput(event.target.value))
+    }
+    onChange?.(event)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        type="number"
+        inputMode="decimal"
+        value={value}
+        defaultValue={defaultValue}
+        onChange={handleChange}
+        onBlur={onBlur}
+        aria-describedby={preview ? `${props.id ?? props.name}-pkr-preview` : undefined}
+        className={cn(
+          controlClass,
+          'h-10',
+          preview && 'pr-[5.25rem]',
+          className,
+        )}
+      />
+      {preview ? (
+        <span
+          id={props.id || props.name ? `${props.id ?? props.name}-pkr-preview` : undefined}
+          className="pointer-events-none absolute inset-y-0 right-3 z-[1] flex max-w-[5rem] items-center justify-end truncate text-xs tabular-nums text-soe-slate"
+          aria-hidden
+        >
+          {preview}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+export function CurrencyField({
+  label,
+  error,
+  hint,
+  id,
+  className,
+  required,
+  value,
+  previewMinAbs,
+  type: _type,
+  inputMode: _inputMode,
+  ...props
+}: TextFieldProps & { previewMinAbs?: number }) {
+  const { fieldId, errorId, hintId } = useFieldIds(id, props.name)
+
+  return (
+    <FieldShell
+      label={label}
+      htmlFor={fieldId}
+      required={required}
+      error={error}
+      hint={hint}
+      errorId={errorId}
+      hintId={hintId}
+    >
+      <PkrAmountInput
+        id={fieldId}
+        required={required}
+        value={value}
+        previewMinAbs={previewMinAbs}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(error, hint, errorId, hintId)}
+        className={cn(error && 'border-soe-critical', className)}
+        {...props}
+      />
+    </FieldShell>
+  )
 }
 
 export function PercentField(props: TextFieldProps) {
@@ -138,7 +236,7 @@ export function SelectField({
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(error, hint, errorId, hintId)}
-        className={cn(controlClass, 'h-[42px]', error && 'border-soe-critical', className)}
+        className={cn(controlClass, 'h-10', error && 'border-soe-critical', className)}
         {...props}
       >
         {placeholder ? <option value="">{placeholder}</option> : null}
@@ -261,7 +359,7 @@ export function ReadOnlyValue({ label, value }: { label: string; value: string }
   return (
     <div className="space-y-1">
       <LabelText>{label}</LabelText>
-      <p className="rounded-control border border-soe-border bg-soe-canvas px-3 py-2.5 text-sm text-soe-ink">
+      <p className="rounded-control border border-soe-border bg-[#f4f7fa] px-3 py-2.5 text-sm text-soe-ink">
         {value}
       </p>
     </div>
@@ -281,7 +379,7 @@ export function MockFileControl({
       <input
         id={fieldId}
         type="file"
-        className={cn(controlClass, 'h-[42px] py-2')}
+        className={cn(controlClass, 'h-10 py-2')}
         onClick={(e) => e.preventDefault()}
         aria-describedby={hintId}
       />

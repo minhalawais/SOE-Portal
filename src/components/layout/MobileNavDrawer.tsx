@@ -36,6 +36,7 @@ function FlatLinks({
           <li key={item.id}>
             <NavLink
               to={item.route}
+              end
               onClick={onNavigate}
               className={({ isActive }) =>
                 cn(

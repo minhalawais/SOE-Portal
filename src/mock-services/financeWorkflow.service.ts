@@ -16,10 +16,12 @@ import { AppError, simulateLatency, simulateMutation } from '@/utils'
 import {
   bumpVersion,
   canTransition,
+  canOverrideWorkflowLock,
   getActionOwnerLabel,
   getAvailableActions,
   getNextActionHint,
   isImmutableStatus,
+  isWorkflowLockedForRole,
   type WorkflowActionDef,
 } from '@/workflow/submission'
 import {
@@ -73,11 +75,17 @@ function findFinanceSubmission(organizationId: string, reportingPeriodId: string
   return row
 }
 
-function syncStatuses(submissionId: string, financialId: string, status: Submission['status']) {
+function syncStatuses(
+  submissionId: string,
+  financialId: string,
+  status: Submission['status'],
+  role?: RoleId,
+) {
   const sIdx = db.submissions.findIndex((s) => s.id === submissionId)
   const fIdx = db.financialMetrics.findIndex((f) => f.id === financialId)
+  const allowLockedOverride = role ? canOverrideWorkflowLock(role) : false
   if (sIdx >= 0) {
-    if (db.submissions[sIdx].status === SUBMISSION_STATUS.LOCKED) {
+    if (db.submissions[sIdx].status === SUBMISSION_STATUS.LOCKED && !allowLockedOverride) {
       throw new AppError('Locked submissions are immutable', 'VALIDATION')
     }
     db.submissions[sIdx] = {
@@ -87,7 +95,7 @@ function syncStatuses(submissionId: string, financialId: string, status: Submiss
     }
   }
   if (fIdx >= 0) {
-    if (db.financialMetrics[fIdx].status === SUBMISSION_STATUS.LOCKED) {
+    if (db.financialMetrics[fIdx].status === SUBMISSION_STATUS.LOCKED && !allowLockedOverride) {
       throw new AppError('Locked financial records are immutable', 'VALIDATION')
     }
     db.financialMetrics[fIdx] = { ...db.financialMetrics[fIdx], status }
@@ -172,6 +180,12 @@ export interface FinanceWorkflowService {
     payload: { title: string; fileName: string },
     role: RoleId,
   ): Promise<DocumentMeta>
+  removeEvidence(
+    organizationId: string,
+    reportingPeriodId: string,
+    documentId: string,
+    role: RoleId,
+  ): Promise<void>
   markComplete(organizationId: string, reportingPeriodId: string, role: RoleId): Promise<Submission>
   sendForCertification(
     organizationId: string,
@@ -245,7 +259,8 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
     const evidence = db.documents.filter(
       (d) =>
         d.organizationId === organizationId &&
-        (d.linkedRecordId === submission.id || d.category === 'finance'),
+        d.linkedRecordId === submission.id &&
+        d.id.startsWith('doc-ev-'),
     )
     const clarifications = db.clarifications.filter((c) => c.submissionId === submission.id)
     const timeline = db.timeline
@@ -267,9 +282,14 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
       versions,
       validation,
       availableActions: getAvailableActions(submission.status, role),
-      nextActionHint: getNextActionHint(submission.status),
+      nextActionHint:
+        canOverrideWorkflowLock(role) && isImmutableStatus(submission.status)
+          ? ''
+          : getNextActionHint(submission.status, role),
       actionOwner: getActionOwnerLabel(submission.status),
-      readOnly: isImmutableStatus(submission.status) || !hasPermission(role, PERMISSION.FINANCE_EDIT),
+      readOnly:
+        isWorkflowLockedForRole(submission.status, role) ||
+        !hasPermission(role, PERMISSION.FINANCE_EDIT),
       percentChange: {
         revenue: pctChange(current.revenue, previous?.revenue),
         operatingExpenses: pctChange(current.operatingExpenses, previous?.operatingExpenses),
@@ -285,10 +305,35 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
       (f) => f.organizationId === organizationId && f.reportingPeriodId === reportingPeriodId,
     )
     if (!current) throw new AppError('Financial metric not found', 'NOT_FOUND')
+    const submission = findFinanceSubmission(organizationId, reportingPeriodId)
+
+    if (isImmutableStatus(current.status) && canOverrideWorkflowLock(role)) {
+      const idx = db.financialMetrics.findIndex((f) => f.id === current.id)
+      db.financialMetrics[idx] = {
+        ...current,
+        ...patch,
+        id: current.id,
+        organizationId,
+        reportingPeriodId,
+        status: current.status,
+        profitOrLoss:
+          patch.profitOrLoss ??
+          (patch.revenue !== undefined || patch.operatingExpenses !== undefined
+            ? (patch.revenue ?? current.revenue) -
+              (patch.operatingExpenses ?? current.operatingExpenses)
+            : current.profitOrLoss),
+      }
+      pushTimeline(
+        organizationId,
+        'Executive override: locked finance corrected (demo)',
+        'finance',
+      )
+      return simulateMutation(db.financialMetrics[idx])
+    }
+
     if (isImmutableStatus(current.status)) {
       throw new AppError('Locked financial records are immutable', 'VALIDATION')
     }
-    const submission = findFinanceSubmission(organizationId, reportingPeriodId)
     if (
       submission.status !== SUBMISSION_STATUS.DRAFT &&
       submission.status !== SUBMISSION_STATUS.IN_PROGRESS &&
@@ -321,7 +366,7 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
           ? (patch.revenue ?? current.revenue) - (patch.operatingExpenses ?? current.operatingExpenses)
           : current.profitOrLoss),
     }
-    syncStatuses(submission.id, current.id, nextStatus)
+    syncStatuses(submission.id, current.id, nextStatus, role)
     const sIdx = db.submissions.findIndex((s) => s.id === submission.id)
     db.submissions[sIdx] = {
       ...db.submissions[sIdx],
@@ -334,8 +379,9 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
   async attachEvidence(organizationId, reportingPeriodId, payload, role) {
     requireRolePermission(role, PERMISSION.DOCUMENT_UPLOAD)
     const submission = findFinanceSubmission(organizationId, reportingPeriodId)
+    const stamp = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
     const doc: DocumentMeta = {
-      id: `doc-ev-${Date.now()}`,
+      id: `doc-ev-${stamp}`,
       organizationId,
       title: payload.title,
       category: 'finance',
@@ -343,10 +389,11 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
       linkedRecordType: 'submission',
       linkedRecordId: submission.id,
       linkedModule: 'finance',
+      reportingPeriodId,
       uploadedAt: new Date().toISOString(),
       uploadedBy: role,
       version: 1,
-      documentFamilyId: `docfam-ev-${Date.now()}`,
+      documentFamilyId: `docfam-ev-${stamp}`,
       evidenceStatus: 'available',
       status: 'available',
       isDummyDemonstrationData: true,
@@ -354,6 +401,21 @@ export const mockFinanceWorkflowService: FinanceWorkflowService = {
     db.documents.push(doc)
     pushTimeline(organizationId, `Evidence attached: ${payload.title}`, 'evidence')
     return simulateMutation(doc)
+  },
+
+  async removeEvidence(organizationId, reportingPeriodId, documentId, role) {
+    requireRolePermission(role, PERMISSION.DOCUMENT_UPLOAD)
+    const submission = findFinanceSubmission(organizationId, reportingPeriodId)
+    const idx = db.documents.findIndex(
+      (d) =>
+        d.id === documentId &&
+        d.organizationId === organizationId &&
+        d.linkedRecordId === submission.id &&
+        d.id.startsWith('doc-ev-'),
+    )
+    if (idx < 0) throw new AppError('Attached evidence not found', 'NOT_FOUND')
+    db.documents.splice(idx, 1)
+    return simulateMutation(undefined)
   },
 
   async markComplete(organizationId, reportingPeriodId, role) {

@@ -3,6 +3,7 @@ import { PORTAL, ROLE } from '@/constants'
 import type { Permission } from '@/permissions'
 import { PERMISSION } from '@/permissions'
 import { APP_CONFIG } from '@/app/config/app.config'
+import { EXECUTIVE_FLAT_SIDEBAR_MODULE_IDS, MODULE_SECTIONS, type ModuleSectionId } from '@/app/config/moduleSections'
 
 export interface PortalNavigationItem {
   id: string
@@ -27,21 +28,53 @@ export interface PortalDefinition {
   homeRoute: string
 }
 
-export const portalDefinitions: Record<PortalId, PortalDefinition> = {
-  [PORTAL.SOE]: {
-    id: PORTAL.SOE,
-    name: 'SOE Management & Submission',
-    primaryQuestion: 'What do I need to complete, review, certify or submit?',
-    density: 'operational',
-    allowsOrganizationSwitch: false,
-    allowsOperationalEdit: true,
-    homeRoute: '/soe/dashboard',
-    navigation: [
-      { id: 'soe-dashboard', label: 'Dashboard', route: '/soe/dashboard' },
-      {
-        id: 'soe-submissions',
-        label: 'Submissions & Approvals',
-        route: '/soe/reporting',
+const soeFinanceModuleChildren: PortalNavigationItem[] = [
+  { id: 'soe-finance-overview', label: 'Financial reporting', route: '/soe/finance', permission: PERMISSION.FINANCE_READ },
+  { id: 'soe-finance-form', label: 'Financial form', route: '/soe/finance/form', permission: PERMISSION.FINANCE_READ },
+  { id: 'soe-finance-review', label: 'Internal Review', route: '/soe/finance/review', permission: PERMISSION.FINANCE_READ },
+  { id: 'soe-finance-certify', label: 'Certification', route: '/soe/finance/certify', permission: PERMISSION.FINANCE_READ },
+  { id: 'soe-finance-clar', label: 'Clarification', route: '/soe/finance/clarification', permission: PERMISSION.FINANCE_READ },
+  { id: 'soe-finance-history', label: 'History', route: '/soe/finance/history', permission: PERMISSION.FINANCE_READ },
+  { id: 'soe-finance-loans', label: 'Loans & Grants', route: '/soe/finance/loans', permission: PERMISSION.FINANCE_READ },
+]
+
+const EXECUTIVE_FINANCE_NAV_EXCLUDE = new Set([
+  'soe-finance-form',
+  'soe-finance-review',
+  'soe-finance-certify',
+  'soe-finance-clar',
+  'soe-finance-history',
+])
+
+const soeFinanceExecutiveChildren = soeFinanceModuleChildren.filter(
+  (item) => !EXECUTIVE_FINANCE_NAV_EXCLUDE.has(item.id),
+)
+
+/** Executive viewer sidebar — one item per entry module; sections move in-page. */
+function flattenExecutiveSidebarModules(items: PortalNavigationItem[]): PortalNavigationItem[] {
+  return items.map((item) => {
+    let next = item
+    if (item.id === 'soe-finance' && item.children?.length) {
+      next = { ...item, children: soeFinanceExecutiveChildren }
+    }
+    if (EXECUTIVE_FLAT_SIDEBAR_MODULE_IDS.has(item.id as ModuleSectionId) && next.children?.length) {
+      const sectionId = item.id as ModuleSectionId
+      const defaultRoute = MODULE_SECTIONS[sectionId][0]?.to ?? next.route
+      const { children: _children, ...rest } = next
+      return { ...rest, route: defaultRoute }
+    }
+    if (next.children?.length) {
+      return { ...next, children: flattenExecutiveSidebarModules(next.children) }
+    }
+    return next
+  })
+}
+
+const soeContributorModuleNavigation: PortalNavigationItem[] = [
+  {
+    id: 'soe-submissions',
+    label: 'Submissions & Approvals',
+    route: '/soe/reporting',
         children: [
           {
             id: 'soe-reporting',
@@ -91,15 +124,9 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
       {
         id: 'soe-assets',
         label: 'Assets & Property',
-        route: '/soe/assets',
+        route: '/soe/assets/land',
         permission: PERMISSION.ASSETS_READ,
         children: [
-          {
-            id: 'soe-asset-registry',
-            label: 'Asset Registry',
-            route: '/soe/assets/registry',
-            permission: PERMISSION.ASSETS_READ,
-          },
           { id: 'soe-land', label: 'Land', route: '/soe/assets/land', permission: PERMISSION.ASSETS_READ },
           {
             id: 'soe-buildings',
@@ -125,23 +152,16 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
             route: '/soe/assets/equipment',
             permission: PERMISSION.ASSETS_READ,
           },
-          {
-            id: 'soe-asset-map',
-            label: 'National Asset Map',
-            route: '/soe/assets/map',
-            permission: PERMISSION.ASSETS_READ,
-          },
         ],
       },
       {
         id: 'soe-people',
         label: 'People & Governance',
-        route: '/soe/people',
+        route: '/soe/people/executives',
         children: [
+          { id: 'soe-executives', label: 'Executive', route: '/soe/people/executives' },
+          { id: 'soe-board', label: 'Board Member', route: '/soe/people/board' },
           { id: 'soe-workforce', label: 'Workforce', route: '/soe/people/workforce' },
-          { id: 'soe-board', label: 'Board Governance', route: '/soe/people/board' },
-          { id: 'soe-executives', label: 'Executives', route: '/soe/people/executives' },
-          { id: 'soe-calendar', label: 'Governance Calendar', route: '/soe/people/calendar' },
         ],
       },
       {
@@ -149,20 +169,7 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
         label: 'Financial & Fiscal',
         route: '/soe/finance',
         permission: PERMISSION.FINANCE_READ,
-        children: [
-          { id: 'soe-finance-overview', label: 'Overview', route: '/soe/finance', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-perf', label: 'Performance', route: '/soe/finance/performance', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-budget', label: 'Budget', route: '/soe/finance/budget', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-form', label: 'Financial Form', route: '/soe/finance/form', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-review', label: 'Internal Review', route: '/soe/finance/review', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-certify', label: 'Certification', route: '/soe/finance/certify', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-clar', label: 'Clarification', route: '/soe/finance/clarification', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-history', label: 'History', route: '/soe/finance/history', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-statements', label: 'Statements', route: '/soe/finance/statements', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-exposure', label: 'Exposure', route: '/soe/finance/exposure', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-compare', label: 'Compare', route: '/soe/finance/compare', permission: PERMISSION.FINANCE_READ },
-          { id: 'soe-finance-loans', label: 'Loans & Grants', route: '/soe/finance/loans', permission: PERMISSION.FINANCE_READ },
-        ],
+        children: soeFinanceModuleChildren,
       },
       {
         id: 'soe-accountability',
@@ -180,12 +187,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
         id: 'soe-industrial',
         label: 'Industrial Performance',
         route: '/soe/industrial',
-      },
-      {
-        id: 'soe-intelligence',
-        label: 'Performance Scorecard',
-        route: '/soe/intelligence',
-        permission: PERMISSION.FINANCE_READ,
       },
       {
         id: 'soe-reports',
@@ -216,14 +217,129 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
         ],
       },
       {
-        id: 'soe-tasks',
-        label: 'Tasks & Alerts',
-        route: '/soe/tasks',
+        id: 'soe-logs-alerts',
+        label: 'Logs & Alerts',
+        route: '/soe/logs',
         children: [
-          { id: 'soe-tasks-centre', label: 'Tasks', route: '/soe/tasks' },
+          { id: 'soe-logs-centre', label: 'Logs', route: '/soe/logs' },
           { id: 'soe-alerts', label: 'Alerts', route: '/soe/alerts' },
         ],
       },
+]
+
+const soeCertifierComplianceModule: PortalNavigationItem = {
+  id: 'soe-cert-compliance',
+  label: 'Compliance Data',
+  route: '/soe/accountability/compliance',
+  permission: PERMISSION.ACCOUNTABILITY_READ,
+}
+
+const soeCertifierEvidenceModule: PortalNavigationItem = {
+  id: 'soe-cert-documents',
+  label: 'Evidence & Documents',
+  route: '/soe/documents',
+  permission: PERMISSION.DOCUMENT_READ,
+  children: [
+    { id: 'soe-cert-docs-repo', label: 'Repository', route: '/soe/documents' },
+    {
+      id: 'soe-cert-docs-subhist',
+      label: 'Audit Trail & History',
+      route: '/soe/documents/submission-history',
+    },
+  ],
+}
+
+/** Certifier portal modules — reused in certifier role nav */
+const soeCertifierExecutiveModules: PortalNavigationItem[] = [
+  soeCertifierComplianceModule,
+  soeCertifierEvidenceModule,
+]
+
+/** Executive viewer extras — reserved for modules not covered by contributor flattening */
+const soeExecutiveViewerExtras: PortalNavigationItem[] = []
+
+/** MoIP user administration — reused in executive viewer sidebar */
+const executiveUserManagementModule: PortalNavigationItem = {
+  id: 'exec-user-admin',
+  label: 'User Management',
+  route: '/moip/admin/users',
+  permission: PERMISSION.USER_READ,
+  children: [
+    { id: 'exec-users', label: 'Users', route: '/moip/admin/users' },
+    {
+      id: 'exec-access-audit',
+      label: 'Account Activity',
+      route: '/moip/admin/audit-log',
+      permission: PERMISSION.AUDIT_LOG_READ,
+    },
+  ],
+}
+
+const EXECUTIVE_DATA_ENTRY_FLAT_MODULE_IDS = new Set([
+  'soe-enterprise',
+  'soe-assets',
+  'soe-people',
+  'soe-finance',
+  'soe-accountability',
+  'soe-industrial',
+  'soe-privatization',
+  'soe-documents',
+])
+
+/** PM command dashboard plus SOE contributor and certifier modules (routes remain under /soe/*) */
+const pmDashboardNavigation: PortalNavigationItem[] = (() => {
+  const withoutReportsAndTasks = soeContributorModuleNavigation.filter(
+    (item) => item.id !== 'soe-logs-alerts' && item.id !== 'soe-reports',
+  )
+  const reports = soeContributorModuleNavigation.find((item) => item.id === 'soe-reports')
+  const logsAlerts = soeContributorModuleNavigation.find((item) => item.id === 'soe-logs-alerts')
+  const submissionsModule = withoutReportsAndTasks.find((item) => item.id === 'soe-submissions')
+
+  const dataEntryModules: PortalNavigationItem[] = [
+    ...flattenExecutiveSidebarModules([
+      ...withoutReportsAndTasks.filter((item) =>
+        EXECUTIVE_DATA_ENTRY_FLAT_MODULE_IDS.has(item.id),
+      ),
+      ...soeExecutiveViewerExtras.filter((item) =>
+        EXECUTIVE_DATA_ENTRY_FLAT_MODULE_IDS.has(item.id),
+      ),
+    ]),
+    ...(submissionsModule ? [submissionsModule] : []),
+  ]
+  const shellModules = withoutReportsAndTasks.filter(
+    (item) =>
+      item.id !== 'soe-submissions' && !EXECUTIVE_DATA_ENTRY_FLAT_MODULE_IDS.has(item.id),
+  )
+
+  const dataEntryGroup: PortalNavigationItem = {
+    id: 'exec-data-entry',
+    label: 'Data Entry',
+    route: dataEntryModules[0]?.route ?? '/soe/enterprise/profile',
+    children: dataEntryModules,
+  }
+
+  return [
+    { id: 'pmo-command', label: 'National Dashboard', route: '/pmo/dashboard' },
+    ...shellModules,
+    dataEntryGroup,
+    executiveUserManagementModule,
+    ...(logsAlerts ? [logsAlerts] : []),
+    ...(reports ? [reports] : []),
+  ]
+})()
+
+export const portalDefinitions: Record<PortalId, PortalDefinition> = {
+  [PORTAL.SOE]: {
+    id: PORTAL.SOE,
+    name: 'SOE Management & Submission',
+    primaryQuestion: 'What do I need to complete, review, certify or submit?',
+    density: 'operational',
+    allowsOrganizationSwitch: false,
+    allowsOperationalEdit: true,
+    homeRoute: '/soe/dashboard',
+    navigation: [
+      { id: 'soe-dashboard', label: 'Dashboard', route: '/soe/dashboard' },
+      ...soeContributorModuleNavigation,
     ],
   },
 
@@ -309,7 +425,7 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
           { id: 'moip-access-audit', label: 'Account Activity', route: '/moip/admin/audit-log' },
         ],
       },
-      { id: 'moip-tasks', label: 'Tasks & Escalations', route: '/moip/tasks' },
+      { id: 'moip-logs', label: 'Logs & Escalations', route: '/moip/logs' },
       { id: 'moip-dq', label: 'Validation & Readiness', route: '/moip/data-quality', permission: PERMISSION.PORTFOLIO_READ },
       { id: 'moip-intelligence', label: 'Risk & Benchmarking', route: '/moip/intelligence', permission: PERMISSION.PORTFOLIO_READ },
       { id: 'moip-asset-map', label: 'National Asset Map', route: '/moip/assets/map', permission: PERMISSION.ASSETS_READ },
@@ -439,27 +555,7 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
     allowsOperationalEdit: false,
     featureFlag: APP_CONFIG.ENABLE_PMO_PORTAL,
     homeRoute: '/pmo/dashboard',
-    navigation: [
-      { id: 'pmo-command', label: 'Command Dashboard', route: '/pmo/dashboard' },
-      {
-        id: 'pmo-map',
-        label: 'National Asset Map',
-        route: '/pmo/map',
-        permission: PERMISSION.ASSETS_READ,
-      },
-      {
-        id: 'pmo-search',
-        label: 'Search & Intelligence',
-        route: '/pmo/search',
-        permission: PERMISSION.EXECUTIVE_DASHBOARD_READ,
-      },
-      {
-        id: 'pmo-reports',
-        label: 'Strategic Reports',
-        route: '/pmo/reports',
-        permission: PERMISSION.EXECUTIVE_DASHBOARD_READ,
-      },
-    ],
+    navigation: pmDashboardNavigation,
   },
 
   [PORTAL.ASSURANCE]: {
@@ -502,32 +598,13 @@ const soeCertifierNavigation: PortalNavigationItem[] = [
       { id: 'soe-cert-validation', label: 'Validation & Readiness', route: '/soe/validation' },
     ],
   },
+  ...soeCertifierExecutiveModules,
   {
-    id: 'soe-cert-compliance',
-    label: 'Compliance Data',
-    route: '/soe/accountability/compliance',
-    permission: PERMISSION.ACCOUNTABILITY_READ,
-  },
-  {
-    id: 'soe-cert-documents',
-    label: 'Evidence & Documents',
-    route: '/soe/documents',
-    permission: PERMISSION.DOCUMENT_READ,
+    id: 'soe-cert-logs-alerts',
+    label: 'Logs & Alerts',
+    route: '/soe/logs',
     children: [
-      { id: 'soe-cert-docs-repo', label: 'Repository', route: '/soe/documents' },
-      {
-        id: 'soe-cert-docs-subhist',
-        label: 'Audit Trail & History',
-        route: '/soe/documents/submission-history',
-      },
-    ],
-  },
-  {
-    id: 'soe-cert-tasks',
-    label: 'Tasks & Alerts',
-    route: '/soe/tasks',
-    children: [
-      { id: 'soe-cert-tasks-centre', label: 'Tasks', route: '/soe/tasks' },
+      { id: 'soe-cert-logs-centre', label: 'Logs', route: '/soe/logs' },
       { id: 'soe-cert-alerts', label: 'Alerts', route: '/soe/alerts' },
     ],
   },
@@ -535,6 +612,31 @@ const soeCertifierNavigation: PortalNavigationItem[] = [
 
 export function getPortalDefinitionForRole(portal: PortalId, role: RoleId): PortalDefinition {
   const definition = portalDefinitions[portal]
+
+  if (
+    portal === PORTAL.MINISTER &&
+    (role === ROLE.EXECUTIVE_VIEWER || role === ROLE.PMO)
+  ) {
+    return {
+      ...definition,
+      navigation: pmDashboardNavigation,
+      homeRoute: '/pmo/dashboard',
+      allowsOperationalEdit: true,
+    }
+  }
+
+  if (
+    portal === PORTAL.PMO &&
+    (role === ROLE.EXECUTIVE_VIEWER || role === ROLE.PMO)
+  ) {
+    return {
+      ...definition,
+      navigation: pmDashboardNavigation,
+      homeRoute: '/pmo/dashboard',
+      allowsOperationalEdit: true,
+    }
+  }
+
   if (portal !== PORTAL.SOE) return definition
 
   if (role === ROLE.SOE_CERTIFIER) {

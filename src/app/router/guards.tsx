@@ -4,8 +4,9 @@ import { portalHome } from '@/app/config/navigation'
 import { useActivePortal, useSessionStore } from '@/state/session'
 import { getHomeForRole, hasPermission, type Permission } from '@/permissions'
 import { ErrorState } from '@/design-system/components/Feedback'
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useLayoutEffect, type ErrorInfo, type ReactNode } from 'react'
 import { canRoleAccessPortal } from '@/app/router/access'
+import { PORTAL, ROLE } from '@/constants'
 
 export function PortalLayout() {
   return (
@@ -58,8 +59,22 @@ export function RequirePermission({
 export function RoleHomeRedirect() {
   const isAuthenticated = useSessionStore((s) => s.isAuthenticated)
   const role = useSessionStore((s) => s.role)
+  const setRole = useSessionStore((s) => s.setRole)
+
+  useLayoutEffect(() => {
+    if (isAuthenticated && !canRoleAccessPortal(role, PORTAL.PMO)) {
+      setRole(ROLE.EXECUTIVE_VIEWER)
+    }
+  }, [isAuthenticated, role, setRole])
+
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  return <Navigate to={getHomeForRole(role)} replace />
+  if (!canRoleAccessPortal(role, PORTAL.PMO)) return null
+  return <Navigate to="/pmo/dashboard" replace />
+}
+
+/** Authenticated app entry — always PM Dashboard. */
+export function AuthenticatedEntryRedirect() {
+  return <Navigate to="/pmo/dashboard" replace />
 }
 
 interface BoundaryState {

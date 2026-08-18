@@ -797,12 +797,6 @@ export function IntelligenceRiskWorkspace({
   )
 }
 
-export function SoeIntelligencePage() {
-  return (
-    <IntelligenceRiskWorkspace portal="soe" title="Performance Scorecard" />
-  )
-}
-
 export function MoipIntelligencePage() {
   return (
     <IntelligenceRiskWorkspace

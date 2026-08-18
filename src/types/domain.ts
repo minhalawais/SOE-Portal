@@ -72,6 +72,11 @@ export interface OrganizationRelationship {
   relationshipType: RelationshipType
   ownershipPercentage: number
   status: RelationshipStatus
+  reportingContact?: string
+  performanceNotes?: string
+  revenueReported?: number
+  netProfitReported?: number
+  capacityUtilizationReported?: number
 }
 
 export interface OwnershipLine {
@@ -113,6 +118,8 @@ export interface OrganizationLocation {
   address?: string
   latitude: number
   longitude: number
+  /** Closed unit footprint as [latitude, longitude] vertices */
+  polygon?: Array<[number, number]>
 }
 
 export interface HierarchyNode {
@@ -204,6 +211,9 @@ export interface Asset {
   maintenanceCostAnnual?: number
   insuranceValue?: number
   linkedLandAssetId?: string
+  documentReference?: string
+  mutationReference?: string
+  photoReference?: string
   /** Machinery */
   machineId?: string
   manufacturer?: string
@@ -296,6 +306,9 @@ export interface Employee {
   salaryPkr?: number
   qualification?: string
   trainingSummary?: string
+  allowancesPkr?: number
+  benefitsSummary?: string
+  pensionScheme?: string
   disciplinaryOpenCases?: number
   isDummyDemonstrationData: true
 }
@@ -348,7 +361,27 @@ export interface BoardMember {
   travelExpensePkr?: number
   /** Fictional CNIC — mask in list views */
   cnic?: string
+  /** Assigned SOE / government facilities and perks */
+  assignedFacilities?: BoardMemberAssignedFacilities
   isDummyDemonstrationData: true
+}
+
+export type OfficialVehicleAssignment = 'dedicated' | 'pool' | 'none'
+export type SecurityVehicleAssignment = 'authorized' | 'none'
+
+export interface BoardMemberAssignedFacilities {
+  officialVehicle: OfficialVehicleAssignment
+  fuelAllowance: string
+  officialResidence: boolean
+  medicalFacility: string
+  officeSecretariat: boolean
+  laptopComputer: boolean
+  mobileHandset: boolean
+  communicationAllowance: string
+  internetFacility: boolean
+  travelFacility: string
+  securityVehicle: SecurityVehicleAssignment
+  otherAssignedAsset: string
 }
 
 export interface BoardCommittee {
@@ -402,6 +435,7 @@ export interface WorkforceSummary {
   byProvince: Record<string, number>
   dailyWagerCount: number
   consultantActiveCount: number
+  pensionersCount: number
 }
 
 export interface BoardSummary {
@@ -522,6 +556,7 @@ export interface Loan {
   guaranteeStatus: LoanGuaranteeStatus
   relatedGuaranteeId?: string
   defaultStatus: string
+  repaymentScheduleNote?: string
   isDummyDemonstrationData: true
 }
 
@@ -556,6 +591,7 @@ export interface Grant {
   utilized: number
   remaining: number
   completionPct?: number
+  completionTargetDate?: string
   status: string
   isDummyDemonstrationData: true
 }
@@ -709,8 +745,24 @@ export interface PrivatizationCase {
   status: string
   cabinetDecision?: string
   ccopDecision?: string
+  financialAdvisor?: string
+  valuationAmountPkr?: number
+  transactionStructure?: string
   blocker?: string
   nextAction?: string
+  isDummyDemonstrationData: true
+}
+
+export interface ProcurementAnnualPlan {
+  id: string
+  organizationId: string
+  fiscalYear: string
+  title: string
+  category: string
+  estimatedValue: number
+  method: string
+  status: string
+  responsibleFunction: string
   isDummyDemonstrationData: true
 }
 

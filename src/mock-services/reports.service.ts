@@ -113,6 +113,33 @@ export interface ReportsService {
     sectors: string[]
     provinces: string[]
   }>
+  getPmoDashboardReportCards(params?: ReportParams): Promise<PmoDashboardReportCard[]>
+}
+
+export type PmoDashboardReportType = 'Brief' | 'Portfolio' | 'Module'
+
+export interface PmoDashboardReportCard {
+  reportId: ReportId
+  name: string
+  reportType: PmoDashboardReportType
+  periodLabel: string
+  dataStatus: ReportDataStatus
+  dataStatusLabel: string
+  hook: string
+}
+
+export const PMO_DASHBOARD_REPORT_ORDER: ReportId[] = [
+  REPORT_ID.CABINET_BRIEF,
+  REPORT_ID.ANNUAL_PORTFOLIO,
+  REPORT_ID.FISCAL_EXPOSURE,
+  REPORT_ID.PRIVATIZATION,
+  REPORT_ID.ASSET,
+]
+
+const PMO_DASHBOARD_DATA_STATUS_LABEL: Record<ReportDataStatus, string> = {
+  [REPORT_DATA_STATUS.APPROVED]: 'Approved data',
+  [REPORT_DATA_STATUS.PROTOTYPE]: 'Prototype',
+  [REPORT_DATA_STATUS.PROTOTYPE_MIXED]: 'Partial',
 }
 
 const METHODOLOGY =
@@ -130,6 +157,14 @@ function orgLabel(id: string) {
   return db.organizations.find((o) => o.id === id)?.abbreviation ?? id
 }
 
+function orgProvince(orgId: string) {
+  return (
+    db.locations.find((l) => l.organizationId === orgId && l.kind === 'head_office')?.province ??
+    db.locations.find((l) => l.organizationId === orgId)?.province ??
+    ''
+  )
+}
+
 function filterOrgs(params?: ReportParams, portal?: ReportPortal, forceOrg?: string) {
   let orgs = [...db.organizations]
   if (portal === 'soe' || forceOrg) {
@@ -138,6 +173,7 @@ function filterOrgs(params?: ReportParams, portal?: ReportPortal, forceOrg?: str
   } else {
     if (params?.organizationId) orgs = orgs.filter((o) => o.id === params.organizationId)
     if (params?.sector) orgs = orgs.filter((o) => o.sector === params.sector)
+    if (params?.province) orgs = orgs.filter((o) => orgProvince(o.id) === params.province)
   }
   return orgs
 }
@@ -1158,6 +1194,74 @@ function assertPortalAccess(reportId: ReportId, portal: ReportPortal) {
   return def
 }
 
+function pmoDashboardReportType(def: ReportDefinition): PmoDashboardReportType {
+  if (def.briefStyle) return 'Brief'
+  if (def.id === REPORT_ID.ANNUAL_PORTFOLIO) return 'Portfolio'
+  return 'Module'
+}
+
+function buildPmoReportHook(
+  reportId: ReportId,
+  orgIds: string[],
+  reportingPeriodId: string,
+  approvedOnly?: boolean,
+  province?: string,
+): string {
+  const metrics = orgIds.map((id) => deriveOrganizationMetrics(id, reportingPeriodId))
+
+  switch (reportId) {
+    case REPORT_ID.CABINET_BRIEF: {
+      const audit = metrics.reduce((sum, item) => sum + item.openAuditCount, 0)
+      const lit = metrics.reduce((sum, item) => sum + item.activeLitigationCount, 0)
+      let lossMakers = 0
+      for (const id of orgIds) {
+        const fin = financeFor(id, reportingPeriodId, approvedOnly)
+        if (fin && fin.profitOrLoss < 0) lossMakers += 1
+      }
+      const priv = db.privatizationCases.filter((item) => orgIds.includes(item.organizationId))
+      const blocked = priv.filter((item) => item.blocker).length
+      return `3 issues · ${lossMakers} loss-making SOE(s) · ${audit} audit paras · ${lit} litigation · ${priv.length} pipeline case(s)${blocked ? ` · ${blocked} blocked` : ''}`
+    }
+    case REPORT_ID.ANNUAL_PORTFOLIO: {
+      const book = metrics.reduce((sum, item) => sum + item.totalBookValue, 0)
+      let lossMakers = 0
+      for (const id of orgIds) {
+        const fin = financeFor(id, reportingPeriodId, approvedOnly)
+        if (fin && fin.profitOrLoss < 0) lossMakers += 1
+      }
+      return `${orgIds.length} SOE(s) · ${formatCurrencyPkr(book)} book · ${lossMakers} loss-making`
+    }
+    case REPORT_ID.FISCAL_EXPOSURE: {
+      let subsidies = 0
+      let debt = 0
+      let lossMakers = 0
+      for (const id of orgIds) {
+        const fin = financeFor(id, reportingPeriodId, approvedOnly)
+        if (!fin) continue
+        subsidies += fin.subsidies
+        debt += fin.totalDebt ?? 0
+        if (fin.profitOrLoss < 0) lossMakers += 1
+      }
+      const guarantees = db.guarantees.filter((item) => orgIds.includes(item.organizationId))
+      return `${formatCurrencyPkr(subsidies)} subsidies · ${formatCurrencyPkr(debt)} debt · ${guarantees.length} guarantee(s) · ${lossMakers} loss-making`
+    }
+    case REPORT_ID.PRIVATIZATION: {
+      const cases = db.privatizationCases.filter((item) => orgIds.includes(item.organizationId))
+      const blocked = cases.filter((item) => item.blocker).length
+      return `${cases.length} case(s)${blocked ? ` · ${blocked} with blockers` : ' · no blockers flagged'}`
+    }
+    case REPORT_ID.ASSET: {
+      let assets = db.assets.filter((item) => orgIds.includes(item.organizationId))
+      if (province) assets = assets.filter((item) => item.province === province)
+      const valuationGaps = assets.filter((item) => item.marketValue == null).length
+      const market = assets.reduce((sum, item) => sum + (item.marketValue ?? 0), 0)
+      return `${assets.length} assets · ${formatCurrencyPkr(market)} market · ${valuationGaps} valuation gap(s)`
+    }
+    default:
+      return 'Open preview for full report content.'
+  }
+}
+
 function resolveOrgIds(
   def: ReportDefinition,
   portal: ReportPortal,
@@ -1298,5 +1402,36 @@ export const mockReportsService: ReportsService = {
         ...new Set(db.assets.map((a) => a.province).filter(Boolean) as string[]),
       ].sort(),
     })
+  },
+
+  async getPmoDashboardReportCards(params) {
+    const reportingPeriodId = periodId(params)
+    const orgs = filterOrgs(params, 'pmo')
+    const orgIds = orgs.map((org) => org.id)
+    const ds = dataStatusFor(orgs, reportingPeriodId, params?.approvedOnly)
+
+    const cards = PMO_DASHBOARD_REPORT_ORDER.map((reportId) => {
+      const def = getReportDefinition(reportId)
+      if (!def || !def.portals.includes('pmo')) {
+        throw new Error(`Report unavailable for PMO dashboard: ${reportId}`)
+      }
+      return {
+        reportId,
+        name: def.name,
+        reportType: pmoDashboardReportType(def),
+        periodLabel: periodLabel(reportingPeriodId),
+        dataStatus: ds.status,
+        dataStatusLabel: PMO_DASHBOARD_DATA_STATUS_LABEL[ds.status],
+        hook: buildPmoReportHook(
+          reportId,
+          orgIds,
+          reportingPeriodId,
+          params?.approvedOnly,
+          params?.province,
+        ),
+      } satisfies PmoDashboardReportCard
+    })
+
+    return simulateLatency(cards)
   },
 }

@@ -1,1 +1,1 @@
-export { SoeTasksCentrePage as TasksNotificationsPage } from '@/portals/shared/TasksEarlyWarningWorkspacePages'
+export { SoeLogsPage } from '@/portals/shared/LogsWorkspacePages'

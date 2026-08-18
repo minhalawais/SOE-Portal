@@ -19,7 +19,7 @@ export const REPORTING_MODULES: ReportingModuleDef[] = [
   {
     id: MODULE.ASSETS,
     label: 'Assets',
-    route: '/soe/assets/registry',
+    route: '/soe/assets/land',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
     supportsImport: true,
   },

@@ -50,6 +50,9 @@ export interface FinanceService {
     reportingPeriodId: string,
   ): Promise<FinanceIntelligenceBundle>
   getBudgetLines(organizationId: string, reportingPeriodId: string): Promise<BudgetLine[]>
+  getBudgetLine(id: string): Promise<BudgetLine>
+  createBudgetLine(payload: Omit<BudgetLine, 'id'> & { id?: string }): Promise<BudgetLine>
+  updateBudgetLine(id: string, patch: Partial<BudgetLine>): Promise<BudgetLine>
   getComparison(
     organizationId: string,
     periodIds: string[],
@@ -190,6 +193,33 @@ export const mockFinanceService: FinanceService = {
           b.organizationId === organizationId && b.reportingPeriodId === reportingPeriodId,
       ),
     )
+  },
+  async getBudgetLine(id) {
+    const row = db.budgetLines.find((b) => b.id === id)
+    if (!row) throw new AppError('Budget line not found', 'NOT_FOUND')
+    return simulateLatency(row)
+  },
+  async createBudgetLine(payload) {
+    const id = payload.id ?? `budget-new-${Date.now()}`
+    if (!payload.category?.trim()) throw new AppError('Category is required', 'VALIDATION')
+    if (payload.budget < 0 || payload.actual < 0) {
+      throw new AppError('Budget and actual cannot be negative', 'VALIDATION')
+    }
+    const next: BudgetLine = { ...payload, id }
+    db.budgetLines.push(next)
+    return simulateMutation(next)
+  },
+  async updateBudgetLine(id, patch) {
+    const idx = db.budgetLines.findIndex((b) => b.id === id)
+    if (idx < 0) throw new AppError('Budget line not found', 'NOT_FOUND')
+    const current = db.budgetLines[idx]
+    const budget = patch.budget ?? current.budget
+    const actual = patch.actual ?? current.actual
+    if (budget < 0 || actual < 0) {
+      throw new AppError('Budget and actual cannot be negative', 'VALIDATION')
+    }
+    db.budgetLines[idx] = { ...current, ...patch, id }
+    return simulateMutation(db.budgetLines[idx])
   },
   async getComparison(organizationId, periodIds) {
     const periods = db.reportingPeriods.filter((p) => periodIds.includes(p.id))

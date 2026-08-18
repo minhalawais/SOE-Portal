@@ -88,6 +88,11 @@ describe('Phase 12 documents & historical intelligence', () => {
 
     const ent = await mockHistoryIntelligenceService.getEnterpriseTimeline('org-psm')
     expect(ent.length).toBeGreaterThan(0)
+
+    const tusdecHist = await mockHistoryIntelligenceService.getSubmissionHistory('org-tusdec')
+    expect(tusdecHist.length).toBeGreaterThan(5)
+    expect(tusdecHist.some((e) => e.module === 'finance')).toBe(true)
+    expect(tusdecHist.some((e) => e.module === 'assets')).toBe(true)
   })
 
   it('provides three KPI lineage paths across domains', async () => {

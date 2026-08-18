@@ -421,7 +421,7 @@ export const mockSoePortalService: SoePortalService = {
             ? '/soe/clarifications'
             : t.linkedRecordType === 'submission'
               ? '/soe/finance'
-              : '/soe/tasks',
+              : '/soe/logs',
         priority: t.priority,
       })
     })
@@ -634,7 +634,7 @@ export const mockSoePortalService: SoePortalService = {
       .filter((a) => a.organizationId === organizationId && a.name.toLowerCase().includes(q))
       .slice(0, 5)
       .forEach((a) =>
-        results.push({ type: 'record', title: a.name, route: '/soe/assets/registry' }),
+        results.push({ type: 'record', title: a.name, route: '/soe/assets/land' }),
       )
     db.documents
       .filter(

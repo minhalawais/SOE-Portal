@@ -3,22 +3,23 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { EnterpriseHeader } from '@/components/enterprise/EnterpriseHeader'
+import { ContributorEntryLayout, ContributorModuleLayout, EntryFormSection, EntryFormShell, ExecutiveModuleSectionNav, useScrollToEntryOnSelect } from '@/components/soe'
 import {
   MoipEnterpriseNav,
-  SoeEnterpriseNav,
 } from '@/components/enterprise/EnterpriseSectionNav'
 import { flattenHierarchy, HierarchyTree } from '@/components/enterprise/HierarchyTree'
-import { OwnershipCompositionBar } from '@/components/enterprise/OwnershipCompositionBar'
-import { MapPreview } from '@/components/data-display/MapPreview'
+import { UnitLocationPolygonPicker } from '@/components/gis/UnitLocationPolygonPicker'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { DataTable } from '@/components/tables/DataTable'
 import { Button } from '@/design-system/components/Button'
 import { EmptyState, ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
+import { SelectField, CurrencyField, TextField } from '@/design-system/components/Fields'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
 import {
   ENTERPRISE_HISTORY_EVENT,
   LEGAL_STATUS,
   LEGAL_STATUS_LABEL,
+  MODULE,
   RELATIONSHIP_TYPE,
   RELATIONSHIP_TYPE_LABEL,
   SHAREHOLDER_CATEGORY,
@@ -33,11 +34,10 @@ import { mockOrganizationService } from '@/mock-services'
 import { hasPermission, PERMISSION } from '@/permissions'
 import { useSessionStore } from '@/state/session'
 import { useUiStore } from '@/state/ui'
+import { cn } from '@/utils'
 import type {
   EnterpriseHistoryEvent,
-  GeoFeature,
   Organization,
-  OrganizationContact,
   OrganizationLocation,
   OrganizationRelationship,
   OwnershipLine,
@@ -71,23 +71,64 @@ function useEnterpriseContext(portal: 'soe' | 'moip', explicitOrgId?: string) {
   }
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block text-xs font-semibold text-soe-slate">{label}</span>
-      {children}
-    </label>
-  )
-}
-
 const inputClass =
   'h-10 w-full rounded-md border border-soe-border bg-white px-3 text-sm disabled:bg-[var(--color-pending-soft)]'
+
+function EnterpriseEntryShell({
+  portal,
+  title,
+  subtitle,
+  sectionNav,
+  onSave,
+  saving,
+  readOnly,
+  saveLabel = 'Save draft',
+  children,
+}: {
+  portal: 'soe' | 'moip'
+  title: string
+  subtitle: string
+  sectionNav?: ReactNode
+  onSave?: () => void
+  saving?: boolean
+  readOnly: boolean
+  saveLabel?: string
+  children: ReactNode
+}) {
+  if (portal === 'soe') {
+    return (
+      <ContributorEntryLayout
+        moduleId={MODULE.ENTERPRISE}
+        title={title}
+        sectionNav={sectionNav}
+        onSave={!readOnly ? onSave : undefined}
+        saving={saving}
+        saveLabel={saveLabel}
+        showFormActions={!readOnly}
+      >
+        {children}
+      </ContributorEntryLayout>
+    )
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        actions={
+          !readOnly && onSave ? (
+            <Button size="sm" onClick={onSave} disabled={saving}>
+              {saveLabel}
+            </Button>
+          ) : null
+        }
+      />
+      {sectionNav}
+      {children}
+    </div>
+  )
+}
 
 export function EnterpriseProfileWorkspace({
   portal,
@@ -107,8 +148,33 @@ export function EnterpriseProfileWorkspace({
 
   const [draft, setDraft] = useState<Organization | null>(null)
   useEffect(() => {
-    if (orgQuery.data) setDraft(orgQuery.data)
-  }, [orgQuery.data])
+    if (orgQuery.data) {
+      if (mode === 'readonly') {
+        setDraft(orgQuery.data)
+      } else {
+        setDraft({
+          ...orgQuery.data,
+          name: '',
+          abbreviation: '',
+          companyRegistrationNo: '',
+          secpRegistrationNo: '',
+          ntn: '',
+          strn: '',
+          dateOfIncorporation: '',
+          sector: '',
+          subSector: '',
+          natureOfBusiness: '',
+          website: '',
+          corporateEmail: '',
+          parentMinistry: '',
+          attachedDepartment: '',
+          administrativeMinistry: '',
+          operatingMinistry: '',
+          headOfficeAddress: '',
+        })
+      }
+    }
+  }, [orgQuery.data, mode])
 
   const save = useMutation({
     mutationFn: () => {
@@ -135,199 +201,162 @@ export function EnterpriseProfileWorkspace({
   }
 
   const readOnly = mode === 'readonly'
+  const sectionNav =
+    portal === 'moip' ? (
+      <MoipEnterpriseNav organizationId={organizationId} />
+    ) : (
+      <ExecutiveModuleSectionNav moduleId="soe-enterprise" />
+    )
 
   return (
-    <div>
-      <PageHeader
-        title="Enterprise profile"
-        subtitle={portal === 'moip' ? 'Read-only oversight view' : 'Identity and administrative relationship'}
-        actions={
-          !readOnly ? (
-            <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-              Save draft
-            </Button>
-          ) : null
-        }
-      />
-      {portal === 'soe' ? <SoeEnterpriseNav /> : <MoipEnterpriseNav organizationId={organizationId} />}
+    <EnterpriseEntryShell
+      portal={portal}
+      title="Enterprise profile"
+      subtitle={
+        portal === 'moip' ? 'Read-only oversight view' : 'Identity and administrative relationship'
+      }
+      sectionNav={sectionNav}
+      onSave={() => save.mutate()}
+      saving={save.isPending}
+      readOnly={readOnly}
+    >
       <EnterpriseHeader organization={draft} reportingPeriodLabel={periodLabel} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-card border border-soe-border bg-white p-4">
-          <h3 className="mb-3 text-sm font-semibold text-soe-navy">Basic information</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="SOE name">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              />
-            </Field>
-            <Field label="Abbreviation">
-              <input className={inputClass} disabled value={draft.abbreviation} />
-            </Field>
-            <Field label="Company registration">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.companyRegistrationNo ?? ''}
-                onChange={(e) => setDraft({ ...draft, companyRegistrationNo: e.target.value })}
-              />
-            </Field>
-            <Field label="SECP registration">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.secpRegistrationNo ?? ''}
-                onChange={(e) => setDraft({ ...draft, secpRegistrationNo: e.target.value })}
-              />
-            </Field>
-            <Field label="NTN">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.ntn ?? ''}
-                onChange={(e) => setDraft({ ...draft, ntn: e.target.value })}
-              />
-            </Field>
-            <Field label="STRN">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.strn ?? ''}
-                onChange={(e) => setDraft({ ...draft, strn: e.target.value })}
-              />
-            </Field>
-            <Field label="Date of incorporation">
-              <input
-                type="date"
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.dateOfIncorporation ?? ''}
-                onChange={(e) => setDraft({ ...draft, dateOfIncorporation: e.target.value })}
-              />
-            </Field>
-            <Field label="Legal status">
-              <select
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.legalStatus}
-                onChange={(e) =>
-                  setDraft({ ...draft, legalStatus: e.target.value as LegalStatus })
-                }
-              >
-                {Object.values(LEGAL_STATUS).map((s) => (
-                  <option key={s} value={s}>
-                    {LEGAL_STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Sector">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.sector}
-                onChange={(e) => setDraft({ ...draft, sector: e.target.value })}
-              />
-            </Field>
-            <Field label="Sub-sector">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.subSector ?? ''}
-                onChange={(e) => setDraft({ ...draft, subSector: e.target.value })}
-              />
-            </Field>
-            <Field label="Nature of business">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.natureOfBusiness ?? ''}
-                onChange={(e) => setDraft({ ...draft, natureOfBusiness: e.target.value })}
-              />
-            </Field>
-            <Field label="Enterprise status">
-              <select
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.status}
-                onChange={(e) => setDraft({ ...draft, status: e.target.value as SoeStatus })}
-              >
-                {Object.values(SOE_STATUS).map((s) => (
-                  <option key={s} value={s}>
-                    {SOE_STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Website">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.website ?? ''}
-                onChange={(e) => setDraft({ ...draft, website: e.target.value })}
-              />
-            </Field>
-            <Field label="Corporate email">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.corporateEmail ?? ''}
-                onChange={(e) => setDraft({ ...draft, corporateEmail: e.target.value })}
-              />
-            </Field>
-          </div>
-        </section>
-
-        <section className="rounded-card border border-soe-border bg-white p-4">
-          <h3 className="mb-3 text-sm font-semibold text-soe-navy">Administrative relationship</h3>
-          <div className="grid gap-3">
-            <Field label="Parent ministry">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.parentMinistry}
-                onChange={(e) => setDraft({ ...draft, parentMinistry: e.target.value })}
-              />
-            </Field>
-            <Field label="Attached department">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.attachedDepartment ?? ''}
-                onChange={(e) => setDraft({ ...draft, attachedDepartment: e.target.value })}
-              />
-            </Field>
-            <Field label="Administrative ministry">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.administrativeMinistry ?? ''}
-                onChange={(e) => setDraft({ ...draft, administrativeMinistry: e.target.value })}
-              />
-            </Field>
-            <Field label="Operating ministry">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.operatingMinistry ?? ''}
-                onChange={(e) => setDraft({ ...draft, operatingMinistry: e.target.value })}
-              />
-            </Field>
-            <Field label="Head office address">
-              <input
-                className={inputClass}
-                disabled={readOnly}
-                value={draft.headOfficeAddress}
-                onChange={(e) => setDraft({ ...draft, headOfficeAddress: e.target.value })}
-              />
-            </Field>
-          </div>
-        </section>
-      </div>
-    </div>
+      <EntryFormShell
+        title="Enterprise profile"
+        subtitle={readOnly ? (draft.name || orgQuery.data?.name) : (draft.name || 'New Profile')}
+        meta={readOnly ? (draft.abbreviation || orgQuery.data?.abbreviation) : draft.abbreviation}
+        mode={readOnly ? 'view' : 'edit'}
+      >
+        <EntryFormSection title="Basic information" />
+          <TextField
+            label="SOE name"
+            disabled={readOnly}
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
+          <TextField
+            label="Abbreviation"
+            disabled={readOnly}
+            value={draft.abbreviation}
+            onChange={(e) => setDraft({ ...draft, abbreviation: e.target.value })}
+          />
+          <TextField
+            label="Company registration"
+            disabled={readOnly}
+            value={draft.companyRegistrationNo ?? ''}
+            onChange={(e) => setDraft({ ...draft, companyRegistrationNo: e.target.value })}
+          />
+          <TextField
+            label="SECP registration"
+            disabled={readOnly}
+            value={draft.secpRegistrationNo ?? ''}
+            onChange={(e) => setDraft({ ...draft, secpRegistrationNo: e.target.value })}
+          />
+          <TextField
+            label="NTN"
+            disabled={readOnly}
+            value={draft.ntn ?? ''}
+            onChange={(e) => setDraft({ ...draft, ntn: e.target.value })}
+          />
+          <TextField
+            label="STRN"
+            disabled={readOnly}
+            value={draft.strn ?? ''}
+            onChange={(e) => setDraft({ ...draft, strn: e.target.value })}
+          />
+          <TextField
+            label="Date of incorporation"
+            type="date"
+            disabled={readOnly}
+            value={draft.dateOfIncorporation ?? ''}
+            onChange={(e) => setDraft({ ...draft, dateOfIncorporation: e.target.value })}
+          />
+          <SelectField
+            label="Legal status"
+            disabled={readOnly}
+            value={draft.legalStatus}
+            options={Object.values(LEGAL_STATUS).map((s) => ({
+              value: s,
+              label: LEGAL_STATUS_LABEL[s],
+            }))}
+            onChange={(e) =>
+              setDraft({ ...draft, legalStatus: e.target.value as LegalStatus })
+            }
+          />
+          <TextField
+            label="Sector"
+            disabled={readOnly}
+            value={draft.sector}
+            onChange={(e) => setDraft({ ...draft, sector: e.target.value })}
+          />
+          <TextField
+            label="Sub-sector"
+            disabled={readOnly}
+            value={draft.subSector ?? ''}
+            onChange={(e) => setDraft({ ...draft, subSector: e.target.value })}
+          />
+          <TextField
+            label="Nature of business"
+            disabled={readOnly}
+            value={draft.natureOfBusiness ?? ''}
+            onChange={(e) => setDraft({ ...draft, natureOfBusiness: e.target.value })}
+          />
+          <SelectField
+            label="Enterprise status"
+            disabled={readOnly}
+            value={draft.status}
+            options={Object.values(SOE_STATUS).map((s) => ({
+              value: s,
+              label: SOE_STATUS_LABEL[s],
+            }))}
+            onChange={(e) => setDraft({ ...draft, status: e.target.value as SoeStatus })}
+          />
+          <TextField
+            label="Website"
+            disabled={readOnly}
+            value={draft.website ?? ''}
+            onChange={(e) => setDraft({ ...draft, website: e.target.value })}
+          />
+          <TextField
+            label="Corporate email"
+            disabled={readOnly}
+            value={draft.corporateEmail ?? ''}
+            onChange={(e) => setDraft({ ...draft, corporateEmail: e.target.value })}
+          />
+        <EntryFormSection title="Administrative relationship" />
+          <TextField
+            label="Parent ministry"
+            disabled={readOnly}
+            value={draft.parentMinistry}
+            onChange={(e) => setDraft({ ...draft, parentMinistry: e.target.value })}
+          />
+          <TextField
+            label="Attached department"
+            disabled={readOnly}
+            value={draft.attachedDepartment ?? ''}
+            onChange={(e) => setDraft({ ...draft, attachedDepartment: e.target.value })}
+          />
+          <TextField
+            label="Administrative ministry"
+            disabled={readOnly}
+            value={draft.administrativeMinistry ?? ''}
+            onChange={(e) => setDraft({ ...draft, administrativeMinistry: e.target.value })}
+          />
+          <TextField
+            label="Operating ministry"
+            disabled={readOnly}
+            value={draft.operatingMinistry ?? ''}
+            onChange={(e) => setDraft({ ...draft, operatingMinistry: e.target.value })}
+          />
+          <TextField
+            label="Head office address"
+            disabled={readOnly}
+            value={draft.headOfficeAddress}
+            onChange={(e) => setDraft({ ...draft, headOfficeAddress: e.target.value })}
+          />
+      </EntryFormShell>
+    </EnterpriseEntryShell>
   )
 }
 
@@ -386,50 +415,46 @@ export function EnterpriseOwnershipWorkspace({
 
   const readOnly = mode === 'readonly'
   const org = orgQuery.data
+  const sectionNav =
+    portal === 'moip' ? (
+      <MoipEnterpriseNav organizationId={organizationId} />
+    ) : (
+      <ExecutiveModuleSectionNav moduleId="soe-enterprise" />
+    )
 
   return (
-    <div>
-      <PageHeader
-        title="Ownership & shareholding"
-        subtitle="Government and other share classes"
-        actions={
-          !readOnly ? (
-            <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-              Save ownership
-            </Button>
-          ) : null
-        }
-      />
-      {portal === 'soe' ? <SoeEnterpriseNav /> : <MoipEnterpriseNav organizationId={organizationId} />}
+    <EnterpriseEntryShell
+      portal={portal}
+      title="Ownership & shareholding"
+      subtitle="Government and other share classes"
+      sectionNav={sectionNav}
+      onSave={() => save.mutate()}
+      saving={save.isPending}
+      readOnly={readOnly}
+      saveLabel="Save ownership"
+    >
       <EnterpriseHeader organization={org} reportingPeriodLabel={periodLabel} />
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-card border border-soe-border bg-white p-4 text-sm">
-          <p className="text-xs text-soe-slate">Authorized capital</p>
-          <p className="text-lg font-semibold text-soe-navy">
-            {formatCurrencyPkr(org.authorizedCapitalPkr ?? 0)}
-          </p>
+      {portal !== 'soe' ? (
+        <div className="mb-4 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-card border border-soe-border bg-white p-4 text-sm">
+            <p className="text-xs text-soe-slate">Authorized capital</p>
+            <p className="text-lg font-semibold text-soe-navy">
+              {formatCurrencyPkr(org.authorizedCapitalPkr ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-card border border-soe-border bg-white p-4 text-sm">
+            <p className="text-xs text-soe-slate">Paid-up capital</p>
+            <p className="text-lg font-semibold text-soe-navy">
+              {formatCurrencyPkr(org.paidUpCapitalPkr ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-card border border-soe-border bg-white p-4 text-sm">
+            <p className="text-xs text-soe-slate">Ultimate beneficial owner</p>
+            <p className="text-sm font-semibold text-soe-navy">{org.ultimateBeneficialOwner}</p>
+          </div>
         </div>
-        <div className="rounded-card border border-soe-border bg-white p-4 text-sm">
-          <p className="text-xs text-soe-slate">Paid-up capital</p>
-          <p className="text-lg font-semibold text-soe-navy">
-            {formatCurrencyPkr(org.paidUpCapitalPkr ?? 0)}
-          </p>
-        </div>
-        <div className="rounded-card border border-soe-border bg-white p-4 text-sm">
-          <p className="text-xs text-soe-slate">Ultimate beneficial owner</p>
-          <p className="text-sm font-semibold text-soe-navy">{org.ultimateBeneficialOwner}</p>
-        </div>
-      </div>
-
-      <section className="mb-4 rounded-card border border-soe-border bg-white p-4">
-        <h3 className="mb-2 text-sm font-semibold text-soe-navy">Composition</h3>
-        <OwnershipCompositionBar lines={lines} />
-        <p className="mt-2 text-xs text-soe-slate">
-          Calculated government share (federal + provincial):{' '}
-          <strong>{org.governmentOwnershipPct}%</strong>
-        </p>
-      </section>
+      ) : null}
 
       {warnings.length ? (
         <ul className="mb-3 space-y-1 text-sm text-[#8a6414]">
@@ -548,7 +573,7 @@ export function EnterpriseOwnershipWorkspace({
           </tbody>
         </table>
       </div>
-    </div>
+    </EnterpriseEntryShell>
   )
 }
 
@@ -562,6 +587,7 @@ export function EnterpriseStructureWorkspace({
   const { organizationId, mode, periodLabel } = useEnterpriseContext(portal, propOrgId)
   const [selectedRelatedId, setSelectedRelatedId] = useState<string | null>(null)
   const [relTypeFilter, setRelTypeFilter] = useState('')
+  const [hierarchyView, setHierarchyView] = useState<'tree' | 'table'>('tree')
   const pushToast = useUiStore((s) => s.pushToast)
   const queryClient = useQueryClient()
 
@@ -671,68 +697,108 @@ export function EnterpriseStructureWorkspace({
   }
 
   const linkBase = portal === 'moip' ? '/moip/enterprise' : undefined
+  const sectionNav =
+    portal === 'moip' ? (
+      <MoipEnterpriseNav organizationId={organizationId} />
+    ) : (
+      <ExecutiveModuleSectionNav moduleId="soe-enterprise" />
+    )
 
   return (
-    <div>
-      <PageHeader
-        title="Corporate structure"
-        subtitle="Hierarchy, subsidiaries, associates and JVs"
-        actions={
-          mode === 'edit' ? (
-            <Button size="sm" loading={save.isPending} onClick={() => save.mutate()}>
-              Save structure
-            </Button>
-          ) : null
-        }
-      />
-      {portal === 'soe' ? <SoeEnterpriseNav /> : <MoipEnterpriseNav organizationId={organizationId} />}
+    <EnterpriseEntryShell
+      portal={portal}
+      title="Corporate structure"
+      subtitle="Hierarchy, subsidiaries, associates and JVs"
+      sectionNav={sectionNav}
+      onSave={() => save.mutate()}
+      saving={save.isPending}
+      readOnly={mode === 'readonly'}
+      saveLabel="Save structure"
+    >
       <EnterpriseHeader organization={orgQuery.data} reportingPeriodLabel={periodLabel} />
 
       <section className="mb-4 rounded-card border border-soe-border bg-white p-4">
-        <h3 className="mb-2 text-sm font-semibold text-soe-navy">Hierarchy</h3>
-        {hierarchyQuery.data ? (
-          <ul>
-            <HierarchyTree node={hierarchyQuery.data} linkBase={linkBase} />
-          </ul>
-        ) : null}
-      </section>
-
-      <section className="mb-4 rounded-card border border-soe-border bg-white p-4">
-        <h3 className="mb-2 text-sm font-semibold text-soe-navy">Hierarchy table</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-[var(--color-pending-soft)] text-left text-xs uppercase text-soe-slate">
-              <tr>
-                <th className="px-3 py-2">Level</th>
-                <th className="px-3 py-2">Entity</th>
-                <th className="px-3 py-2">Relationship</th>
-                <th className="px-3 py-2">%</th>
-                <th className="px-3 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {flatRows.map((r) => (
-                <tr key={`${r.organizationId}-${r.level}-${r.relationshipType}`} className="border-t border-soe-border">
-                  <td className="px-3 py-2">{r.level}</td>
-                  <td className="px-3 py-2">
-                    {linkBase ? (
-                      <Link className="text-soe-navy hover:underline" to={`${linkBase}/${r.organizationId}`}>
-                        {r.abbreviation} — {r.name}
-                      </Link>
-                    ) : (
-                      `${r.abbreviation} — ${r.name}`
-                    )}
-                  </td>
-                  <td className="px-3 py-2">{r.relationshipType}</td>
-                  <td className="px-3 py-2">{r.ownershipPercentage ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    <StatusBadge status={r.status} label={SOE_STATUS_LABEL[r.status as SoeStatus]} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-soe-navy">Hierarchy</h3>
+          <div className="flex items-center gap-1 rounded-md bg-soe-canvas p-1">
+            <button
+              type="button"
+              className={cn(
+                'rounded px-2.5 py-1 text-xs font-medium transition',
+                hierarchyView === 'tree'
+                  ? 'bg-white text-soe-navy shadow-sm'
+                  : 'text-soe-slate hover:text-soe-navy',
+              )}
+              onClick={() => setHierarchyView('tree')}
+            >
+              Tree view
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded px-2.5 py-1 text-xs font-medium transition',
+                hierarchyView === 'table'
+                  ? 'bg-white text-soe-navy shadow-sm'
+                  : 'text-soe-slate hover:text-soe-navy',
+              )}
+              onClick={() => setHierarchyView('table')}
+            >
+              Table view
+            </button>
+          </div>
         </div>
+
+        {hierarchyView === 'tree' ? (
+          hierarchyQuery.data ? (
+            <ul>
+              <HierarchyTree node={hierarchyQuery.data} linkBase={linkBase} />
+            </ul>
+          ) : null
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-[var(--color-pending-soft)] text-left text-xs uppercase text-soe-slate">
+                <tr>
+                  <th className="px-3 py-2">Level</th>
+                  <th className="px-3 py-2">Entity</th>
+                  <th className="px-3 py-2">Relationship</th>
+                  <th className="px-3 py-2">%</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {flatRows.map((r) => (
+                  <tr
+                    key={`${r.organizationId}-${r.level}-${r.relationshipType}`}
+                    className="border-t border-soe-border"
+                  >
+                    <td className="px-3 py-2">{r.level}</td>
+                    <td className="px-3 py-2">
+                      {linkBase ? (
+                        <Link
+                          className="text-soe-navy hover:underline"
+                          to={`${linkBase}/${r.organizationId}`}
+                        >
+                          {r.abbreviation} — {r.name}
+                        </Link>
+                      ) : (
+                        `${r.abbreviation} — ${r.name}`
+                      )}
+                    </td>
+                    <td className="px-3 py-2">{r.relationshipType}</td>
+                    <td className="px-3 py-2">{r.ownershipPercentage ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      <StatusBadge
+                        status={r.status}
+                        label={SOE_STATUS_LABEL[r.status as SoeStatus]}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div className="mb-3 flex items-center gap-2">
@@ -857,21 +923,75 @@ export function EnterpriseStructureWorkspace({
       )}
 
       {selectedRelatedId && detailQuery.data ? (
-        <SubsidiaryDetailPanel detail={detailQuery.data} onClose={() => setSelectedRelatedId(null)} />
+        <SubsidiaryDetailPanel
+          parentOrganizationId={organizationId}
+          detail={detailQuery.data}
+          onClose={() => setSelectedRelatedId(null)}
+          onSaved={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ['subsidiary-detail', organizationId, selectedRelatedId],
+            })
+          }}
+        />
       ) : null}
-    </div>
+    </EnterpriseEntryShell>
   )
 }
 
 function SubsidiaryDetailPanel({
+  parentOrganizationId,
   detail,
   onClose,
+  onSaved,
 }: {
+  parentOrganizationId: string
   detail: SubsidiaryDetail
   onClose: () => void
+  onSaved: () => void
 }) {
+  const role = useSessionStore((s) => s.role)
+  const canEdit = hasPermission(role, PERMISSION.ORGANIZATION_EDIT)
+  const pushToast = useUiStore((s) => s.pushToast)
+  const [draft, setDraft] = useState(detail.relationship)
+
+  useEffect(() => {
+    setDraft(detail.relationship)
+  }, [detail.relationship])
+
+  const save = useMutation({
+    mutationFn: () =>
+      mockOrganizationService.updateSubsidiaryRelationship(
+        parentOrganizationId,
+        detail.organization.id,
+        {
+          reportingContact: draft.reportingContact,
+          performanceNotes: draft.performanceNotes,
+          revenueReported: draft.revenueReported,
+          netProfitReported: draft.netProfitReported,
+          capacityUtilizationReported: draft.capacityUtilizationReported,
+        },
+      ),
+    onSuccess: () => {
+      pushToast({ title: 'Subsidiary reporting saved.', tone: 'success' })
+      onSaved()
+    },
+    onError: (err: unknown) => {
+      pushToast({
+        title: err instanceof AppError ? err.message : 'Save failed',
+        tone: 'critical',
+      })
+    },
+  })
+
+  const revenue =
+    draft.revenueReported ?? detail.performanceSnapshot.revenue
+  const netProfit =
+    draft.netProfitReported ?? detail.performanceSnapshot.netProfit
+  const capacity =
+    draft.capacityUtilizationReported ?? detail.performanceSnapshot.capacityUtilization
+
   return (
-    <section className="mt-4 rounded-card border border-soe-border bg-white p-4">
+    <section className="mt-4 rounded-card border border-soe-border bg-[var(--color-canvas)] p-4">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-soe-navy">
@@ -886,43 +1006,69 @@ function SubsidiaryDetailPanel({
           Close
         </Button>
       </div>
-      <dl className="grid gap-2 text-sm sm:grid-cols-2">
+      <EntryFormShell title="Subsidiary reporting" mode={canEdit ? 'edit' : 'view'}>
+        <EntryFormSection title="Contact" />
+        <TextField
+          label="Reporting contact"
+          value={draft.reportingContact ?? ''}
+          disabled={!canEdit}
+          onChange={(e) => setDraft({ ...draft, reportingContact: e.target.value })}
+        />
+        <EntryFormSection title="Reported performance" />
+        <CurrencyField
+          label="Revenue PKR"
+          value={draft.revenueReported ?? ''}
+          disabled={!canEdit}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              revenueReported: e.target.value === '' ? undefined : Number(e.target.value),
+            })
+          }
+        />
+        <CurrencyField
+          label="Net profit PKR"
+          value={draft.netProfitReported ?? ''}
+          disabled={!canEdit}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              netProfitReported: e.target.value === '' ? undefined : Number(e.target.value),
+            })
+          }
+        />
+        <TextField
+          label="Capacity utilization %"
+          type="number"
+          value={draft.capacityUtilizationReported ?? ''}
+          disabled={!canEdit}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              capacityUtilizationReported:
+                e.target.value === '' ? undefined : Number(e.target.value),
+            })
+          }
+        />
+        <TextField
+          label="Performance notes"
+          value={draft.performanceNotes ?? ''}
+          disabled={!canEdit}
+          onChange={(e) => setDraft({ ...draft, performanceNotes: e.target.value })}
+        />
+      </EntryFormShell>
+      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
         <div className="flex justify-between gap-2">
-          <dt className="text-soe-slate">Status</dt>
-          <dd>
-            <StatusBadge
-              status={detail.organization.status}
-              label={SOE_STATUS_LABEL[detail.organization.status]}
-            />
-          </dd>
+          <dt className="text-soe-slate">Effective revenue</dt>
+          <dd>{revenue != null ? formatCurrencyPkr(revenue) : '—'}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-soe-slate">Financial statements</dt>
-          <dd>{detail.financialStatementAvailable ? 'Available' : 'Not on file'}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-soe-slate">Revenue (latest)</dt>
-          <dd>
-            {detail.performanceSnapshot.revenue != null
-              ? formatCurrencyPkr(detail.performanceSnapshot.revenue)
-              : '—'}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-soe-slate">Net profit (latest)</dt>
-          <dd>
-            {detail.performanceSnapshot.netProfit != null
-              ? formatCurrencyPkr(detail.performanceSnapshot.netProfit)
-              : '—'}
-          </dd>
+          <dt className="text-soe-slate">Effective net profit</dt>
+          <dd>{netProfit != null ? formatCurrencyPkr(netProfit) : '—'}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-soe-slate">Capacity utilization</dt>
-          <dd>
-            {detail.performanceSnapshot.capacityUtilization != null
-              ? `${detail.performanceSnapshot.capacityUtilization}%`
-              : '—'}
-          </dd>
+          <dd>{capacity != null ? `${capacity}%` : '—'}</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-soe-slate">Board</dt>
@@ -936,13 +1082,38 @@ function SubsidiaryDetailPanel({
             {detail.assetsSummary.count} · {formatCurrencyPkr(detail.assetsSummary.bookValueTotal)} book
           </dd>
         </div>
-        <div className="flex justify-between gap-2 sm:col-span-2">
-          <dt className="text-soe-slate">Liabilities</dt>
-          <dd>{detail.liabilitiesNote}</dd>
-        </div>
       </dl>
+      {canEdit ? (
+        <div className="mt-3 flex justify-end">
+          <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
+            Save subsidiary reporting
+          </Button>
+        </div>
+      ) : null}
     </section>
   )
+}
+
+const UNIT_KIND_OPTIONS: Array<{ value: OrganizationLocation['kind']; label: string }> = [
+  { value: 'head_office', label: 'Head office' },
+  { value: 'factory', label: 'Industrial unit' },
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'regional_office', label: 'Regional office' },
+  { value: 'provincial_office', label: 'Provincial office' },
+]
+
+function emptyUnitLocation(organizationId: string): OrganizationLocation {
+  return {
+    id: '',
+    organizationId,
+    label: '',
+    kind: 'factory',
+    province: '',
+    district: '',
+    address: '',
+    latitude: 0,
+    longitude: 0,
+  }
 }
 
 export function EnterpriseLocationsWorkspace({
@@ -955,6 +1126,7 @@ export function EnterpriseLocationsWorkspace({
   const { organizationId, mode, periodLabel } = useEnterpriseContext(portal, propOrgId)
   const pushToast = useUiStore((s) => s.pushToast)
   const queryClient = useQueryClient()
+  const canEdit = mode === 'edit'
 
   const orgQuery = useQuery({
     queryKey: ['organization', organizationId],
@@ -964,24 +1136,52 @@ export function EnterpriseLocationsWorkspace({
     queryKey: ['org-loc', organizationId],
     queryFn: () => mockOrganizationService.getLocations(organizationId),
   })
-  const contactQuery = useQuery({
-    queryKey: ['org-contacts', organizationId],
-    queryFn: () => mockOrganizationService.getContacts(organizationId),
-  })
-  const [locationDraft, setLocationDraft] = useState<OrganizationLocation[]>([])
-  const [contactDraft, setContactDraft] = useState<OrganizationContact[]>([])
+
+  const locations = locQuery.data ?? []
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<OrganizationLocation>(() => emptyUnitLocation(organizationId))
+  const isCreate = !selectedId
+  useScrollToEntryOnSelect(selectedId)
+
   useEffect(() => {
-    if (locQuery.data) setLocationDraft(locQuery.data)
-  }, [locQuery.data])
+    setDraft(emptyUnitLocation(organizationId))
+    setSelectedId(null)
+  }, [organizationId])
+
   useEffect(() => {
-    if (contactQuery.data) setContactDraft(contactQuery.data)
-  }, [contactQuery.data])
-  const saveLocations = useMutation({
-    mutationFn: () => mockOrganizationService.updateLocations(organizationId, locationDraft),
+    if (!selectedId) {
+      setDraft(emptyUnitLocation(organizationId))
+      return
+    }
+    const current = locations.find((row) => row.id === selectedId)
+    if (current) setDraft(current)
+  }, [locations, organizationId, selectedId])
+
+  const save = useMutation({
+    mutationFn: () => {
+      if (!draft.label.trim() || !draft.province.trim() || !draft.district.trim()) {
+        throw new AppError('Unit name, province and district are required', 'VALIDATION')
+      }
+      if (!draft.polygon || draft.polygon.length < 3) {
+        throw new AppError('Select a unit footprint polygon on the map', 'VALIDATION')
+      }
+      const nextRecord: OrganizationLocation = {
+        ...draft,
+        organizationId,
+        id: draft.id || `loc-${organizationId}-${Date.now()}`,
+        label: draft.label.trim(),
+      }
+      const nextList = isCreate
+        ? [...locations, nextRecord]
+        : locations.map((row) => (row.id === nextRecord.id ? nextRecord : row))
+      return mockOrganizationService.updateLocations(organizationId, nextList)
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['org-loc', organizationId] })
       void queryClient.invalidateQueries({ queryKey: ['enterprise-history', organizationId] })
-      pushToast({ title: 'Locations saved.', tone: 'success' })
+      setSelectedId(null)
+      setDraft(emptyUnitLocation(organizationId))
+      pushToast({ title: isCreate ? 'Unit location added.' : 'Unit location saved.', tone: 'success' })
     },
     onError: (err: unknown) => {
       pushToast({
@@ -990,32 +1190,41 @@ export function EnterpriseLocationsWorkspace({
       })
     },
   })
-  const saveContacts = useMutation({
-    mutationFn: () => mockOrganizationService.updateContacts(organizationId, contactDraft),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['org-contacts', organizationId] })
-      void queryClient.invalidateQueries({ queryKey: ['enterprise-history', organizationId] })
-      pushToast({ title: 'Contacts saved.', tone: 'success' })
-    },
-    onError: (err: unknown) => {
-      pushToast({
-        title: err instanceof AppError ? err.message : 'Contact save failed',
-        tone: 'critical',
-      })
-    },
-  })
 
-  const features: GeoFeature[] = useMemo(
-    () =>
-      locationDraft.map((l) => ({
-        id: l.id,
-        assetId: l.id,
-        organizationId: l.organizationId,
-        type: 'Point' as const,
-        coordinates: [l.longitude, l.latitude],
-        label: l.label,
-      })),
-    [locationDraft],
+  const columns = useMemo<ColumnDef<OrganizationLocation, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'label',
+        header: 'Unit',
+        cell: ({ row }) =>
+          canEdit ? (
+            <button
+              type="button"
+              className="text-left font-medium text-soe-navy hover:underline"
+              onClick={() => setSelectedId(row.original.id)}
+            >
+              {row.original.label}
+            </button>
+          ) : (
+            row.original.label
+          ),
+      },
+      {
+        accessorKey: 'kind',
+        header: 'Type',
+        cell: ({ getValue }) =>
+          UNIT_KIND_OPTIONS.find((option) => option.value === getValue())?.label ??
+          String(getValue()).replaceAll('_', ' '),
+      },
+      { accessorKey: 'district', header: 'District' },
+      { accessorKey: 'province', header: 'Province' },
+      {
+        accessorKey: 'address',
+        header: 'Address',
+        cell: ({ getValue }) => String(getValue() || '—'),
+      },
+    ],
+    [canEdit],
   )
 
   if (orgQuery.isLoading) return <LoadingBlock />
@@ -1023,155 +1232,120 @@ export function EnterpriseLocationsWorkspace({
     return <ErrorState title="Unable to load locations" detail="Mock service error." />
   }
 
-  return (
-    <div>
-      <PageHeader
-        title="Locations & contacts"
-        subtitle="Head office, provincial offices and plants"
-        actions={
-          mode === 'edit' ? (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" loading={saveLocations.isPending} onClick={() => saveLocations.mutate()}>
-                Save locations
-              </Button>
-              <Button size="sm" variant="secondary" loading={saveContacts.isPending} onClick={() => saveContacts.mutate()}>
-                Save contacts
-              </Button>
-            </div>
-          ) : null
+  const sectionNav =
+    portal === 'moip' ? (
+      <MoipEnterpriseNav organizationId={organizationId} />
+    ) : (
+      <ExecutiveModuleSectionNav moduleId="soe-enterprise" />
+    )
+
+  const saveDisabled =
+    !draft.label.trim() ||
+    !draft.province.trim() ||
+    !draft.district.trim() ||
+    !draft.polygon ||
+    draft.polygon.length < 3
+
+  const entry = (
+    <EntryFormShell
+      title="Unit location"
+      subtitle={isCreate ? 'New operating unit' : draft.label}
+      mode={canEdit ? (isCreate ? 'create' : 'edit') : 'view'}
+    >
+      <EntryFormSection title="Unit details" />
+      <TextField
+        label="Unit name"
+        value={draft.label}
+        disabled={!canEdit}
+        required
+        onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+      />
+      <SelectField
+        label="Unit type"
+        value={draft.kind}
+        disabled={!canEdit}
+        options={UNIT_KIND_OPTIONS}
+        onChange={(event) =>
+          setDraft({ ...draft, kind: event.target.value as OrganizationLocation['kind'] })
         }
       />
-      {portal === 'soe' ? <SoeEnterpriseNav /> : <MoipEnterpriseNav organizationId={organizationId} />}
-      <EnterpriseHeader organization={orgQuery.data} reportingPeriodLabel={periodLabel} />
-
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <section className="rounded-card border border-soe-border bg-white p-4">
-          <h3 className="mb-2 text-sm font-semibold text-soe-navy">Locations</h3>
-          <ul className="space-y-2 text-sm">
-            {locationDraft.map((l) => (
-              <li key={l.id} className="border-b border-soe-border pb-2 last:border-0">
-                <p className="font-medium text-soe-navy">{l.label}</p>
-                <p className="text-xs text-soe-slate">
-                  {l.kind.replaceAll('_', ' ')} · {l.district}, {l.province}
-                  {l.address ? ` · ${l.address}` : ''}
-                </p>
-                <p className="text-xs text-soe-slate">
-                  {l.latitude.toFixed(4)}, {l.longitude.toFixed(4)}
-                </p>
-              </li>
-            ))}
-          </ul>
-          {mode === 'edit' ? (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between gap-2">
-                <h4 className="text-xs font-semibold text-soe-slate">Modify current data</h4>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() =>
-                    setLocationDraft([
-                      ...locationDraft,
-                      {
-                        id: `loc-${organizationId}-${Date.now()}`,
-                        organizationId,
-                        label: 'New location',
-                        kind: 'regional_office',
-                        province: '',
-                        district: '',
-                        address: '',
-                        latitude: 0,
-                        longitude: 0,
-                      },
-                    ])
-                  }
-                >
-                  Add location
-                </Button>
-              </div>
-              {locationDraft.map((l) => (
-                <div key={l.id} className="grid gap-2 rounded-md border border-soe-border p-3 sm:grid-cols-2">
-                  <input className={inputClass} value={l.label} onChange={(e) => setLocationDraft(locationDraft.map((row) => row.id === l.id ? { ...row, label: e.target.value } : row))} />
-                  <select className={inputClass} value={l.kind} onChange={(e) => setLocationDraft(locationDraft.map((row) => row.id === l.id ? { ...row, kind: e.target.value as OrganizationLocation['kind'] } : row))}>
-                    {['head_office', 'factory', 'warehouse', 'regional_office', 'provincial_office'].map((kind) => (
-                      <option key={kind} value={kind}>{kind.replaceAll('_', ' ')}</option>
-                    ))}
-                  </select>
-                  <input className={inputClass} placeholder="Province" value={l.province} onChange={(e) => setLocationDraft(locationDraft.map((row) => row.id === l.id ? { ...row, province: e.target.value } : row))} />
-                  <input className={inputClass} placeholder="District" value={l.district} onChange={(e) => setLocationDraft(locationDraft.map((row) => row.id === l.id ? { ...row, district: e.target.value } : row))} />
-                  <input className={inputClass} placeholder="Address" value={l.address ?? ''} onChange={(e) => setLocationDraft(locationDraft.map((row) => row.id === l.id ? { ...row, address: e.target.value } : row))} />
-                  <Button size="sm" variant="tertiary" onClick={() => setLocationDraft(locationDraft.filter((row) => row.id !== l.id))}>
-                    Remove
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-        <section className="rounded-card border border-soe-border bg-white p-4">
-          <h3 className="mb-2 text-sm font-semibold text-soe-navy">Contacts</h3>
-          <ul className="space-y-2 text-sm">
-            {contactDraft.map((c) => (
-              <li key={c.id}>
-                <p className="font-medium text-soe-navy">
-                  {c.name}
-                  {c.isPrimary ? ' (primary)' : ''}
-                </p>
-                <p className="text-xs text-soe-slate">
-                  {c.designation} · {c.email} · {c.phone}
-                </p>
-              </li>
-            ))}
-          </ul>
-          {mode === 'edit' ? (
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between gap-2">
-                <h4 className="text-xs font-semibold text-soe-slate">Modify current data</h4>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() =>
-                    setContactDraft([
-                      ...contactDraft,
-                      {
-                        id: `contact-${organizationId}-${Date.now()}`,
-                        organizationId,
-                        name: 'New contact',
-                        designation: '',
-                        email: '',
-                        phone: '',
-                        isPrimary: false,
-                      },
-                    ])
-                  }
-                >
-                  Add contact
-                </Button>
-              </div>
-              {contactDraft.map((c) => (
-                <div key={c.id} className="grid gap-2 rounded-md border border-soe-border p-3 sm:grid-cols-2">
-                  <input className={inputClass} value={c.name} onChange={(e) => setContactDraft(contactDraft.map((row) => row.id === c.id ? { ...row, name: e.target.value } : row))} />
-                  <input className={inputClass} placeholder="Designation" value={c.designation} onChange={(e) => setContactDraft(contactDraft.map((row) => row.id === c.id ? { ...row, designation: e.target.value } : row))} />
-                  <input className={inputClass} placeholder="Email" value={c.email} onChange={(e) => setContactDraft(contactDraft.map((row) => row.id === c.id ? { ...row, email: e.target.value } : row))} />
-                  <input className={inputClass} placeholder="Phone" value={c.phone} onChange={(e) => setContactDraft(contactDraft.map((row) => row.id === c.id ? { ...row, phone: e.target.value } : row))} />
-                  <label className="flex items-center gap-2 text-sm text-soe-slate">
-                    <input type="checkbox" checked={c.isPrimary} onChange={(e) => setContactDraft(contactDraft.map((row) => row.id === c.id ? { ...row, isPrimary: e.target.checked } : row))} />
-                    Primary contact
-                  </label>
-                  <Button size="sm" variant="tertiary" onClick={() => setContactDraft(contactDraft.filter((row) => row.id !== c.id))}>
-                    Remove
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
+      <TextField
+        label="Province"
+        value={draft.province}
+        disabled={!canEdit}
+        required
+        onChange={(event) => setDraft({ ...draft, province: event.target.value })}
+      />
+      <TextField
+        label="District"
+        value={draft.district}
+        disabled={!canEdit}
+        required
+        onChange={(event) => setDraft({ ...draft, district: event.target.value })}
+      />
+      <TextField
+        label="Address"
+        value={draft.address ?? ''}
+        disabled={!canEdit}
+        onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+      />
+      <EntryFormSection title="Footprint on map" />
+      <div className="col-span-full">
+        <UnitLocationPolygonPicker
+          kind={draft.kind}
+          selectedPolygon={draft.polygon}
+          existing={locations.filter((row) => row.id !== draft.id)}
+          disabled={!canEdit}
+          onSelect={(selection) =>
+            setDraft({
+              ...draft,
+              province: draft.province || selection.province,
+              district: draft.district || selection.district,
+              latitude: selection.latitude,
+              longitude: selection.longitude,
+              polygon: selection.polygon,
+              label: draft.label || `${selection.label} unit`,
+            })
+          }
+        />
       </div>
+    </EntryFormShell>
+  )
 
-      <section className="rounded-card border border-soe-border bg-white p-4">
-        <h3 className="mb-2 text-sm font-semibold text-soe-navy">Map preview</h3>
-        <MapPreview features={features} />
-      </section>
-    </div>
+  return (
+    <ContributorModuleLayout
+      moduleId={MODULE.ENTERPRISE}
+      title="Locations"
+      sectionNav={sectionNav}
+      alerts={<EnterpriseHeader organization={orgQuery.data} reportingPeriodLabel={periodLabel} />}
+      entry={entry}
+      onSave={canEdit ? () => save.mutate() : undefined}
+      onCancel={canEdit && !isCreate ? () => setSelectedId(null) : undefined}
+      saving={save.isPending}
+      saveDisabled={saveDisabled}
+      showFormActions={canEdit}
+      saveLabel={isCreate ? 'Add location' : 'Save location'}
+      cancelLabel="Clear form"
+      actions={
+        canEdit && selectedId ? (
+          <Button size="sm" variant="secondary" onClick={() => setSelectedId(null)}>
+            Add new
+          </Button>
+        ) : null
+      }
+      registryTitle="Added units"
+      registry={
+        <DataTable
+          data={locations}
+          columns={columns}
+          isLoading={locQuery.isLoading}
+          searchPlaceholder="Search units…"
+          selectedRowId={selectedId}
+          getRowId={(row) => row.id}
+          emptyTitle="No unit locations added yet."
+        />
+      }
+    />
   )
 }
 
@@ -1218,7 +1392,11 @@ export function EnterpriseHistoryWorkspace({
         title="Enterprise history"
         subtitle="Representative master-data events (Phase 12 deepens evidence)"
       />
-      {portal === 'soe' ? <SoeEnterpriseNav /> : <MoipEnterpriseNav organizationId={organizationId} />}
+      {portal === 'moip' ? (
+        <MoipEnterpriseNav organizationId={organizationId} />
+      ) : (
+        <ExecutiveModuleSectionNav moduleId="soe-enterprise" />
+      )}
       <EnterpriseHeader organization={orgQuery.data} reportingPeriodLabel={periodLabel} />
       <DataTable
         data={historyQuery.data ?? []}

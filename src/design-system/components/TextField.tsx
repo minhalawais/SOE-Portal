@@ -1,6 +1,7 @@
 export {
   TextField,
   CurrencyField,
+  PkrAmountInput,
   PercentField,
   DateField,
   SelectField,

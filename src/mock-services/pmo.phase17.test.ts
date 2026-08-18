@@ -52,6 +52,11 @@ describe('Phase 17 PMO strategic government view', () => {
     })
     expect(emp.workforceHeadcount).toBe(db.employees.length)
     expect(emp.totalEmployment).toBeGreaterThanOrEqual(emp.workforceHeadcount)
+    expect(emp.imports).toBe(
+      db.industrialPerformance
+        .filter((row) => row.reportingPeriodId === 'period-fy2027')
+        .reduce((sum, row) => sum + row.imports, 0),
+    )
   })
 
   it('filters by sector and period', async () => {

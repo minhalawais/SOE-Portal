@@ -1,4 +1,6 @@
 import {
+  PRIVATIZATION_STAGE,
+  PRIVATIZATION_STAGE_LABEL,
   PRIVATIZATION_STAGE_ORDER,
   PRIVATIZATION_STAGE_STATUS,
   type PrivatizationStage,
@@ -17,11 +19,15 @@ export interface PrivatizationService {
   getCases(organizationId?: string): Promise<PrivatizationCase[]>
   getCase(id: string): Promise<PrivatizationCase>
   getMilestones(privatizationCaseId?: string): Promise<PrivatizationMilestone[]>
+  createCase(payload: Omit<PrivatizationCase, 'id'> & { id?: string }): Promise<PrivatizationCase>
   updateCase(id: string, patch: Partial<PrivatizationCase>): Promise<PrivatizationCase>
   /** Advance one stage if predecessors are completed (prototype rule) */
   advanceStage(caseId: string): Promise<PrivatizationCase>
   getTransformations(organizationId?: string): Promise<TransformationInitiative[]>
   getTransformation(id: string): Promise<TransformationInitiative>
+  createTransformation(
+    payload: Omit<TransformationInitiative, 'id'> & { id?: string },
+  ): Promise<TransformationInitiative>
   updateTransformation(
     id: string,
     patch: Partial<TransformationInitiative>,
@@ -67,6 +73,47 @@ export const mockPrivatizationService: PrivatizationService = {
         order.indexOf(b.stage as PrivatizationStage),
     )
     return simulateLatency(items)
+  },
+  async createCase(payload) {
+    const id = payload.id ?? `priv-new-${Date.now()}`
+    const next: PrivatizationCase = {
+      ...payload,
+      id,
+      currentStage: payload.currentStage ?? PRIVATIZATION_STAGE.IDENTIFIED,
+      status: payload.status ?? 'active',
+      nextAction: payload.nextAction ?? 'Complete identification stage',
+      isDummyDemonstrationData: true,
+    }
+    db.privatizationCases.push(next)
+    const institutions = [
+      'MoIP',
+      'Cabinet / CCOP',
+      'Privatization Commission',
+      'Financial Advisor',
+      'Financial Advisor',
+      'Privatization Commission',
+      'Privatization Commission',
+      'Privatization Commission',
+      'MoIP',
+    ]
+    PRIVATIZATION_STAGE_ORDER.forEach((stage, i) => {
+      db.privatizationMilestones.push({
+        id: `priv-ms-${id}-${i + 1}`,
+        privatizationCaseId: id,
+        organizationId: next.organizationId,
+        stage,
+        name: PRIVATIZATION_STAGE_LABEL[stage],
+        responsibleInstitution: institutions[i] ?? 'MoIP',
+        targetDate: new Date(Date.now() + (i + 1) * 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+        status:
+          i === 0
+            ? PRIVATIZATION_STAGE_STATUS.IN_PROGRESS
+            : PRIVATIZATION_STAGE_STATUS.PENDING,
+      })
+    })
+    return simulateMutation(next)
   },
   async updateCase(id, patch) {
     const idx = db.privatizationCases.findIndex((c) => c.id === id)
@@ -133,6 +180,19 @@ export const mockPrivatizationService: PrivatizationService = {
     const row = db.transformationInitiatives.find((t) => t.id === id)
     if (!row) throw new AppError('Transformation initiative not found', 'NOT_FOUND')
     return simulateLatency(row)
+  },
+  async createTransformation(payload) {
+    const id = payload.id ?? `trans-new-${Date.now()}`
+    if (!payload.initiative?.trim()) throw new AppError('Initiative title is required', 'VALIDATION')
+    const next: TransformationInitiative = {
+      ...payload,
+      id,
+      milestones: payload.milestones ?? [],
+      evidenceAvailable: payload.evidenceAvailable ?? false,
+      isDummyDemonstrationData: true,
+    }
+    db.transformationInitiatives.push(next)
+    return simulateMutation(next)
   },
   async updateTransformation(id, patch) {
     const idx = db.transformationInitiatives.findIndex((t) => t.id === id)
