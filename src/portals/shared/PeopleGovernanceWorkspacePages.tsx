@@ -13,6 +13,7 @@ import {
   BOARD_EXPIRY_BAND,
   BOARD_EXPIRY_BAND_LABEL,
   BOARD_MEMBER_STATUS,
+  BOARD_MEMBER_STATUS_LABEL,
   COMMITTEE_TYPE_LABEL,
   CONSULTANT_STATUS,
   DECLARATION_STATUS,
@@ -26,9 +27,12 @@ import {
   GENDER,
   GOVERNANCE_CALENDAR_KIND,
   MODULE,
+  WORKFORCE_STATUS,
+  WORKFORCE_STATUS_LABEL,
   type EmploymentType,
   type ExecutiveRole,
   type Gender,
+  type WorkforceStatus,
 } from '@/constants'
 import { mockBoardService } from '@/mock-services/board.service'
 import { mockWorkforceService } from '@/mock-services/workforce.service'
@@ -58,6 +62,16 @@ const WORKFORCE_REGISTRY_TABS = [
   { id: 'wagers' as const, label: 'Daily wagers' },
   { id: 'consultants' as const, label: 'Consultants' },
 ]
+
+const ASSURANCE_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  submitted: 'SOE review',
+  returned: 'Returned',
+  soe_verified: 'SOE verified',
+  published_to_moip: 'Published to MoIP',
+  moip_acknowledged: 'MoIP acknowledged',
+  clarification_open: 'Clarification',
+}
 
 function SummaryButton({
   label,
@@ -95,6 +109,8 @@ function emptyEmployee(organizationId: string): Employee {
     name: '',
     designation: '',
     employmentType: EMPLOYMENT_TYPE.REGULAR,
+    status: WORKFORCE_STATUS.ACTIVE,
+    statusEffectiveDate: DEMO_AS_OF_DATE,
     assetDeclarationStatus: DECLARATION_STATUS.PENDING,
     isDummyDemonstrationData: true,
   }
@@ -110,6 +126,7 @@ function emptyBoardMember(organizationId: string): BoardMember {
     appointmentDate: DEMO_AS_OF_DATE,
     expiryDate: DEMO_AS_OF_DATE,
     status: BOARD_MEMBER_STATUS.ACTIVE,
+    statusEffectiveDate: DEMO_AS_OF_DATE,
     conflictDeclarationStatus: DECLARATION_STATUS.PENDING,
     assetDeclarationStatus: DECLARATION_STATUS.PENDING,
     isDummyDemonstrationData: true,
@@ -199,6 +216,7 @@ function useWorkforceEmployeeEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockWorkforceService.createEmployee(payload)
       }
       return mockWorkforceService.updateEmployee(draft.id, draft)
@@ -335,6 +353,29 @@ function useWorkforceEmployeeEntry(
             disabled={!canEdit}
             onChange={(e) => setDraft({ ...draft, retirementDate: e.target.value })}
           />
+          <SelectField
+            label="Workforce status"
+            value={draft.status ?? WORKFORCE_STATUS.ACTIVE}
+            disabled={!canEdit}
+            options={Object.values(WORKFORCE_STATUS).map((status) => ({
+              value: status,
+              label: WORKFORCE_STATUS_LABEL[status],
+            }))}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                status: e.target.value as WorkforceStatus,
+                statusEffectiveDate: draft.statusEffectiveDate ?? DEMO_AS_OF_DATE,
+              })
+            }
+          />
+          <TextField
+            label="Status effective date"
+            type="date"
+            value={draft.statusEffectiveDate ?? ''}
+            disabled={!canEdit}
+            onChange={(e) => setDraft({ ...draft, statusEffectiveDate: e.target.value })}
+          />
           <TextField
             label="Qualification"
             value={draft.qualification ?? ''}
@@ -419,6 +460,12 @@ function useWorkforceEmployeeEntry(
             disabled={!canEdit}
             onChange={(e) => setDraft({ ...draft, trainingSummary: e.target.value })}
           />
+          <TextField
+            label="Status change reason"
+            value={draft.statusChangeReason ?? ''}
+            disabled={!canEdit}
+            onChange={(e) => setDraft({ ...draft, statusChangeReason: e.target.value })}
+          />
       </EntryFormShell>
     )
   }
@@ -464,6 +511,7 @@ function useBoardMemberEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockBoardService.createBoardMember(payload)
       }
       return mockBoardService.updateBoardMember(draft.id, draft)
@@ -516,8 +564,37 @@ function useBoardMemberEntry(
         <EntryFormSection title="Term" />
           <TextField label="Appointment date" type="date" value={draft.appointmentDate} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, appointmentDate: e.target.value })} />
           <TextField label="Expiry date" type="date" value={draft.expiryDate} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, expiryDate: e.target.value })} />
+          <SelectField
+            label="Board status"
+            value={draft.status}
+            disabled={!canEdit}
+            options={Object.values(BOARD_MEMBER_STATUS).map((status) => ({
+              value: status,
+              label: BOARD_MEMBER_STATUS_LABEL[status],
+            }))}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                status: e.target.value as BoardMember['status'],
+                statusEffectiveDate: draft.statusEffectiveDate ?? DEMO_AS_OF_DATE,
+              })
+            }
+          />
+          <TextField
+            label="Status effective date"
+            type="date"
+            value={draft.statusEffectiveDate ?? ''}
+            disabled={!canEdit}
+            onChange={(e) => setDraft({ ...draft, statusEffectiveDate: e.target.value })}
+          />
           <TextField label="Attendance %" type="number" value={draft.attendancePct ?? 0} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, attendancePct: Number(e.target.value) })} />
           <TextField label="Qualification" value={draft.qualification ?? ''} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, qualification: e.target.value })} />
+          <TextField
+            label="Status change reason"
+            value={draft.statusChangeReason ?? ''}
+            disabled={!canEdit}
+            onChange={(e) => setDraft({ ...draft, statusChangeReason: e.target.value })}
+          />
         <EntryFormSection title="Declarations" />
           <SelectField label="Conflict declaration" value={draft.conflictDeclarationStatus ?? DECLARATION_STATUS.PENDING} disabled={!canEdit} options={Object.values(DECLARATION_STATUS).map((s) => ({ value: s, label: DECLARATION_STATUS_LABEL[s] }))} onChange={(e) => setDraft({ ...draft, conflictDeclarationStatus: e.target.value as BoardMember['conflictDeclarationStatus'] })} />
           <SelectField label="Asset declaration" value={draft.assetDeclarationStatus ?? DECLARATION_STATUS.PENDING} disabled={!canEdit} options={Object.values(DECLARATION_STATUS).map((s) => ({ value: s, label: DECLARATION_STATUS_LABEL[s] }))} onChange={(e) => setDraft({ ...draft, assetDeclarationStatus: e.target.value as BoardMember['assetDeclarationStatus'] })} />
@@ -571,6 +648,7 @@ function useExecutiveEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockBoardService.createExecutive(payload)
       }
       return mockBoardService.updateExecutive(draft.id, draft)
@@ -672,6 +750,7 @@ function useCalendarEventEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockBoardService.createCalendarEvent(payload)
       }
       return mockBoardService.updateCalendarEvent(draft.id, draft)
@@ -769,6 +848,7 @@ function useDailyWagerEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockWorkforceService.createDailyWager(payload)
       }
       return mockWorkforceService.updateDailyWager(draft.id, draft)
@@ -864,6 +944,7 @@ function useConsultantEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockWorkforceService.createConsultant(payload)
       }
       return mockWorkforceService.updateConsultant(draft.id, draft)
@@ -977,6 +1058,8 @@ function useSanctionedPostEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, vacant: _v, ...payload } = draft
+        void _id
+        void _v
         return mockWorkforceService.createSanctionedPost(payload)
       }
       return mockWorkforceService.updateSanctionedPost(draft.id, draft)
@@ -1149,6 +1232,15 @@ export function WorkforceWorkspace({ portal }: { portal: PortalMode }) {
       ),
   })
 
+  const continuousSummary = useQuery({
+    queryKey: ['workforce-continuous-summary', portal, organizationId],
+    queryFn: () =>
+      mockWorkforceService.getContinuousSummary(
+        portfolioScope ? undefined : organizationId,
+        portfolioScope,
+      ),
+  })
+
   const employees = useQuery({
     queryKey: ['employees', portal, organizationId, employmentType, search],
     queryFn: () =>
@@ -1206,7 +1298,34 @@ export function WorkforceWorkspace({ portal }: { portal: PortalMode }) {
         header: 'Type',
         cell: ({ row }) => EMPLOYMENT_TYPE_LABEL[row.original.employmentType],
       },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.status ?? WORKFORCE_STATUS.ACTIVE}
+            family="reporting"
+            label={WORKFORCE_STATUS_LABEL[row.original.status ?? WORKFORCE_STATUS.ACTIVE]}
+          />
+        ),
+      },
       { accessorKey: 'posting', header: 'Posting' },
+      {
+        accessorKey: 'lastChangedAt',
+        header: 'Updated',
+        cell: ({ row }) => row.original.lastChangedAt ?? '—',
+      },
+      {
+        accessorKey: 'assuranceState',
+        header: 'Assurance',
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.assuranceState ?? 'submitted'}
+            family="reporting"
+            label={ASSURANCE_LABEL[row.original.assuranceState ?? 'submitted']}
+          />
+        ),
+      },
       {
         id: 'decl',
         header: 'Asset declaration',
@@ -1303,7 +1422,17 @@ export function WorkforceWorkspace({ portal }: { portal: PortalMode }) {
         cell: ({ row }) =>
           canSeePay ? formatCurrencyPkr(row.original.monthlyRemunerationPkr) : 'Restricted',
       },
-      { accessorKey: 'status', header: 'Status' },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.status}
+            family="reporting"
+            label={row.original.status.replaceAll('_', ' ')}
+          />
+        ),
+      },
     ],
     [portal, selectConsultant, canSeePay],
   )
@@ -1313,10 +1442,55 @@ export function WorkforceWorkspace({ portal }: { portal: PortalMode }) {
   }
 
   const workforceTitle = portal === 'soe' ? 'Workforce' : 'Workforce oversight'
-  const workforceSubtitle = `Sanctioned vs filled · as of ${DEMO_AS_OF_DATE} · demo data`
+  const workforceSubtitle = `Live workforce register · FY snapshot generated from verified records · as of ${DEMO_AS_OF_DATE}`
+
+  const continuousBanner = continuousSummary.data ? (
+    <div className="mb-4 border-y border-soe-border bg-white px-4 py-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-soe-slate">
+            Continuous register
+          </p>
+          <p className="text-sm text-soe-ink">
+            {continuousSummary.data.snapshotPeriodLabel}
+          </p>
+        </div>
+        <StatusBadge
+          status="submitted"
+          family="reporting"
+          label={`Live as of ${continuousSummary.data.asOfDate}`}
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <SummaryButton
+          label={portal === 'soe' ? 'Awaiting SOE review' : 'Pending verification'}
+          value={String(continuousSummary.data.pendingSoeReview)}
+        />
+        <SummaryButton
+          label="Clarifications"
+          value={String(continuousSummary.data.clarificationOpen)}
+        />
+        <SummaryButton
+          label="Changed in 30 days"
+          value={String(continuousSummary.data.materialChanges30d)}
+        />
+        <SummaryButton
+          label="Stale updates"
+          value={String(continuousSummary.data.staleRecords)}
+        />
+        <SummaryButton
+          label="Consultants due"
+          value={String(continuousSummary.data.dueSoon)}
+          onClick={() => setTab('consultants')}
+        />
+      </div>
+    </div>
+  ) : null
 
   const workforceBody = (
     <>
+      {continuousSummary.isLoading ? <LoadingBlock label="Loading continuous workforce posture..." /> : null}
+      {continuousBanner}
       {portal !== 'soe' && summary.isLoading ? <LoadingBlock /> : null}
       {portal !== 'soe' && summary.data ? (
         <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1772,7 +1946,17 @@ export function BoardWorkspace({ portal }: { portal: PortalMode }) {
             ? DECLARATION_STATUS_LABEL[row.original.conflictDeclarationStatus]
             : '—',
       },
-      { accessorKey: 'status', header: 'Status' },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.status}
+            family="reporting"
+            label={BOARD_MEMBER_STATUS_LABEL[row.original.status]}
+          />
+        ),
+      },
     ],
     [portal, selectRecord],
   )

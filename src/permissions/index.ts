@@ -34,10 +34,12 @@ export const PERMISSION = {
   DOCUMENT_UPLOAD: 'document.upload',
   DOCUMENT_READ: 'document.read',
   DOCUMENT_VERIFY: 'document.verify',
-  /** Provisional: create MoIP escalations / tasks */
+  AI_IMPORT_USE: 'ai_import.use',
   ESCALATION_CREATE: 'escalation.create',
   EXECUTIVE_DASHBOARD_READ: 'executive.dashboard.read',
   PORTFOLIO_READ: 'portfolio.read',
+  PERFORMANCE_COMPARISON_READ: 'performance_comparison.read',
+  PERFORMANCE_METHODOLOGY_MANAGE: 'performance_methodology.manage',
   USER_READ: 'user.read',
   USER_MANAGE: 'user.manage',
   AUDIT_LOG_READ: 'audit_log.read',
@@ -54,6 +56,7 @@ const soeOpsBase: Permission[] = [
   PERMISSION.ACCOUNTABILITY_READ,
   PERMISSION.DOCUMENT_READ,
   PERMISSION.DOCUMENT_UPLOAD,
+  PERMISSION.AI_IMPORT_USE,
 ]
 
 const rolePermissions: Record<RoleId, Permission[]> = {
@@ -72,6 +75,7 @@ const rolePermissions: Record<RoleId, Permission[]> = {
     PERMISSION.COMPLIANCE_EDIT,
     PERMISSION.PRIVATIZATION_EDIT,
     PERMISSION.SUBMISSION_SUBMIT,
+    PERMISSION.PERFORMANCE_COMPARISON_READ,
     PERMISSION.SENSITIVE_PERSONAL_READ,
     PERMISSION.SENSITIVE_REMUNERATION_READ,
   ],
@@ -161,6 +165,7 @@ const rolePermissions: Record<RoleId, Permission[]> = {
     PERMISSION.DOCUMENT_READ,
     PERMISSION.DOCUMENT_VERIFY,
     PERMISSION.PORTFOLIO_READ,
+    PERMISSION.PERFORMANCE_COMPARISON_READ,
     PERMISSION.SUBMISSION_REVIEW,
     PERMISSION.CLARIFICATION_CREATE,
     PERMISSION.SUBMISSION_APPROVE,
@@ -168,6 +173,7 @@ const rolePermissions: Record<RoleId, Permission[]> = {
     PERMISSION.USER_READ,
     PERMISSION.USER_MANAGE,
     PERMISSION.AUDIT_LOG_READ,
+    PERMISSION.AI_IMPORT_USE,
   ],
   [ROLE.MOIP_ANALYST]: [
     PERMISSION.ORGANIZATION_READ,
@@ -178,12 +184,14 @@ const rolePermissions: Record<RoleId, Permission[]> = {
     PERMISSION.ACCOUNTABILITY_READ,
     PERMISSION.DOCUMENT_READ,
     PERMISSION.PORTFOLIO_READ,
+    PERMISSION.PERFORMANCE_COMPARISON_READ,
   ],
   [ROLE.MOIP_SUPERVISOR]: [
     PERMISSION.ORGANIZATION_READ,
     PERMISSION.ASSETS_READ,
     PERMISSION.FINANCE_READ,
     PERMISSION.PORTFOLIO_READ,
+    PERMISSION.PERFORMANCE_COMPARISON_READ,
     PERMISSION.WORKFORCE_READ,
     PERMISSION.BOARD_READ,
     PERMISSION.ACCOUNTABILITY_READ,
@@ -195,30 +203,18 @@ const rolePermissions: Record<RoleId, Permission[]> = {
     PERMISSION.ESCALATION_CREATE,
     PERMISSION.ORGANIZATION_MANAGE,
     PERMISSION.AUDIT_LOG_READ,
+    PERMISSION.AI_IMPORT_USE,
   ],
   [ROLE.EXECUTIVE_VIEWER]: [
-    ...soeOpsBase,
-    PERMISSION.ORGANIZATION_EDIT,
-    PERMISSION.ASSETS_CREATE,
-    PERMISSION.ASSETS_EDIT,
-    PERMISSION.FINANCE_EDIT,
-    PERMISSION.INDUSTRIAL_EDIT,
-    PERMISSION.WORKFORCE_EDIT,
-    PERMISSION.BOARD_EDIT,
-    PERMISSION.PROCUREMENT_EDIT,
-    PERMISSION.AUDIT_EDIT,
-    PERMISSION.LITIGATION_EDIT,
-    PERMISSION.COMPLIANCE_EDIT,
-    PERMISSION.PRIVATIZATION_EDIT,
-    PERMISSION.SUBMISSION_SUBMIT,
-    PERMISSION.SUBMISSION_CERTIFY,
-    PERMISSION.SENSITIVE_PERSONAL_READ,
-    PERMISSION.SENSITIVE_REMUNERATION_READ,
     PERMISSION.EXECUTIVE_DASHBOARD_READ,
     PERMISSION.PORTFOLIO_READ,
-    PERMISSION.USER_READ,
-    PERMISSION.USER_MANAGE,
-    PERMISSION.AUDIT_LOG_READ,
+    PERMISSION.ORGANIZATION_READ,
+    PERMISSION.ASSETS_READ,
+    PERMISSION.FINANCE_READ,
+    PERMISSION.BOARD_READ,
+    PERMISSION.WORKFORCE_READ,
+    PERMISSION.ACCOUNTABILITY_READ,
+    PERMISSION.DOCUMENT_READ,
   ],
   [ROLE.SECRETARY]: [
     PERMISSION.PORTFOLIO_READ,
@@ -277,32 +273,51 @@ export function getPortalForRole(role: RoleId): PortalId {
     role === ROLE.MOIP_SUPERVISOR ||
     role === ROLE.SYSTEM_ADMIN
   ) {
-    return PORTAL.MOIP
+    return PORTAL.MOIP_REVIEW
   }
-  if (role === ROLE.EXECUTIVE_VIEWER) return PORTAL.MINISTER
-  if (role === ROLE.SECRETARY) return PORTAL.SECRETARY
-  if (role === ROLE.MINISTER) return PORTAL.MINISTER
-  if (role === ROLE.PMO) return PORTAL.PMO
+  if (
+    role === ROLE.SOE_CERTIFIER ||
+    role === ROLE.SOE_EXECUTIVE ||
+    role === ROLE.CEO ||
+    role === ROLE.CFO
+  ) {
+    return PORTAL.SOE_REVIEW
+  }
+  if (
+    role === ROLE.EXECUTIVE_VIEWER ||
+    role === ROLE.SECRETARY ||
+    role === ROLE.MINISTER ||
+    role === ROLE.PMO
+  ) {
+    return PORTAL.MOIP_EXECUTIVE
+  }
   if (role === ROLE.ASSURANCE_USER) return PORTAL.ASSURANCE
-  return PORTAL.SOE
+  return PORTAL.SOE_ENTRY
 }
 
 export function getHomeForRole(role: RoleId): string {
-  if (role === ROLE.SYSTEM_ADMIN) return '/moip/admin/users'
-  if (role === ROLE.SOE_EXECUTIVE) return '/soe/executive'
+  if (role === ROLE.SYSTEM_ADMIN) return '/moip-review/admin/users'
+  if (role === ROLE.SOE_EXECUTIVE) return '/soe-review/executive'
+  if (role === ROLE.SOE_CERTIFIER || role === ROLE.CEO || role === ROLE.CFO) {
+    return '/soe-review/dashboard'
+  }
   if (
     role === ROLE.MOIP_REVIEWER ||
     role === ROLE.MOIP_ANALYST ||
     role === ROLE.MOIP_SUPERVISOR
   ) {
-    return '/moip/dashboard'
+    return '/moip-review/dashboard'
   }
-  if (role === ROLE.EXECUTIVE_VIEWER || role === ROLE.MINISTER || role === ROLE.PMO) {
-    return '/pmo/dashboard'
+  if (
+    role === ROLE.EXECUTIVE_VIEWER ||
+    role === ROLE.SECRETARY ||
+    role === ROLE.MINISTER ||
+    role === ROLE.PMO
+  ) {
+    return '/moip-executive/dashboard'
   }
-  if (role === ROLE.SECRETARY) return '/secretary/dashboard'
   if (role === ROLE.ASSURANCE_USER) return '/assurance/dashboard'
-  return '/soe/dashboard'
+  return '/soe-entry/dashboard'
 }
 
 export const DEMO_ROLES: RoleId[] = [
@@ -312,4 +327,7 @@ export const DEMO_ROLES: RoleId[] = [
   ROLE.MOIP_REVIEWER,
   ROLE.MOIP_SUPERVISOR,
   ROLE.EXECUTIVE_VIEWER,
+  ROLE.SECRETARY,
+  ROLE.MINISTER,
+  ROLE.PMO,
 ]

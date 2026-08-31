@@ -437,6 +437,67 @@ export const LITIGATION_STATUS_LABEL: Record<string, string> = {
   disposed: 'Disposed',
 }
 
+export const LITIGATION_STAGE = {
+  INTAKE: 'intake',
+  FILING: 'filing',
+  PLEADINGS: 'pleadings',
+  HEARINGS: 'hearings',
+  INTERIM_ORDERS: 'interim_orders',
+  EVIDENCE_ARGUMENTS: 'evidence_arguments',
+  JUDGMENT: 'judgment',
+  APPEAL_REVIEW: 'appeal_review',
+  SETTLEMENT: 'settlement',
+  CLOSURE: 'closure',
+} as const
+
+export type LitigationStageId =
+  (typeof LITIGATION_STAGE)[keyof typeof LITIGATION_STAGE]
+
+export const LITIGATION_STAGE_ORDER: LitigationStageId[] = [
+  'intake',
+  'filing',
+  'pleadings',
+  'hearings',
+  'interim_orders',
+  'evidence_arguments',
+  'judgment',
+  'appeal_review',
+  'settlement',
+  'closure',
+]
+
+export const LITIGATION_STAGE_LABEL: Record<LitigationStageId, string> = {
+  intake: 'Intake',
+  filing: 'Filing',
+  pleadings: 'Pleadings',
+  hearings: 'Hearings',
+  interim_orders: 'Interim Orders',
+  evidence_arguments: 'Evidence & Arguments',
+  judgment: 'Judgment',
+  appeal_review: 'Appeal Review',
+  settlement: 'Settlement',
+  closure: 'Closure',
+}
+
+export const LITIGATION_STAGE_STATUS = {
+  NOT_STARTED: 'not_started',
+  IN_PROGRESS: 'in_progress',
+  SUBMITTED: 'submitted',
+  VERIFIED: 'verified',
+  RETURNED: 'returned',
+} as const
+
+export type LitigationStageStatus =
+  (typeof LITIGATION_STAGE_STATUS)[keyof typeof LITIGATION_STAGE_STATUS]
+
+export const LITIGATION_STAGE_STATUS_LABEL: Record<LitigationStageStatus, string> = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  submitted: 'SOE review',
+  verified: 'Verified',
+  returned: 'Returned',
+}
+
 export const PRIVATIZATION_STAGE = {
   IDENTIFIED: 'identified',
   APPROVED: 'approved',
@@ -623,6 +684,55 @@ export const RELATIONSHIP_TYPE_LABEL: Record<RelationshipType, string> = {
   associate: 'Associate',
   joint_venture: 'Joint Venture',
 }
+
+export const ENTERPRISE_ENTITY_TYPE = {
+  PARENT_SOE: 'parent_soe',
+  SUBSIDIARY: 'subsidiary',
+  ASSOCIATE: 'associate',
+  JOINT_VENTURE: 'joint_venture',
+  INDEPENDENT_ENTERPRISE: 'independent_enterprise',
+} as const
+
+export type EnterpriseEntityType =
+  (typeof ENTERPRISE_ENTITY_TYPE)[keyof typeof ENTERPRISE_ENTITY_TYPE]
+
+export const ENTERPRISE_ENTITY_TYPE_LABEL: Record<EnterpriseEntityType, string> = {
+  parent_soe: 'Parent SOE',
+  subsidiary: 'Subsidiary enterprise',
+  associate: 'Associate enterprise',
+  joint_venture: 'Joint venture enterprise',
+  independent_enterprise: 'Independent enterprise',
+}
+
+export const ENTERPRISE_CONTROL_TYPE = {
+  DIRECT_CONTROL: 'direct_control',
+  INDIRECT_CONTROL: 'indirect_control',
+  SIGNIFICANT_INFLUENCE: 'significant_influence',
+  JOINT_CONTROL: 'joint_control',
+  MINISTRY_CONTROLLED: 'ministry_controlled',
+} as const
+
+export type EnterpriseControlType =
+  (typeof ENTERPRISE_CONTROL_TYPE)[keyof typeof ENTERPRISE_CONTROL_TYPE]
+
+export const ENTERPRISE_CONSOLIDATION_TREATMENT = {
+  CONSOLIDATED: 'consolidated',
+  EQUITY_ACCOUNTED: 'equity_accounted',
+  DISCLOSURE_ONLY: 'disclosure_only',
+  STANDALONE: 'standalone',
+} as const
+
+export type EnterpriseConsolidationTreatment =
+  (typeof ENTERPRISE_CONSOLIDATION_TREATMENT)[keyof typeof ENTERPRISE_CONSOLIDATION_TREATMENT]
+
+export const ENTERPRISE_REPORTING_OBLIGATION = {
+  FULL_REPORTING: 'full_reporting',
+  CONTROLLED_ENTITY_REPORTING: 'controlled_entity_reporting',
+  SUMMARY_REPORTING: 'summary_reporting',
+} as const
+
+export type EnterpriseReportingObligation =
+  (typeof ENTERPRISE_REPORTING_OBLIGATION)[keyof typeof ENTERPRISE_REPORTING_OBLIGATION]
 
 export const RELATIONSHIP_STATUS = {
   ACTIVE: 'active',
@@ -926,10 +1036,57 @@ export const BOARD_MEMBER_STATUS = {
   ACTIVE: 'active',
   EXPIRED: 'expired',
   VACANT: 'vacant',
+  RESIGNED: 'resigned',
+  REMOVED: 'removed',
+  DECEASED: 'deceased',
+  AWAITING_APPOINTMENT: 'awaiting_appointment',
+  REAPPOINTED: 'reappointed',
+  SUPERSEDED: 'superseded',
 } as const
 
 export type BoardMemberStatus =
   (typeof BOARD_MEMBER_STATUS)[keyof typeof BOARD_MEMBER_STATUS]
+
+export const BOARD_MEMBER_STATUS_LABEL: Record<BoardMemberStatus, string> = {
+  active: 'Active',
+  expired: 'Expired',
+  vacant: 'Vacant position',
+  resigned: 'Resigned',
+  removed: 'Removed',
+  deceased: 'Deceased',
+  awaiting_appointment: 'Awaiting appointment',
+  reappointed: 'Reappointed',
+  superseded: 'Superseded',
+}
+
+export const WORKFORCE_STATUS = {
+  ACTIVE: 'active',
+  ON_DEPUTATION: 'on_deputation',
+  ON_LEAVE: 'on_leave',
+  SUSPENDED: 'suspended',
+  RETIRED: 'retired',
+  RESIGNED: 'resigned',
+  TERMINATED: 'terminated',
+  DECEASED: 'deceased',
+  CONTRACT_ENDED: 'contract_ended',
+  TRANSFERRED_OUT: 'transferred_out',
+} as const
+
+export type WorkforceStatus =
+  (typeof WORKFORCE_STATUS)[keyof typeof WORKFORCE_STATUS]
+
+export const WORKFORCE_STATUS_LABEL: Record<WorkforceStatus, string> = {
+  active: 'Active',
+  on_deputation: 'On deputation',
+  on_leave: 'On leave',
+  suspended: 'Suspended',
+  retired: 'Retired',
+  resigned: 'Resigned',
+  terminated: 'Terminated',
+  deceased: 'Deceased',
+  contract_ended: 'Contract ended',
+  transferred_out: 'Transferred out',
+}
 
 export const BOARD_EXPIRY_BAND = {
   EXPIRED: 'expired',
@@ -1011,10 +1168,19 @@ export type ReportingPeriodType =
   (typeof REPORTING_PERIOD_TYPE)[keyof typeof REPORTING_PERIOD_TYPE]
 
 export const PORTAL = {
+  SOE_ENTRY: 'soe_entry',
+  SOE_REVIEW: 'soe_review',
+  MOIP_REVIEW: 'moip_review',
+  MOIP_EXECUTIVE: 'moip_executive',
+  /** Legacy namespace retained only for redirects/backward-compatible route aliases. */
   SOE: 'soe',
+  /** Legacy namespace retained only for redirects/backward-compatible route aliases. */
   MOIP: 'moip',
+  /** Legacy executive lens retained for hidden compatibility routes. */
   SECRETARY: 'secretary',
+  /** Legacy executive lens retained for hidden compatibility routes. */
   MINISTER: 'minister',
+  /** Legacy executive lens retained for hidden compatibility routes. */
   PMO: 'pmo',
   ASSURANCE: 'assurance',
 } as const

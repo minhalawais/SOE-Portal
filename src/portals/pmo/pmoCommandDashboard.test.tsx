@@ -42,16 +42,13 @@ describe('PMO National SOE Command Dashboard', () => {
 
     expect(await screen.findByRole('heading', { name: 'Ministry of Industries & Production' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Enterprise snapshot' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'SOE Land and Asset Footprint' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'SOE Land and Asset Footprint' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Highest Loss-Making SOEs' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Leading Profitable SOEs' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Interactive SOE footprint map')).toHaveAttribute(
-      'data-selected-soe',
-      'all',
-    )
     expect(screen.getByRole('heading', { name: 'Industrial and Economic Contribution' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Sector trade: domestic sales, export and imports' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Compliance and Document Assurance' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'National litigation exposure' })).toBeInTheDocument()
     expect(screen.queryByText('Overall Yes rate')).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Yes total' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'SOE compliance and document register' })).toBeInTheDocument()

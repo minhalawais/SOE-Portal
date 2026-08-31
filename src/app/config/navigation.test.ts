@@ -4,54 +4,61 @@ import { filterNavigation, getPortalDefinitionForRole, portalDefinitions } from 
 import { ROLE } from '@/constants'
 import { getPortalForRole, hasPermission } from '@/permissions'
 
-function childLabels(group: string) {
-  const item = portalDefinitions.minister.navigation.find((nav) => nav.label === group)
-  return item?.children?.map((child) => child.label) ?? []
-}
-
 describe('portal navigation config', () => {
-  it('maps executive viewer to the merged executive portal with operational edit on SOE modules', () => {
-    expect(getPortalForRole(ROLE.EXECUTIVE_VIEWER)).toBe('minister')
-    expect(portalDefinitions.minister.name).toBe('Executive Viewer')
-    expect(portalDefinitions.minister.allowsOperationalEdit).toBe(false)
-    const definition = getPortalDefinitionForRole('minister', ROLE.EXECUTIVE_VIEWER)
-    expect(definition.allowsOperationalEdit).toBe(true)
-    const labels = JSON.stringify(portalDefinitions.minister.navigation)
-    expect(labels).toContain('Secretary View')
-    expect(labels).toContain('Minister View')
-    expect(labels).toContain('PMO View')
-  })
+  it('maps Executive Viewer to the MOIP Executive Dashboard Portal without operational modules', () => {
+    expect(getPortalForRole(ROLE.EXECUTIVE_VIEWER)).toBe('moip_executive')
+    expect(portalDefinitions.moip_executive.name).toBe('MOIP Executive Dashboard Portal')
+    expect(portalDefinitions.moip_executive.allowsOperationalEdit).toBe(false)
 
-  it('shows National Dashboard and SOE contributor modules for executive viewer', () => {
-    const definition = getPortalDefinitionForRole('minister', ROLE.EXECUTIVE_VIEWER)
+    const definition = getPortalDefinitionForRole('moip_executive', ROLE.EXECUTIVE_VIEWER)
     const nav = filterNavigation(definition.navigation, ROLE.EXECUTIVE_VIEWER, hasPermission)
+
+    expect(definition.homeRoute).toBe('/moip-executive/dashboard')
     expect(nav.map((item) => item.label)).toEqual([
       'National Dashboard',
       'Search & Intelligence',
-      'Data Entry',
-      'User Management',
-      'Logs & Alerts',
-      'Reports',
+      'Strategic Reports',
     ])
-    expect(nav[0]?.route).toBe('/pmo/dashboard')
-    const dataEntry = nav.find((item) => item.label === 'Data Entry')
-    expect(dataEntry?.children?.map((item) => item.label)).toEqual([
-      'Enterprise',
-      'Assets & Property',
-      'People & Governance',
-      'Financial & Fiscal',
-      'Accountability & Compliance',
-      'Industrial Performance',
-      'Privatization & Transformation',
-      'Documents',
-      'Submissions & Approvals',
-    ])
-    expect(dataEntry?.children?.find((item) => item.label === 'Enterprise')?.route).toBe(
-      '/soe/enterprise/profile',
-    )
-    const assets = dataEntry?.children?.find((item) => item.label === 'Assets & Property')
-    expect(assets?.route).toBe('/soe/assets/land')
-    expect(assets?.children).toBeUndefined()
+
+    const labels = JSON.stringify(nav)
+    expect(labels).not.toContain('Data Entry')
+    expect(labels).not.toContain('User Management')
+    expect(labels).not.toContain('SOE Management')
+    expect(labels).not.toContain('Logs & Alerts')
+  })
+
+  it('keeps SOE Data Entry Portal focused on unchanged reporting forms', () => {
+    const nav = filterNavigation(portalDefinitions.soe_entry.navigation, ROLE.SOE_FOCAL_PERSON, hasPermission)
+    const labels = JSON.stringify(nav)
+
+    expect(portalDefinitions.soe_entry.name).toBe('SOE Data Entry Portal')
+    expect(portalDefinitions.soe_entry.homeRoute).toBe('/soe-entry/dashboard')
+    expect(labels).toContain('Submissions & Approvals')
+    expect(labels).toContain('AI Data Import')
+    expect(labels).not.toContain('Reporting Workspace')
+    expect(labels).toContain('Enterprise')
+    expect(labels).toContain('Assets & Property')
+    expect(labels).toContain('People & Governance')
+    expect(labels).toContain('Financial & Fiscal')
+    expect(labels).toContain('Accountability & Compliance')
+    expect(labels).toContain('Industrial Performance')
+    expect(labels).toContain('Privatization & Transformation')
+    expect(labels).not.toContain('/soe-entry/finance/form')
+    expect(nav.slice(-2).map((item) => item.label)).toEqual(['AI Data Import', 'Logs & Alerts'])
+
+    for (const id of [
+      'soe-submissions',
+      'soe-enterprise',
+      'soe-assets',
+      'soe-people',
+      'soe-finance',
+      'soe-accountability',
+      'soe-privatization',
+      'soe-documents',
+    ]) {
+      expect(nav.find((item) => item.id === id)?.children).toBeUndefined()
+    }
+
     expect(MODULE_SECTIONS['soe-assets'].map((tab) => tab.label)).toEqual([
       'Land',
       'Buildings',
@@ -59,136 +66,98 @@ describe('portal navigation config', () => {
       'Vehicles',
       'Other Equipment',
     ])
-    const people = dataEntry?.children?.find((item) => item.label === 'People & Governance')
-    expect(people?.route).toBe('/soe/people/executives')
-    expect(people?.children).toBeUndefined()
     expect(MODULE_SECTIONS['soe-people'].map((tab) => tab.label)).toEqual([
       'Executive',
       'Board Member',
       'Workforce',
     ])
-    expect(dataEntry?.children?.find((item) => item.label === 'Financial & Fiscal')?.children).toBeUndefined()
-    expect(
-      dataEntry?.children?.find((item) => item.label === 'Submissions & Approvals')?.children?.map(
-        (item) => item.label,
-      ),
-    ).toEqual([
-      'Reporting Workspace',
-      'Clarifications',
-      'Validation & Readiness',
-      'Submission Readiness',
-    ])
   })
 
-  it('shows National Dashboard and SOE contributor modules in PMO portal sidebar', () => {
-    const nav = filterNavigation(portalDefinitions.pmo.navigation, ROLE.PMO, hasPermission)
-    expect(nav.map((item) => item.label)).toEqual([
-      'National Dashboard',
-      'Search & Intelligence',
-      'Data Entry',
-      'Logs & Alerts',
-      'Reports',
-    ])
-    expect(nav.find((item) => item.label === 'Data Entry')?.children?.map((item) => item.label)).toEqual([
-      'Enterprise',
-      'Assets & Property',
-      'People & Governance',
-      'Financial & Fiscal',
-      'Accountability & Compliance',
-      'Industrial Performance',
-      'Privatization & Transformation',
-      'Documents',
-      'Submissions & Approvals',
-    ])
+  it('keeps SOE Reviewer Portal focused on dashboard, approvals and alerts only', () => {
+    const definition = getPortalDefinitionForRole('soe_review', ROLE.SOE_CERTIFIER)
+    const nav = JSON.stringify(filterNavigation(definition.navigation, ROLE.SOE_CERTIFIER, hasPermission))
+
+    expect(definition.name).toBe('SOE Reviewer Portal')
+    expect(definition.homeRoute).toBe('/soe-review/dashboard')
+    expect(nav).toContain('Dashboard')
+    expect(nav).toContain('Submissions & Approvals')
+    expect(nav).toContain('Logs & Alerts')
+    expect(nav).not.toContain('SOE Executive Review')
+    expect(nav).not.toContain('Certification & Readiness')
+    expect(nav).not.toContain('Clarifications')
+    expect(nav).not.toContain('Evidence & Documents')
+    expect(nav).not.toContain('Reports')
+    expect(nav).not.toContain('Assets & Property')
+    expect(nav).not.toContain('People & Governance')
+    expect(nav).not.toContain('Industrial Performance')
+    expect(nav).not.toContain('Privatization & Transformation')
   })
 
-  it('exposes the final Executive Viewer sidebar lenses in minister portal config', () => {
-    expect(childLabels('Secretary View')).toEqual([
-      'Command Centre',
-      'Critical Matters',
-      'Pending Decisions',
-      'Obligations',
-      'Compliance & Submissions',
-      'Financial Concerns',
-      'Governance',
-      'Audit & Legal',
-      'Escalations',
-      'Reports',
-    ])
-    expect(childLabels('Minister View')).toEqual([
-      'Executive Overview',
-      'Strategic Alerts',
-      'Portfolio Performance',
-      'Fiscal Exposure',
-      'Asset Intelligence',
-      'National Asset Map',
-      'Governance Risk',
-      'Audit & Legal Risk',
-      'Industrial Performance',
-      'Privatization & Transformation',
-      'Strategic Opportunities',
-      'Executive Reports',
-    ])
-    expect(childLabels('PMO View')).toEqual([
-      'Command Dashboard',
-      'National Asset Map',
-      'Search & Intelligence',
-      'Strategic Reports',
-    ])
-  })
-
-  it('removes duplicated analyst-style pages from Secretary and Minister sidebar lenses', () => {
-    expect(childLabels('Secretary View')).not.toContain('Risk Overview')
-    expect(childLabels('Secretary View')).not.toContain('Search & Intelligence')
-    expect(childLabels('Minister View')).not.toContain('Risk Intelligence')
-    expect(childLabels('Minister View')).not.toContain('Search & Intelligence')
-  })
-
-  it('hides moip approvals from analyst without approve permission', () => {
+  it('keeps MoIP analyst navigation focused on read/review surfaces only', () => {
     const nav = filterNavigation(
-      portalDefinitions.moip.navigation,
+      portalDefinitions.moip_review.navigation,
       ROLE.MOIP_ANALYST,
       hasPermission,
     )
     const labels = JSON.stringify(nav)
     expect(labels).not.toContain('Approvals')
-    expect(labels).toContain('Portfolio Data')
+    expect(labels).not.toContain('Portfolio Data')
     expect(labels).not.toContain('SOE Management')
     expect(labels).not.toContain('User Management')
+    expect(labels).not.toContain('Users & Access')
+    expect(labels).toContain('Oversight Dashboard')
+    expect(labels).toContain('SOE Performance Comparison')
+    expect(labels).toContain('Search & Intelligence')
+    expect(labels).toContain('Logs & Alerts')
   })
 
-  it('exposes one MoIP shell with review, portfolio and permission-scoped administration', () => {
-    const reviewer = JSON.stringify(filterNavigation(portalDefinitions.moip.navigation, ROLE.MOIP_REVIEWER, hasPermission))
-    const supervisor = JSON.stringify(filterNavigation(portalDefinitions.moip.navigation, ROLE.MOIP_SUPERVISOR, hasPermission))
-    const administrator = JSON.stringify(filterNavigation(portalDefinitions.moip.navigation, ROLE.SYSTEM_ADMIN, hasPermission))
-    expect(reviewer).toContain('Review & Approval')
-    expect(reviewer).toContain('Portfolio Data')
-    expect(reviewer).toContain('SOE Management')
-    expect(reviewer).toContain('User Management')
+  it('exposes a focused MoIP Review shell with submissions, administration and intelligence', () => {
+    const reviewerNav = filterNavigation(portalDefinitions.moip_review.navigation, ROLE.MOIP_REVIEWER, hasPermission)
+    const supervisorNav = filterNavigation(portalDefinitions.moip_review.navigation, ROLE.MOIP_SUPERVISOR, hasPermission)
+    const administratorNav = filterNavigation(portalDefinitions.moip_review.navigation, ROLE.SYSTEM_ADMIN, hasPermission)
+    const reviewer = JSON.stringify(reviewerNav)
+    const supervisor = JSON.stringify(supervisorNav)
+    const administrator = JSON.stringify(administratorNav)
+    const soeManagement = reviewerNav.find((item) => item.label === 'SOE Management')
+
+    expect(reviewerNav.map((item) => item.label)).toEqual([
+      'Oversight Dashboard',
+      'Submissions & Approvals',
+      'SOE Management',
+      'SOE Performance Comparison',
+      'Search & Intelligence',
+      'AI Data Import',
+      'Logs & Alerts',
+    ])
+    expect(soeManagement?.children?.map((item) => item.label)).toEqual([
+      'SOE Registry',
+      'Users & Access',
+      'Account Activity',
+    ])
+    expect(reviewer).not.toContain('User Management')
+    expect(reviewer).not.toContain('Portfolio Data')
+    expect(reviewer).not.toContain('Validation & Readiness')
+    expect(reviewer).not.toContain('Risk & Benchmarking')
+    expect(reviewer).not.toContain('National Asset Map')
+    expect(reviewer).not.toContain('Reports')
     expect(supervisor).toContain('SOE Management')
-    expect(administrator).toContain('User Management')
+    expect(supervisor).toContain('SOE Performance Comparison')
+    expect(supervisor).toContain('SOE Registry')
+    expect(supervisor).not.toContain('Users & Access')
+    expect(administrator).toContain('SOE Management')
+    expect(administrator).toContain('Users & Access')
+    expect(administrator).not.toContain('User Management')
   })
 
-  it('limits SOE Certifier navigation to compliance certification work', () => {
-    const definition = getPortalDefinitionForRole('soe', ROLE.SOE_CERTIFIER)
-    const nav = JSON.stringify(filterNavigation(definition.navigation, ROLE.SOE_CERTIFIER, hasPermission))
-
-    expect(definition.name).toBe('SOE Compliance Certification')
-    expect(nav).toContain('Compliance Data')
-    expect(nav).toContain('Evidence & Documents')
-    expect(nav).toContain('Submissions & Certification')
-    expect(nav).not.toContain('Assets & Property')
-    expect(nav).not.toContain('People & Governance')
-    expect(nav).not.toContain('Financial & Fiscal')
-    expect(nav).not.toContain('Industrial Performance')
-    expect(nav).not.toContain('Privatization & Transformation')
-  })
-
-  it('highlights only PAC Observations when that section is open', () => {
+  it('highlights only PAC Observations when that section is open under legacy or split SOE routes', () => {
     const tabs = MODULE_SECTIONS['soe-accountability']
-    const active = tabs
+    const legacyActive = tabs
       .filter((tab) => isModuleSectionTabActive(tab, '/soe/accountability/audit/pac', tabs))
       .map((tab) => tab.label)
-    expect(active).toEqual(['PAC Observations'])
+    const splitActive = tabs
+      .filter((tab) => isModuleSectionTabActive(tab, '/soe-entry/accountability/audit/pac', tabs))
+      .map((tab) => tab.label)
+    expect(legacyActive).toEqual(['PAC Observations'])
+    expect(splitActive).toEqual(['PAC Observations'])
   })
 })

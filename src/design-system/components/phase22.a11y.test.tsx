@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { TextField, MockFileControl } from '@/design-system/components/Fields'
+import { useState } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { TextField, MockFileControl, PkrAmountInput } from '@/design-system/components/Fields'
 import { ChartContainer } from '@/design-system/components/ChartContainer'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
 import { DataTable } from '@/components/tables/DataTable'
@@ -19,6 +20,45 @@ describe('Phase 22 a11y hardening', () => {
   it('labels mock file control with a stable id', () => {
     render(<MockFileControl label="Evidence file" />)
     expect(screen.getByLabelText('Evidence file')).toBeInTheDocument()
+  })
+
+  it('renders editable zero-valued numeric fields as blank until the user types', () => {
+    function NumberHarness() {
+      const [value, setValue] = useState(0)
+      return (
+        <TextField
+          label="Travel expense PKR"
+          type="number"
+          value={value}
+          onChange={(event) => setValue(Number(event.target.value))}
+        />
+      )
+    }
+
+    render(<NumberHarness />)
+    const input = screen.getByLabelText('Travel expense PKR')
+    expect(input).toHaveValue(null)
+    fireEvent.change(input, { target: { value: '12' } })
+    expect(input).toHaveValue(12)
+  })
+
+  it('renders editable zero-valued PKR inputs as blank until the user types', () => {
+    function PkrHarness() {
+      const [value, setValue] = useState(0)
+      return (
+        <PkrAmountInput
+          aria-label="Remuneration PKR"
+          value={value}
+          onChange={(event) => setValue(Number(event.target.value))}
+        />
+      )
+    }
+
+    render(<PkrHarness />)
+    const input = screen.getByLabelText('Remuneration PKR')
+    expect(input).toHaveValue(null)
+    fireEvent.change(input, { target: { value: '12' } })
+    expect(input).toHaveValue(12)
   })
 
   it('provides a screen-reader chart summary by default', () => {

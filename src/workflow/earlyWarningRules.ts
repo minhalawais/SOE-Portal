@@ -106,7 +106,7 @@ function routeFor(module: string, recordType: string, recordId: string, orgId: s
   if (recordType === 'submission' && module === 'finance') {
     return `/soe/finance`
   }
-  if (recordType === 'clarification') return `/soe/clarifications`
+  if (recordType === 'clarification') return `/soe/submissions?tab=clarifications`
   if (recordType === 'compliance') return `/soe/accountability/compliance`
   if (recordType === 'audit_para') return `/soe/accountability/audit/${recordId}`
   if (recordType === 'asset') return `/soe/assets/${recordId}`
@@ -358,7 +358,7 @@ export function evaluateEarlyWarningRules(ctx: RuleEvaluationContext): RuleHit[]
         groupKey: `clarification_overdue:${c.organizationId}`,
         createsTask: true,
         linkedTaskId: taskId,
-        route: '/soe/clarifications',
+        route: '/soe/submissions?tab=clarifications',
         isPrototypeRule: true,
       },
       task: {
@@ -377,7 +377,7 @@ export function evaluateEarlyWarningRules(ctx: RuleEvaluationContext): RuleHit[]
         status: TASK_STATUS.OPEN,
         nextAction: 'Provide clarification response with evidence',
         sourceAlertId: alertId,
-        route: '/soe/clarifications',
+        route: '/soe/submissions?tab=clarifications',
       },
     })
   }

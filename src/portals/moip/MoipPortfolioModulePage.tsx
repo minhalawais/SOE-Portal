@@ -8,14 +8,15 @@ import { SelectField, TextField } from '@/design-system/components/Fields'
 import { EmptyState, ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import { KpiCard } from '@/design-system/components/KpiCard'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
-import { SUBMISSION_STATUS_LABEL, type ModuleId, type SubmissionStatus } from '@/constants'
-import { mockModuleReviewService, mockOrganizationService } from '@/mock-services'
+import { MODULE, SUBMISSION_STATUS_LABEL, type ModuleId, type SubmissionStatus } from '@/constants'
+import { mockLitigationService, mockModuleReviewService, mockOrganizationService, mockWorkforceService } from '@/mock-services'
 import { reportingPeriods } from '@/mock-data'
 import { REPORTING_MODULES } from '@/workflow/moduleCatalog'
 
 export function MoipPortfolioModulePage() {
   const { moduleId = '' } = useParams()
   const moduleDef = REPORTING_MODULES.find((item) => item.id === moduleId)
+  const isLiveRegister = Boolean(moduleDef?.liveRegister)
   const [organizationId, setOrganizationId] = useState('')
   const [reportingPeriodId, setReportingPeriodId] = useState('period-fy2027')
   const [dataState, setDataState] = useState<'approved' | 'submitted' | 'all'>('approved')
@@ -34,6 +35,21 @@ export function MoipPortfolioModulePage() {
       dataState,
     }),
     enabled: Boolean(moduleDef),
+  })
+  const workforceLive = useQuery({
+    queryKey: ['moip-module-workforce-live', organizationId],
+    queryFn: () => mockWorkforceService.getContinuousSummary(organizationId || undefined, !organizationId),
+    enabled: moduleId === MODULE.WORKFORCE,
+  })
+  const litigationLive = useQuery({
+    queryKey: ['moip-module-litigation-live', organizationId],
+    queryFn: () => mockLitigationService.getContinuousSummary(organizationId || undefined),
+    enabled: moduleId === MODULE.LITIGATION,
+  })
+  const litigationStages = useQuery({
+    queryKey: ['moip-module-litigation-stages', organizationId],
+    queryFn: () => mockLitigationService.getStageSummary(organizationId || undefined),
+    enabled: moduleId === MODULE.LITIGATION,
   })
 
   const visibleRecords = useMemo(() => {
@@ -56,7 +72,18 @@ export function MoipPortfolioModulePage() {
     <div>
       <PageHeader
         title={`${moduleDef.label} portfolio`}
-        subtitle="Collective submitted data across all SOEs with financial-year and approval-state control"
+        subtitle={
+          isLiveRegister
+            ? 'Live operational register with certified financial-year snapshots for formal reporting'
+            : 'Collective submitted data across all SOEs with financial-year and approval-state control'
+        }
+        actions={
+          moduleId === MODULE.LITIGATION ? (
+            <Link className="text-xs font-semibold text-soe-blue hover:underline" to="/moip-review/accountability/litigation">
+              Open case register
+            </Link>
+          ) : null
+        }
       />
 
       <section className="mb-4 border-y border-soe-border bg-white px-4 py-3">
@@ -69,7 +96,7 @@ export function MoipPortfolioModulePage() {
             onChange={(event) => setOrganizationId(event.target.value)}
           />
           <SelectField
-            label="Financial year"
+            label={isLiveRegister ? 'Snapshot year' : 'Financial year'}
             value={reportingPeriodId}
             options={[{ value: '', label: 'All financial years' }, ...reportingPeriods.filter((period) => period.type === 'annual').map((period) => ({ value: period.id, label: period.label }))]}
             onChange={(event) => setReportingPeriodId(event.target.value)}
@@ -87,6 +114,66 @@ export function MoipPortfolioModulePage() {
           <TextField label="Search submitted records" value={search} placeholder="Record, field or SOE" onChange={(event) => setSearch(event.target.value)} />
         </div>
       </section>
+
+      {isLiveRegister ? (
+        <section className="mb-4 border-y border-soe-border bg-white px-4 py-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-soe-slate">
+                Live register posture
+              </p>
+              <p className="text-sm text-soe-ink">
+                {(moduleId === MODULE.WORKFORCE ? workforceLive.data : litigationLive.data)?.snapshotPeriodLabel ??
+                  'Loading continuous register posture...'}
+              </p>
+            </div>
+            <StatusBadge
+              status="submitted"
+              family="reporting"
+              label={`Cadence: ${moduleDef.cadence.replace('_', ' ')}`}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <KpiCard
+              label={moduleId === MODULE.LITIGATION ? 'Active cases' : 'Active records'}
+              value={String((moduleId === MODULE.WORKFORCE ? workforceLive.data : litigationLive.data)?.activeRecords ?? 0)}
+            />
+            <KpiCard
+              label="SOE review"
+              value={String((moduleId === MODULE.WORKFORCE ? workforceLive.data : litigationLive.data)?.pendingSoeReview ?? 0)}
+            />
+            <KpiCard
+              label="MoIP queue"
+              value={String((moduleId === MODULE.WORKFORCE ? workforceLive.data : litigationLive.data)?.pendingMoipAcknowledgement ?? 0)}
+            />
+            <KpiCard
+              label={moduleId === MODULE.LITIGATION ? 'Hearings 30 days' : 'Due soon'}
+              value={String((moduleId === MODULE.WORKFORCE ? workforceLive.data : litigationLive.data)?.dueSoon ?? 0)}
+            />
+            <KpiCard
+              label="Stale updates"
+              value={String((moduleId === MODULE.WORKFORCE ? workforceLive.data : litigationLive.data)?.staleRecords ?? 0)}
+            />
+          </div>
+          {moduleId === MODULE.LITIGATION && litigationStages.data?.length ? (
+            <div className="mt-4 grid gap-2 md:grid-cols-5">
+              {litigationStages.data.map((stage) => (
+                <Link
+                  key={stage.stage}
+                  to={`/moip-review/accountability/litigation?stage=${stage.stage}`}
+                  className="rounded-card border border-soe-border bg-soe-canvas px-3 py-2 transition hover:border-soe-blue"
+                >
+                  <p className="text-[11px] font-semibold uppercase text-soe-slate">{stage.label}</p>
+                  <p className="mt-1 text-lg font-semibold text-soe-navy">{stage.count}</p>
+                  <p className="text-[11px] text-soe-slate">
+                    {stage.pendingReview} review · {stage.stale} stale
+                  </p>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="SOE submissions" value={String(query.data?.rows.length ?? 0)} />

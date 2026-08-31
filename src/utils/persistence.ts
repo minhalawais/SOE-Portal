@@ -22,6 +22,7 @@ export const persistence = {
 
 export const persistenceKeys = {
   role: 'demo-role',
+  enterpriseEntityId: 'enterprise-entity-id',
   organizationId: 'organization-id',
   reportingPeriodId: 'reporting-period-id',
   sidebarCollapsed: 'sidebar-collapsed',
@@ -31,6 +32,7 @@ export const persistenceKeys = {
 
 export const defaultPersisted = {
   role: APP_CONFIG.DEFAULT_ROLE,
+  enterpriseEntityId: APP_CONFIG.DEFAULT_ORGANIZATION_ID,
   organizationId: APP_CONFIG.DEFAULT_ORGANIZATION_ID,
   reportingPeriodId: APP_CONFIG.DEFAULT_REPORTING_PERIOD_ID,
 }

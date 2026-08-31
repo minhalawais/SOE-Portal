@@ -41,8 +41,16 @@ export interface RegistryQuery extends ListQuery {
   reportingPeriodId?: string
 }
 
+export interface EnterpriseEntityQuery extends ListQuery {
+  entityType?: Organization['entityType']
+  parentEntityId?: string
+  rootEnterpriseEntityId?: string
+}
+
 export interface OrganizationService {
   getOrganizations(query?: ListQuery): Promise<PagedResult<Organization>>
+  getEnterpriseEntities(query?: EnterpriseEntityQuery): Promise<PagedResult<Organization>>
+  getEnterpriseHierarchy(rootEnterpriseEntityId: string): Promise<HierarchyNode>
   getRegistry(query?: RegistryQuery): Promise<PagedResult<RegistryRow>>
   getOrganization(id: string): Promise<Organization>
   updateOrganization(id: string, patch: Partial<Organization>): Promise<Organization>
@@ -172,6 +180,24 @@ export const mockOrganizationService: OrganizationService = {
   async getOrganizations(query) {
     const filtered = applyOrgQuery(db.organizations, query)
     return simulateLatency(paginate(filtered, query))
+  },
+
+  async getEnterpriseEntities(query) {
+    let filtered = applyOrgQuery(db.organizations, query)
+    if (query?.entityType) filtered = filtered.filter((organization) => organization.entityType === query.entityType)
+    if (query?.parentEntityId) {
+      filtered = filtered.filter((organization) => organization.parentEntityId === query.parentEntityId)
+    }
+    if (query?.rootEnterpriseEntityId) {
+      filtered = filtered.filter(
+        (organization) => organization.rootEnterpriseEntityId === query.rootEnterpriseEntityId,
+      )
+    }
+    return simulateLatency(paginate(filtered, query))
+  },
+
+  async getEnterpriseHierarchy(rootEnterpriseEntityId) {
+    return simulateLatency(buildHierarchyNode(rootEnterpriseEntityId))
   },
 
   async getRegistry(query) {

@@ -92,6 +92,7 @@ export function useLoanEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockLoanService.createLoan(payload)
       }
       return mockLoanService.updateLoan(draft.id, draft)
@@ -262,6 +263,7 @@ export function useGrantEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockGrantService.createGrant(payload)
       }
       return mockGrantService.updateGrant(draft.id, draft)
@@ -413,6 +415,7 @@ export function useBudgetLineEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockFinanceService.createBudgetLine(payload)
       }
       return mockFinanceService.updateBudgetLine(draft.id, draft)

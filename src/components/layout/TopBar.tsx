@@ -4,8 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Bell, LogOut, Menu, ScrollText, User } from 'lucide-react'
 import { getPortalDefinitionForRole, roleAllowsOrgSwitch } from '@/app/config/navigation'
 import { ROLE, ROLE_LABEL } from '@/constants'
-import { DEMO_ROLES, getHomeForRole } from '@/permissions'
-import { mockFinanceService, mockOrganizationService } from '@/mock-services'
+import { mockOrganizationService } from '@/mock-services'
 import { useActivePortal, useSessionStore } from '@/state/session'
 import { useUiStore } from '@/state/ui'
 import { getValidationRound } from '@/mock-data/validationRounds'
@@ -33,15 +32,17 @@ function displayNameFromEmail(email?: string) {
 }
 
 function logsRoute(portal: ReturnType<typeof useActivePortal>) {
-  if (portal === 'moip') return '/moip/logs'
-  return '/soe/logs'
+  if (portal === 'moip_review') return '/moip-review/logs'
+  if (portal === 'soe_review') return '/soe-review/logs'
+  if (portal === 'soe_entry') return '/soe-entry/logs'
+  return '/moip-executive/dashboard'
 }
 
 function alertsRoute(portal: ReturnType<typeof useActivePortal>) {
-  if (portal === 'moip') return '/moip/logs'
-  if (portal === 'minister') return '/minister/alerts'
-  if (portal === 'secretary') return '/secretary/critical'
-  return '/soe/alerts'
+  if (portal === 'moip_review') return '/moip-review/logs'
+  if (portal === 'moip_executive') return '/moip-executive/dashboard'
+  if (portal === 'soe_review') return '/soe-review/alerts'
+  return '/soe-entry/alerts'
 }
 
 export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
@@ -51,10 +52,7 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
     role,
     userEmail,
     organizationId,
-    reportingPeriodId,
-    setRole,
     setOrganizationId,
-    setReportingPeriodId,
     toggleSidebar,
     signOut,
   } = useSessionStore()
@@ -70,20 +68,16 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const orgsQuery = useQuery({
     queryKey: ['organizations'],
     queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 50 }),
-    enabled: portal === 'soe' || canSwitchOrg || role === ROLE.EXECUTIVE_VIEWER,
+    enabled: portal === 'soe_entry' || portal === 'soe_review' || canSwitchOrg,
   })
-  const periodsQuery = useQuery({
-    queryKey: ['reporting-periods'],
-    queryFn: () => mockFinanceService.getReportingPeriods(),
-  })
-
   const currentOrg = orgsQuery.data?.items.find((o) => o.id === organizationId)
 
   const isExecutiveViewer =
     role === ROLE.EXECUTIVE_VIEWER ||
-    portal === 'minister' ||
-    portal === 'secretary' ||
-    portal === 'pmo'
+    role === ROLE.SECRETARY ||
+    role === ROLE.MINISTER ||
+    role === ROLE.PMO ||
+    portal === 'moip_executive'
 
   const topBarSubtitle = isExecutiveViewer
     ? 'Portfolio and SOE oversight workspace'
@@ -92,9 +86,12 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const logsHref = logsRoute(portal)
   const alertsHref = alertsRoute(portal)
   const logsActive =
-    location.pathname.startsWith('/soe/logs') || location.pathname.startsWith('/moip/logs')
+    location.pathname.startsWith('/soe-entry/logs') ||
+    location.pathname.startsWith('/soe-review/logs') ||
+    location.pathname.startsWith('/moip-review/logs')
   const alertsActive =
-    location.pathname.startsWith('/soe/alerts') ||
+    location.pathname.startsWith('/soe-entry/alerts') ||
+    location.pathname.startsWith('/soe-review/alerts') ||
     location.pathname.startsWith('/secretary/critical') ||
     location.pathname.startsWith('/minister/alerts')
 
@@ -148,7 +145,7 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-1.5">
-        {portal === 'moip' ? null : canSwitchOrg ? (
+        {portal === 'moip_review' ? null : canSwitchOrg ? (
           <label className="flex items-center gap-1 text-xs text-soe-slate">
             Organization
             <select
@@ -163,48 +160,10 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
               ))}
             </select>
           </label>
-        ) : portal === 'soe' || role === ROLE.EXECUTIVE_VIEWER ? (
+        ) : portal === 'soe_entry' || portal === 'soe_review' ? (
           <span className="rounded-control border border-soe-border bg-white px-2.5 py-1.5 text-xs font-medium text-soe-navy">
             {currentOrg ? currentOrg.abbreviation : 'Organization'}
           </span>
-        ) : null}
-
-        {!isExecutiveViewer ? (
-          <label className="flex items-center gap-1 text-xs text-soe-slate">
-            Period
-            <select
-              className="h-9 rounded-control border border-soe-border bg-white px-2 text-sm text-soe-ink"
-              value={reportingPeriodId}
-              onChange={(e) => setReportingPeriodId(e.target.value)}
-            >
-              {(periodsQuery.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {!isExecutiveViewer ? (
-          <label className="flex items-center gap-1 text-xs text-soe-slate">
-            Workspace view
-            <select
-              className="h-9 min-w-[160px] rounded-control border border-soe-border bg-white px-2 text-sm text-soe-ink"
-              value={role}
-              onChange={(e) => {
-                const next = e.target.value as typeof role
-                setRole(next)
-                navigate(getHomeForRole(next))
-              }}
-            >
-              {DEMO_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </option>
-              ))}
-            </select>
-          </label>
         ) : null}
 
         {isExecutiveViewer ? (
@@ -226,10 +185,10 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           </>
         ) : (
           <>
-            <IconButton label="Activity logs" onClick={() => navigate('/soe/logs')}>
+            <IconButton label="Activity logs" onClick={() => navigate(logsHref)}>
               <ScrollText size={16} />
             </IconButton>
-            <IconButton label="Notifications" onClick={() => navigate('/soe/notifications')}>
+            <IconButton label="Notifications" onClick={() => navigate(alertsHref)}>
               <Bell size={16} />
             </IconButton>
           </>

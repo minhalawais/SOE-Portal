@@ -157,7 +157,7 @@ function priorityBadge(priority: string) {
 function linkedRecordPath(task: { route?: string; linkedRecordType?: string; linkedRecordId?: string }) {
   if (task.route) return task.route
   if (task.linkedRecordType === 'submission') return '/soe/finance'
-  if (task.linkedRecordType === 'clarification') return '/soe/clarifications'
+  if (task.linkedRecordType === 'clarification') return '/soe/submissions?tab=clarifications'
   if (task.linkedRecordType === 'loan') return '/soe/finance/loans'
   if (task.linkedRecordType === 'compliance') return '/soe/accountability/compliance'
   if (task.linkedRecordType === 'audit_para' && task.linkedRecordId) {

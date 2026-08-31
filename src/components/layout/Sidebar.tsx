@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
+  Activity,
+  BarChart3,
   Bell,
   Building2,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -13,6 +16,8 @@ import {
   GitBranch,
   LayoutDashboard,
   LayoutGrid,
+  MapPin,
+  MessageSquareWarning,
   Scale,
   ScrollText,
   Search,
@@ -28,44 +33,129 @@ import {
   type PortalNavigationItem,
 } from '@/app/config/navigation'
 import { hasPermission } from '@/permissions'
+import { ROLE } from '@/constants'
 import { useActivePortal, useSessionStore } from '@/state/session'
 import { cn } from '@/utils'
 
 const NAV_ICONS: Record<string, ComponentType<{ size?: number; className?: string }>> = {
+  // Dashboards
   'pmo-command': LayoutDashboard,
   'soe-dashboard': LayoutDashboard,
+  'soe-review-dashboard': LayoutDashboard,
   'soe-executive-dashboard': LayoutDashboard,
+  'moip-dashboard': LayoutDashboard,
+  'moip-exec-dashboard': LayoutDashboard,
+  'secretary-dashboard': LayoutDashboard,
+  'minister-dashboard': LayoutDashboard,
+  'pmo-dashboard': LayoutDashboard,
+  'assurance-dashboard': LayoutDashboard,
+
+  // Submissions & Review
   'soe-submissions': ClipboardCheck,
+  'soe-review-submissions': ClipboardCheck,
   'soe-cert-submissions': ClipboardCheck,
-  'soe-search': Search,
-  'soe-executive-search': Search,
+  'moip-review': ClipboardCheck,
+  'moip-queue': ClipboardCheck,
+  'moip-review-packages': FolderOpen,
+  'moip-clarifications': MessageSquareWarning,
+  'moip-approvals': CheckCircle2,
+
+  // Portfolio & Enterprise
   'soe-enterprise': Building2,
+  'moip-portfolio': Building2,
+  'moip-portfolio-data': Building2,
+  'moip-soe-management': Building2,
+  'moip-soe-registry': Building2,
+  'moip-module-enterprise': Building2,
+
+  // Assets & GIS Map
   'soe-assets': Warehouse,
+  'moip-module-assets': Warehouse,
+  'moip-asset-map': MapPin,
+  'moip-exec-map': MapPin,
+
+  // People & Workforce & Board
   'soe-people': Users,
+  'moip-module-workforce': Users,
+  'moip-module-board': Users,
+  'moip-module-executives': Users,
+  'moip-user-admin': Users,
+  'moip-users': Users,
+
+  // Finance & Fiscal
   'soe-finance': Wallet,
+  'moip-module-finance': Wallet,
+  'moip-module-loans': Wallet,
+
+  // Compliance, Accountability, Audit
   'soe-accountability': Scale,
+  'moip-module-procurement': Scale,
+  'moip-module-audit': Scale,
+  'moip-module-litigation': Scale,
+  'moip-module-compliance': ShieldCheck,
+  'moip-administration': ShieldCheck,
+  'soe-cert-compliance': ShieldCheck,
+
+  // Industrial & Privatization
   'soe-industrial': Factory,
+  'moip-module-industrial': Factory,
+  'soe-privatization': GitBranch,
+  'moip-module-privatization': GitBranch,
+
+  // Reports & Analytics
   'soe-reports': FileBarChart,
   'soe-executive-reports': FileBarChart,
-  'soe-privatization': GitBranch,
+  'moip-reports': FileBarChart,
+  'moip-exec-reports': FileBarChart,
+  'moip-performance-comparison': BarChart3,
+  'moip-dq': CheckCircle2,
+  'moip-intelligence': Activity,
+
+  // Search
+  'soe-search': Search,
+  'soe-executive-search': Search,
+  'moip-search': Search,
+  'moip-exec-search': Search,
+
+  // Documents
   'soe-documents': FolderOpen,
   'soe-cert-documents': FileText,
+  'moip-module-documents': FolderOpen,
+
+  // Logs & Alerts
   'soe-logs-alerts': ScrollText,
   'soe-logs-centre': ScrollText,
   'soe-alerts': Bell,
+  'soe-review-alerts': ScrollText,
+  'soe-review-logs': ScrollText,
+  'soe-review-alert-list': Bell,
   'soe-cert-logs-alerts': ScrollText,
   'soe-cert-logs-centre': ScrollText,
   'soe-cert-alerts': Bell,
-  'moip-dashboard': LayoutDashboard,
   'moip-logs': ScrollText,
-  'moip-review': ClipboardCheck,
-  'moip-portfolio': Building2,
-  'moip-administration': ShieldCheck,
-  'soe-cert-compliance': ShieldCheck,
+  'moip-access-audit': ScrollText,
 }
 
 function navIcon(id: string) {
-  return NAV_ICONS[id] ?? LayoutGrid
+  if (NAV_ICONS[id]) return NAV_ICONS[id]
+  const lower = id.toLowerCase()
+  if (lower.includes('dashboard')) return LayoutDashboard
+  if (lower.includes('submission') || lower.includes('review') || lower.includes('queue')) return ClipboardCheck
+  if (lower.includes('alert')) return Bell
+  if (lower.includes('log') || lower.includes('activity')) return ScrollText
+  if (lower.includes('search')) return Search
+  if (lower.includes('asset') || lower.includes('land') || lower.includes('building')) return Warehouse
+  if (lower.includes('map')) return MapPin
+  if (lower.includes('people') || lower.includes('user') || lower.includes('workforce') || lower.includes('board')) return Users
+  if (lower.includes('finance') || lower.includes('loan') || lower.includes('fiscal')) return Wallet
+  if (lower.includes('report')) return FileBarChart
+  if (lower.includes('document')) return FolderOpen
+  if (lower.includes('industrial') || lower.includes('factory')) return Factory
+  if (lower.includes('privatization') || lower.includes('branch')) return GitBranch
+  if (lower.includes('accountability') || lower.includes('audit') || lower.includes('legal') || lower.includes('litigation') || lower.includes('procurement')) return Scale
+  if (lower.includes('compliance') || lower.includes('admin') || lower.includes('security')) return ShieldCheck
+  if (lower.includes('enterprise') || lower.includes('portfolio') || lower.includes('soe') || lower.includes('registry')) return Building2
+  return LayoutGrid
 }
 
 function matchesRoute(
@@ -336,7 +426,13 @@ export function Sidebar() {
   const definition = getPortalDefinitionForRole(portal, role)
 
   const items = useMemo(
-    () => filterNavigation(definition.navigation, role, hasPermission),
+    () =>
+      filterNavigation(
+        definition.navigation,
+        role,
+        (currentRole, permission) =>
+          currentRole === ROLE.SOE_FOCAL_PERSON || hasPermission(currentRole, permission),
+      ),
     [definition.navigation, role],
   )
 

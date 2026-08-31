@@ -16,22 +16,17 @@ import {
   RELATIONSHIP_TYPE_LABEL,
   ROLE,
   ROLE_LABEL,
-  SOE_STATUS,
   SOE_STATUS_LABEL,
   type LegalStatus,
-  type ModuleId,
   type RoleId,
-  type SoeStatus,
 } from '@/constants'
 import { mockAdministrationService, mockOrganizationService } from '@/mock-services'
-import type { ModulePermissionGrant, ReportingFrequency, UserAccountStatus } from '@/mock-services/administration.service'
+import type { ModulePermissionGrant, UserAccountStatus } from '@/mock-services/administration.service'
 import { useSessionStore } from '@/state/session'
 import { useUiStore } from '@/state/ui'
 import { AppError } from '@/utils'
-import { REPORTING_MODULES } from '@/workflow/moduleCatalog'
 import {
   CustomModulePermissionMatrix,
-  formatAssignedRoles,
   hasAnyModulePermission,
   mergeModulePermissionGrants,
 } from '@/portals/moip/CustomModulePermissionMatrix'
@@ -58,6 +53,10 @@ function csv(value: string) {
   return value.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
+function moipAdministrationRole(role: RoleId): RoleId {
+  return role === ROLE.SOE_FOCAL_PERSON ? ROLE.MOIP_REVIEWER : role
+}
+
 function DetailMetric({ label, value }: { label: string; value: string | number }) {
   return <div><p className="text-[11px] font-semibold uppercase text-soe-slate">{label}</p><p className="mt-1 text-sm font-semibold text-soe-navy">{value}</p></div>
 }
@@ -65,28 +64,17 @@ function DetailMetric({ label, value }: { label: string; value: string | number 
 export function MoipSoeAdministrationDetailPage() {
   const { organizationId = '' } = useParams()
   const role = useSessionStore((state) => state.role)
+  const administrationRole = moipAdministrationRole(role)
   const pushToast = useUiStore((state) => state.pushToast)
   const queryClient = useQueryClient()
-  const profile = useQuery({ queryKey: ['admin-soe', organizationId], queryFn: () => mockAdministrationService.getOrganizationProfile(role, organizationId), enabled: Boolean(organizationId) })
+  const profile = useQuery({ queryKey: ['admin-soe', organizationId], queryFn: () => mockAdministrationService.getOrganizationProfile(administrationRole, organizationId), enabled: Boolean(organizationId) })
   const organizations = useQuery({ queryKey: ['organizations', 'administration-detail'], queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 250 }) })
-  const users = useQuery({ queryKey: ['admin-users', 'assignments'], queryFn: () => mockAdministrationService.listUsers(role) })
-  const periods = useQuery({ queryKey: ['admin-reporting-periods'], queryFn: () => mockAdministrationService.listReportingPeriods(role) })
+  const periods = useQuery({ queryKey: ['admin-reporting-periods'], queryFn: () => mockAdministrationService.listReportingPeriods(administrationRole) })
   const [identity, setIdentity] = useState({ name: '', abbreviation: '', legalStatus: LEGAL_STATUS.PUBLIC_LIMITED_COMPANY as LegalStatus, sector: '', subSector: '', parentMinistry: '', attachedDepartment: '', headOfficeAddress: '', ownership: '100', companyRegistrationNo: '', ntn: '', secpRegistrationNo: '', strn: '', website: '', corporateEmail: '' })
-  const [frequency, setFrequency] = useState<ReportingFrequency>('annual')
-  const [requiredModules, setRequiredModules] = useState<ModuleId[]>([])
-  const [periodIds, setPeriodIds] = useState<string[]>([])
-  const [dueDate, setDueDate] = useState('2027-09-30')
-  const [focalUserId, setFocalUserId] = useState('')
-  const [certifierUserId, setCertifierUserId] = useState('')
-  const [lifecycle, setLifecycle] = useState<SoeStatus>(SOE_STATUS.ACTIVE)
-  const [reason, setReason] = useState('')
-  const [transferMinistry, setTransferMinistry] = useState('')
-  const [transferDepartment, setTransferDepartment] = useState('')
-  const [mergeTarget, setMergeTarget] = useState('')
 
   useEffect(() => {
     if (!profile.data) return
-    const { organization, settings } = profile.data
+    const { organization } = profile.data
     setIdentity({
       name: organization.name, abbreviation: organization.abbreviation, legalStatus: organization.legalStatus,
       sector: organization.sector, subSector: organization.subSector ?? '', parentMinistry: organization.parentMinistry,
@@ -95,15 +83,6 @@ export function MoipSoeAdministrationDetailPage() {
       ntn: organization.ntn ?? '', secpRegistrationNo: organization.secpRegistrationNo ?? '', strn: organization.strn ?? '',
       website: organization.website ?? '', corporateEmail: organization.corporateEmail ?? '',
     })
-    setFrequency(settings.reportingFrequency)
-    setRequiredModules(settings.requiredModules)
-    setPeriodIds(settings.reportingPeriodIds)
-    setDueDate(settings.reportingCalendar[0]?.dueDate ?? '2027-09-30')
-    setFocalUserId(settings.focalUserId ?? '')
-    setCertifierUserId(settings.certifierUserId ?? '')
-    setLifecycle(organization.status)
-    setTransferMinistry(organization.parentMinistry)
-    setTransferDepartment(organization.attachedDepartment ?? '')
   }, [profile.data])
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-soe', organizationId] })
@@ -117,11 +96,10 @@ export function MoipSoeAdministrationDetailPage() {
   if (profile.isError || !profile.data) return <ErrorState title="Unable to load SOE administration profile" />
   const data = profile.data
   const organizationOptions = (organizations.data?.items ?? []).filter((item) => item.id !== organizationId).map((item) => ({ value: item.id, label: `${item.abbreviation} — ${item.name}` }))
-  const userOptions = [{ value: '', label: 'Not assigned' }, ...(users.data ?? []).map((user) => ({ value: user.id, label: `${user.name} — ${ROLE_LABEL[user.role]}` }))]
 
   const submitIdentity = (event: FormEvent) => {
     event.preventDefault()
-    mutation.mutate(() => mockAdministrationService.updateOrganizationIdentity(role, organizationId, {
+    mutation.mutate(() => mockAdministrationService.updateOrganizationIdentity(administrationRole, organizationId, {
       ...identity,
       governmentOwnershipPct: Number(identity.ownership),
       subSector: identity.subSector || undefined,
@@ -138,7 +116,7 @@ export function MoipSoeAdministrationDetailPage() {
   const addLocation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    mutation.mutate(() => mockAdministrationService.addOrganizationLocation(role, organizationId, {
+    mutation.mutate(() => mockAdministrationService.addOrganizationLocation(administrationRole, organizationId, {
       label: String(form.get('label')), kind: String(form.get('kind')) as 'head_office' | 'factory' | 'warehouse' | 'regional_office' | 'provincial_office',
       province: String(form.get('province')), district: String(form.get('district')), address: String(form.get('address')) || undefined,
       latitude: Number(form.get('latitude')), longitude: Number(form.get('longitude')),
@@ -149,7 +127,7 @@ export function MoipSoeAdministrationDetailPage() {
   const addRelationship = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    mutation.mutate(() => mockAdministrationService.addOrganizationRelationship(role, organizationId, {
+    mutation.mutate(() => mockAdministrationService.addOrganizationRelationship(administrationRole, organizationId, {
       relatedOrganizationId: String(form.get('relatedOrganizationId')),
       relationshipType: String(form.get('relationshipType')) as 'holding' | 'subsidiary' | 'associate' | 'joint_venture',
       ownershipPercentage: Number(form.get('ownershipPercentage')),
@@ -159,13 +137,11 @@ export function MoipSoeAdministrationDetailPage() {
   }
 
   return <div className="space-y-4">
-    <Link to="/moip/admin/soes" className="inline-flex items-center gap-1 text-sm font-medium text-soe-blue"><ArrowLeft size={15} />SOE registry</Link>
-    <PageHeader title={`${data.organization.abbreviation} administration`} subtitle="Legal identity, reporting obligations, access, assigned officials and preserved history" />
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <Link to="/moip-review/admin/soes" className="inline-flex items-center gap-1 text-sm font-medium text-soe-blue"><ArrowLeft size={15} />SOE registry</Link>
+    <PageHeader title={`${data.organization.abbreviation} administration`} subtitle="Legal identity, corporate structure, operational footprint and preserved history" />
+    <div className="grid gap-3 sm:grid-cols-3">
       <Card><DetailMetric label="Lifecycle" value={SOE_STATUS_LABEL[data.organization.status]} /></Card>
       <Card><DetailMetric label="Portal access" value={data.settings.accessStatus.replaceAll('_', ' ')} /></Card>
-      <Card><DetailMetric label="Required modules" value={data.settings.requiredModules.length} /></Card>
-      <Card><DetailMetric label="Assigned users" value={data.users.length} /></Card>
       <Card><DetailMetric label="Historical submissions" value={data.submissions.length} /></Card>
     </div>
 
@@ -213,19 +189,6 @@ export function MoipSoeAdministrationDetailPage() {
       </Card>
     </div>
 
-    <Card title="Reporting configuration" subtitle="Applicable modules, periods, frequency and submission deadline" actions={<Button size="sm" loading={mutation.isPending} onClick={() => mutation.mutate(() => mockAdministrationService.updateReportingConfiguration(role, organizationId, { reportingFrequency: frequency, requiredModules, reportingPeriodIds: periodIds, defaultDueDate: dueDate }))}><Save size={15} />Save reporting setup</Button>}>
-      <div className="grid gap-5 xl:grid-cols-[220px_1fr_1fr]">
-        <div className="space-y-3"><SelectField label="Reporting frequency" value={frequency} options={['annual', 'quarterly', 'monthly', 'event_based'].map((value) => ({ value, label: value.replaceAll('_', ' ') }))} onChange={(e) => setFrequency(e.target.value as ReportingFrequency)} /><DateField label="Default deadline" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
-        <fieldset><legend className="mb-2 text-xs font-semibold uppercase text-soe-slate">Required modules</legend><div className="grid gap-2 sm:grid-cols-2">{REPORTING_MODULES.map((item) => <CheckboxField key={item.id} label={item.label} checked={requiredModules.includes(item.id)} onChange={() => setRequiredModules((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} />)}</div></fieldset>
-        <fieldset><legend className="mb-2 text-xs font-semibold uppercase text-soe-slate">Reporting periods</legend><div className="grid gap-2 sm:grid-cols-2">{periods.data?.map((item) => <CheckboxField key={item.id} label={`${item.label} · ${item.status}`} checked={periodIds.includes(item.id)} onChange={() => setPeriodIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])} />)}</div></fieldset>
-      </div>
-    </Card>
-
-    <Card title="Assigned officials and access" subtitle="Focal person and certifier responsible for this SOE" actions={<Button size="sm" loading={mutation.isPending} onClick={() => mutation.mutate(() => mockAdministrationService.assignOrganizationUsers(role, organizationId, focalUserId, certifierUserId))}><UserCheck size={15} />Save assignments</Button>}>
-      <div className="grid gap-3 sm:grid-cols-2"><SelectField label="Focal person" value={focalUserId} options={userOptions} onChange={(e) => setFocalUserId(e.target.value)} /><SelectField label="Certifier" value={certifierUserId} options={userOptions} onChange={(e) => setCertifierUserId(e.target.value)} /></div>
-      <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-sm"><thead className="text-xs uppercase text-soe-slate"><tr><th className="py-2">User</th><th>Roles</th><th>Status</th><th>Last login</th></tr></thead><tbody>{data.users.map((user) => <tr key={user.id} className="border-t border-soe-border"><td className="py-2"><Link className="font-medium text-soe-blue" to={`/moip/admin/users/${user.id}`}>{user.name}</Link><p className="text-xs text-soe-slate">{user.email}</p></td><td>{formatAssignedRoles(user.roles, user.customRoleEnabled, (item) => ROLE_LABEL[item as RoleId] ?? item)}</td><td>{user.status}</td><td>{formatDate(user.lastLoginAt)}</td></tr>)}</tbody></table></div>
-    </Card>
-
     <div className="grid gap-4 xl:grid-cols-2">
       <Card title="Submission and approval history" subtitle="Historical packages remain attached after transfer, merge or archive">
         {data.submissions.length ? <div className="max-h-72 overflow-auto divide-y divide-soe-border">{data.submissions.map((item) => <div key={item.id} className="grid grid-cols-[1fr_auto] gap-2 py-2 text-sm"><div><p className="font-medium capitalize text-soe-navy">{item.module.replaceAll('_', ' ')}</p><p className="text-xs text-soe-slate">{periods.data?.find((period) => period.id === item.reportingPeriodId)?.label ?? item.reportingPeriodId} · version {item.version}</p></div><StatusBadge status={item.status} label={item.status.replaceAll('_', ' ')} /></div>)}</div> : <EmptyState title="No submissions recorded" />}
@@ -234,23 +197,16 @@ export function MoipSoeAdministrationDetailPage() {
         {data.history.length ? <ol className="max-h-72 overflow-auto divide-y divide-soe-border">{data.history.map((item) => <li key={item.id} className="py-2 text-sm"><p className="font-medium capitalize text-soe-navy">{item.action.replaceAll('_', ' ')}</p><p>{item.detail}</p><p className="text-xs text-soe-slate">{formatDate(item.occurredAt)} · {ROLE_LABEL[item.actorRole]}</p></li>)}</ol> : <EmptyState title="No administrative changes recorded" />}
       </Card>
     </div>
-
-    <Card className="border-[#e5b9b5]" title="Lifecycle and access controls" subtitle="High-impact actions require a reason. Historical submissions are never deleted.">
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-3"><SelectField label="Lifecycle status" value={lifecycle} options={Object.values(SOE_STATUS).map((value) => ({ value, label: value === SOE_STATUS.CLOSED ? 'Dissolved / Closed' : SOE_STATUS_LABEL[value] }))} onChange={(e) => setLifecycle(e.target.value as SoeStatus)} /><TextareaField label="Reason / official reference" value={reason} onChange={(e) => setReason(e.target.value)} /><Button disabled={!reason.trim()} onClick={() => mutation.mutate(() => mockAdministrationService.changeOrganizationLifecycle(role, organizationId, lifecycle, reason))}>Update lifecycle</Button></div>
-        <div className="space-y-3"><TextField label="Transfer to ministry" value={transferMinistry} onChange={(e) => setTransferMinistry(e.target.value)} /><TextField label="Attached department" value={transferDepartment} onChange={(e) => setTransferDepartment(e.target.value)} /><Button disabled={!transferMinistry.trim()} onClick={() => mutation.mutate(() => mockAdministrationService.transferOrganization(role, organizationId, transferMinistry, transferDepartment))}>Transfer SOE</Button><div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.setOrganizationAccess(role, organizationId, data.settings.accessStatus === 'suspended' ? 'active' : 'suspended', reason))}>{data.settings.accessStatus === 'suspended' ? 'Reactivate access' : 'Suspend access'}</Button><Button variant="destructive" disabled={!reason.trim()} onClick={() => mutation.mutate(() => mockAdministrationService.setOrganizationAccess(role, organizationId, 'archived', reason))}>Archive SOE</Button></div></div>
-        <div className="space-y-3"><SelectField label="Merge duplicate into" value={mergeTarget} placeholder="Select target SOE" options={organizationOptions} onChange={(e) => setMergeTarget(e.target.value)} /><p className="text-xs text-soe-slate">The source record is archived and marked merged. Its complete submission history remains available.</p><Button variant="destructive" disabled={!mergeTarget || !reason.trim()} onClick={() => mutation.mutate(() => mockAdministrationService.mergeOrganization(role, organizationId, mergeTarget, reason))}>Merge duplicate record</Button></div>
-      </div>
-    </Card>
   </div>
 }
 
 export function MoipUserAdministrationDetailPage() {
   const { userId = '' } = useParams()
   const role = useSessionStore((state) => state.role)
+  const administrationRole = moipAdministrationRole(role)
   const pushToast = useUiStore((state) => state.pushToast)
   const queryClient = useQueryClient()
-  const user = useQuery({ queryKey: ['admin-user', userId], queryFn: () => mockAdministrationService.getUser(role, userId), enabled: Boolean(userId) })
+  const user = useQuery({ queryKey: ['admin-user', userId], queryFn: () => mockAdministrationService.getUser(administrationRole, userId), enabled: Boolean(userId) })
   const organizations = useQuery({ queryKey: ['organizations', 'user-detail'], queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 250 }) })
   const [roles, setRoles] = useState<RoleId[]>([])
   const [customRoleEnabled, setCustomRoleEnabled] = useState(false)
@@ -281,12 +237,12 @@ export function MoipUserAdministrationDetailPage() {
   if (user.isLoading) return <LoadingBlock />
   if (user.isError || !user.data) return <ErrorState title="Unable to load user account" />
   const account = user.data
-  const statusAction = (status: UserAccountStatus) => mutation.mutate(() => mockAdministrationService.setUserStatus(role, userId, status, lockReason))
+  const statusAction = (status: UserAccountStatus) => mutation.mutate(() => mockAdministrationService.setUserStatus(administrationRole, userId, status, lockReason))
   const canSaveAccess =
     roles.length > 0 || (customRoleEnabled && hasAnyModulePermission(modulePermissions))
 
   return <div className="space-y-4">
-    <Link to="/moip/admin/users" className="inline-flex items-center gap-1 text-sm font-medium text-soe-blue"><ArrowLeft size={15} />User management</Link>
+    <Link to="/moip-review/admin/users" className="inline-flex items-center gap-1 text-sm font-medium text-soe-blue"><ArrowLeft size={15} />Users & access</Link>
     <PageHeader title={account.name} subtitle={account.email} />
     <AdminMetricStrip
       items={[
@@ -309,7 +265,7 @@ export function MoipUserAdministrationDetailPage() {
           loading={mutation.isPending}
           onClick={() =>
             mutation.mutate(() =>
-              mockAdministrationService.updateUserAccess(role, userId, {
+              mockAdministrationService.updateUserAccess(administrationRole, userId, {
                 roles,
                 customRoleEnabled,
                 modulePermissions: customRoleEnabled ? modulePermissions : [],
@@ -420,16 +376,16 @@ export function MoipUserAdministrationDetailPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           {account.invitationStatus === 'pending' ? (
             <>
-              <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resendInvitation(role, userId))}>
+              <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resendInvitation(administrationRole, userId))}>
                 <MailPlus size={14} />
                 Resend invitation
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => mutation.mutate(() => mockAdministrationService.cancelInvitation(role, userId))}>
+              <Button size="sm" variant="destructive" onClick={() => mutation.mutate(() => mockAdministrationService.cancelInvitation(administrationRole, userId))}>
                 Cancel invitation
               </Button>
             </>
           ) : null}
-          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.sendPasswordReset(role, userId))}>
+          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.sendPasswordReset(administrationRole, userId))}>
             <KeyRound size={14} />
             Send reset link
           </Button>
@@ -438,13 +394,13 @@ export function MoipUserAdministrationDetailPage() {
             variant="secondary"
             onClick={() =>
               mutation.mutate(() =>
-                mockAdministrationService.requirePasswordChange(role, userId, !account.requirePasswordChange),
+                mockAdministrationService.requirePasswordChange(administrationRole, userId, !account.requirePasswordChange),
               )
             }
           >
             {account.requirePasswordChange ? 'Clear password-change requirement' : 'Require password change'}
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resetMfa(role, userId))}>
+          <Button size="sm" variant="secondary" onClick={() => mutation.mutate(() => mockAdministrationService.resetMfa(administrationRole, userId))}>
             <ShieldCheck size={14} />
             Reset MFA
           </Button>
@@ -481,7 +437,7 @@ export function MoipUserAdministrationDetailPage() {
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(role, userId))}
+            onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(administrationRole, userId))}
           >
             <LogOut size={14} />
             Terminate all
@@ -518,7 +474,7 @@ export function MoipUserAdministrationDetailPage() {
                     <Button
                       size="sm"
                       variant="tertiary"
-                      onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(role, userId, session.id))}
+                      onClick={() => mutation.mutate(() => mockAdministrationService.terminateSession(administrationRole, userId, session.id))}
                     >
                       Terminate
                     </Button>

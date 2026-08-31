@@ -46,7 +46,7 @@ import {
   X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { ALL_SOE_FOOTPRINTS, SoeFootprintMap } from '@/components/gis/SoeFootprintMap'
+
 import { RequirePermission } from '@/app/router/guards'
 import { ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import {
@@ -82,6 +82,7 @@ import {
 } from '@/mock-services'
 import type { ExecutiveTone, SecretaryDashboardData } from '@/mock-services/executiveDashboard.service'
 import type { PmoFilter } from '@/mock-services/pmoPortal.service'
+import { ExecutiveLitigationExposureSection } from '@/portals/shared/LitigationDashboardSections'
 import { ExecutiveReportsStrip } from '@/portals/pmo/ExecutiveReportsStrip'
 import { RankedBars, ToneBadge } from '@/portals/executive/ExecutiveDashboardComponents'
 import { PERMISSION } from '@/permissions'
@@ -1952,34 +1953,38 @@ function ObligationHorizonPanel({ data }: { data: SecretaryDashboardData }) {
   const obligationTotal = data.obligationBuckets.reduce((sum, item) => sum + item.value, 0)
 
   return (
-    <Panel title="90-Day Obligation Horizon">
-      <div className="p-4">
-        <div className="grid grid-cols-5 gap-1.5">
-          {data.obligationBuckets.map((item) => (
-            <div key={item.name} className="min-w-0">
-              <div className="flex h-24 items-end rounded-[4px] bg-soe-canvas px-2 pt-2">
-                <div
-                  className="w-full rounded-t-[3px]"
-                  style={{
-                    height: `${obligationTotal ? Math.max(8, (item.value / maxBucket) * 100) : 8}%`,
-                    backgroundColor: executiveToneColor(item.tone),
-                  }}
-                />
+    <Panel title="90-Day Obligation Horizon" className="flex flex-col h-full">
+      <div className="flex flex-1 flex-col justify-between p-4">
+        <div>
+          <div className="grid grid-cols-5 gap-2">
+            {data.obligationBuckets.map((item) => (
+              <div key={item.name} className="flex flex-col min-w-0">
+                <div className="flex h-44 sm:h-48 items-end rounded-md bg-soe-canvas/80 p-2 border border-soe-border/40 shadow-inner">
+                  <div
+                    className="w-full rounded-t-[4px] transition-all duration-300 shadow-sm"
+                    style={{
+                      height: `${obligationTotal ? Math.max(10, (item.value / maxBucket) * 100) : 10}%`,
+                      backgroundColor: executiveToneColor(item.tone),
+                    }}
+                  />
+                </div>
+                <p className="mt-2.5 truncate text-center text-[10px] font-medium text-soe-slate">{item.name}</p>
+                <p className="text-center text-base font-bold tabular-nums text-soe-navy">{item.value}</p>
               </div>
-              <p className="mt-2 truncate text-center text-[9px] text-soe-slate">{item.name}</p>
-              <p className="text-center text-sm font-semibold tabular-nums text-soe-navy">{item.value}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-        <div className="mt-4 border-t border-soe-border pt-3">
-          {data.obligations.slice(0, 4).map((item) => (
+
+        <div className="mt-5 border-t border-soe-border pt-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-soe-slate">Key Upcoming Obligations</p>
+          {data.obligations.slice(0, 5).map((item) => (
             <div
               key={item.id}
-              className="grid grid-cols-[82px_1fr_auto] gap-2 border-b border-soe-border py-2 text-[10px] last:border-0"
+              className="grid grid-cols-[82px_1fr_auto] gap-2 border-b border-soe-border/50 py-2.5 text-xs last:border-0 hover:bg-soe-canvas/40 px-1 rounded transition-colors"
             >
-              <strong className="truncate text-soe-navy">{item.organizationLabel}</strong>
+              <strong className="truncate font-semibold text-soe-navy">{item.organizationLabel}</strong>
               <span className="truncate text-soe-ink">{item.issue}</span>
-              <span className="tabular-nums text-soe-slate">{item.dueDate}</span>
+              <span className="tabular-nums font-medium text-soe-slate">{item.dueDate}</span>
             </div>
           ))}
         </div>
@@ -2161,7 +2166,6 @@ function AssetValueByClassSection({
 export function PmoCommandDashboardPage() {
   const [filter, setFilter] = useCommandFilter()
   const [selectedSoeId, setSelectedSoeId] = useState<string>()
-  const [selectedFootprintSoeId, setSelectedFootprintSoeId] = useState(ALL_SOE_FOOTPRINTS)
 
   const query = useQuery({
     queryKey: ['pmo-command-dashboard', filter],
@@ -2201,9 +2205,12 @@ export function PmoCommandDashboardPage() {
         portfolioAssets,
         executives,
         workforce,
+        workforceLive,
         procurement,
         accountability,
         litigation,
+        litigationLive,
+        litigationStageSummary,
         compliance,
         financials,
         documents,
@@ -2237,9 +2244,12 @@ export function PmoCommandDashboardPage() {
         mockAssetService.getAssets({ portfolioScope: true, pageSize: 2000 }),
         mockBoardService.getExecutives(),
         mockWorkforceService.getSummary(undefined, true),
+        mockWorkforceService.getContinuousSummary(undefined, true),
         mockAuditService.getProcurement(),
         mockAuditService.getExceptionSummary(),
         mockLitigationService.getCases(),
+        mockLitigationService.getContinuousSummary(),
+        mockLitigationService.getStageSummary(),
         mockComplianceService.getComplianceItems(),
         mockFinanceService.getFinancials(undefined, filter.reportingPeriodId),
         mockDocumentService.getDocuments({ pageSize: 1000 }),
@@ -2274,9 +2284,12 @@ export function PmoCommandDashboardPage() {
         portfolioAssets,
         executives,
         workforce,
+        workforceLive,
         procurement,
         accountability,
         litigation,
+        litigationLive,
+        litigationStageSummary,
         compliance,
         financials,
         documents,
@@ -2325,12 +2338,7 @@ export function PmoCommandDashboardPage() {
     }
   }, [derived, selectedSoeId])
 
-  useEffect(() => {
-    if (!derived || selectedFootprintSoeId === ALL_SOE_FOOTPRINTS) return
-    if (!derived.health.some((row) => row.organizationId === selectedFootprintSoeId)) {
-      setSelectedFootprintSoeId(ALL_SOE_FOOTPRINTS)
-    }
-  }, [derived, selectedFootprintSoeId])
+
 
   if (query.isLoading) return <LoadingBlock label="Loading national SOE command dashboard…" />
   if (query.isError || !query.data || !derived) {
@@ -2343,18 +2351,7 @@ export function PmoCommandDashboardPage() {
     derived.health.some((item) => item.organizationId === selectedSoeId)
       ? selectedSoeId!
       : derived.health[0]?.organizationId ?? ''
-  const activeFootprintSoeId =
-    selectedFootprintSoeId === ALL_SOE_FOOTPRINTS ||
-    derived.health.some((item) => item.organizationId === selectedFootprintSoeId)
-      ? selectedFootprintSoeId
-      : ALL_SOE_FOOTPRINTS
-  const footprintAssets =
-    activeFootprintSoeId === ALL_SOE_FOOTPRINTS
-      ? derived.gisAssets
-      : derived.gisAssets.filter((item) => item.organizationId === activeFootprintSoeId)
-  const footprintMappedAssets = footprintAssets.filter((item) => item.mapped)
-  const footprintMarketValue = footprintAssets.reduce((sum, item) => sum + (item.marketValue ?? 0), 0)
-  const footprintLandArea = footprintAssets.reduce((sum, item) => sum + (item.areaAcres ?? 0), 0)
+
   const assetValueByClass = [...derived.portfolioAssets
     .reduce((map, asset) => {
       const type = ASSET_TYPE_LABEL[asset.assetType] ?? asset.assetType
@@ -2757,37 +2754,7 @@ export function PmoCommandDashboardPage() {
           }
         />
 
-        <div className="mt-3 grid gap-3">
-          <Panel
-            title="SOE Land and Asset Footprint"
-            action={
-              <Link
-                to={
-                  activeFootprintSoeId === ALL_SOE_FOOTPRINTS
-                    ? '/pmo/map'
-                    : `/pmo/map?soe=${activeFootprintSoeId}`
-                }
-                className="text-[11px] font-medium text-soe-blue"
-              >
-                Open full map
-              </Link>
-            }
-          >
-            <SoeFootprintMap
-              soes={derived.health}
-              locations={derived.locations}
-              assets={derived.gisAssets}
-              selectedSoeId={activeFootprintSoeId}
-              onSelectSoe={setSelectedFootprintSoeId}
-            />
-            <div className="grid grid-cols-2 divide-x divide-y divide-soe-border border-t border-soe-border sm:grid-cols-4 sm:divide-y-0 py-3">
-              <div className="px-3 text-center"><p className="text-[10px] text-soe-slate">Registered assets</p><p className="text-base font-semibold text-soe-navy">{footprintAssets.length}</p></div>
-              <div className="px-3 text-center"><p className="text-[10px] text-soe-slate">Mapped assets</p><p className="text-base font-semibold text-soe-navy">{footprintMappedAssets.length}</p></div>
-              <div className="px-3 text-center"><p className="text-[10px] text-soe-slate">Land area</p><p className="text-base font-semibold text-soe-navy">{compactNumber(footprintLandArea)} ac</p></div>
-              <div className="px-3 text-center"><p className="text-[10px] text-soe-slate">Market value</p><p className="text-base font-semibold text-soe-navy">{formatCurrencyPkr(footprintMarketValue)}</p></div>
-            </div>
-          </Panel>
-        </div>
+
 
 
           <div className="mt-6 space-y-3">
@@ -2904,6 +2871,11 @@ export function PmoCommandDashboardPage() {
               <ComplianceRepositoryTable rows={complianceRepositoryRows} />
             </Panel>
           </section>
+          <ExecutiveLitigationExposureSection
+            litigation={d.litigation}
+            litigationLive={d.litigationLive}
+            stageSummary={d.litigationStageSummary}
+          />
           <div className="mt-3 grid gap-3 xl:grid-cols-2">
             <ObligationHorizonPanel data={d.secretaryDashboard} />
             <FinancialLoanWatchPanel data={d.secretaryDashboard} />

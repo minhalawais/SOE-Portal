@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Building2, CheckCircle2, Clock3, FileCheck2, Gauge, Landmark, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Building2, CheckCircle2, Clock3, FileCheck2, Gauge, Landmark, ShieldAlert, TrendingDown, TrendingUp } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { WorkflowChrome } from '@/components/workflow/WorkflowChrome'
@@ -30,7 +30,7 @@ import {
   type RoleId,
   type SubmissionStatus,
 } from '@/constants'
-import { mockAdministrationService, mockFinanceWorkflowService, mockMoipPortalService } from '@/mock-services'
+import { mockAdministrationService, mockFinanceWorkflowService, mockMoipPortalService, mockPerformanceComparisonService } from '@/mock-services'
 import type {
   MoipClarificationRow,
   MoipComparisonHighlight,
@@ -43,6 +43,7 @@ import { useUiStore } from '@/state/ui'
 import type { Escalation } from '@/types/domain'
 import { AppError, cn, formatCurrencyPkr } from '@/utils'
 import { REPORTING_MODULES } from '@/workflow/moduleCatalog'
+import { MoipLitigationRegisterSection } from '@/portals/shared/LitigationDashboardSections'
 import { reportingPeriods } from '@/mock-data'
 
 const linkClass = 'text-sm text-soe-blue underline'
@@ -64,6 +65,21 @@ function moduleLabel(moduleId: string) {
 }
 
 const DASHBOARD_COLORS = { blue: '#1f5f8b', teal: '#138a7a', amber: '#d17a08', red: '#bf3f34', navy: '#17324d', muted: '#8da2b8', grid: '#e6ebef' }
+
+const MOIP_DASHBOARD_STATUS_LABEL: Record<string, string> = {
+  [SUBMISSION_STATUS.DRAFT]: 'SOE data entry not started',
+  [SUBMISSION_STATUS.IN_PROGRESS]: 'SOE data entry in progress',
+  [SUBMISSION_STATUS.READY_FOR_REVIEW]: 'Awaiting SOE internal review',
+  [SUBMISSION_STATUS.READY_FOR_CERTIFICATION]: 'Awaiting SOE certification',
+  [SUBMISSION_STATUS.CERTIFIED]: 'SOE certified; not yet submitted',
+  [SUBMISSION_STATUS.SUBMITTED]: 'Submitted to MOIP',
+  [SUBMISSION_STATUS.UNDER_REVIEW]: 'Under MOIP review',
+  [SUBMISSION_STATUS.CLARIFICATION_REQUESTED]: 'Awaiting SOE clarification response',
+  [SUBMISSION_STATUS.RETURNED]: 'Returned to SOE for correction',
+  [SUBMISSION_STATUS.RESUBMITTED]: 'Corrections resubmitted to MOIP',
+  [SUBMISSION_STATUS.APPROVED]: 'Approved by MOIP',
+  [SUBMISSION_STATUS.LOCKED]: 'Approved and locked by MOIP',
+}
 
 function CommandMetric({ label, value, detail, to, tone = 'blue', icon }: { label: string; value: string; detail: string; to: string; tone?: 'blue' | 'teal' | 'amber' | 'red'; icon: ReactNode }) {
   const tones = { blue: 'border-t-soe-blue', teal: 'border-t-soe-teal', amber: 'border-t-soe-warning', red: 'border-t-soe-critical' }
@@ -98,6 +114,14 @@ export function MoipOversightDashboardPage() {
     queryFn: () => mockMoipPortalService.getWorkload(role),
   })
   const userPosture = useQuery({ queryKey: ['admin-users', 'dashboard-posture'], queryFn: () => mockAdministrationService.listUsers(role), enabled: hasPermission(role, PERMISSION.USER_READ) })
+  const performance = useQuery({
+    queryKey: ['moip-performance-watch', reportingPeriodId],
+    queryFn: () => mockPerformanceComparisonService.getPortfolio({
+      reportingPeriodId,
+      dataMode: reportingPeriods.find((period) => period.id === reportingPeriodId)?.status === 'open' ? 'reported' : 'approved',
+    }),
+    enabled: hasPermission(role, PERMISSION.PERFORMANCE_COMPARISON_READ),
+  })
 
   if (dashboard.isLoading) return <LoadingBlock label="Loading oversight dashboard…" />
   if (dashboard.isError || !dashboard.data) {
@@ -106,35 +130,68 @@ export function MoipOversightDashboardPage() {
 
   const d = dashboard.data
   const w = workload.data
+  const reviewWorkflow = d.workflow.map((item) => ({
+    ...item,
+    label: MOIP_DASHBOARD_STATUS_LABEL[item.status] ?? item.label,
+  }))
   const userRisk = userPosture.data ? { total: userPosture.data.length, mfaMissing: userPosture.data.filter((item) => !item.mfaEnabled && item.status === 'active').length, locked: userPosture.data.filter((item) => item.status === 'locked' || item.status === 'suspended').length, invitations: userPosture.data.filter((item) => item.invitationStatus === 'pending').length } : null
 
   return (
     <div className="space-y-5">
       <div className="border-b border-soe-border bg-white px-5 py-4">
-        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-soe-blue">Ministry of Industries and Production</p><h1 className="mt-1 text-2xl font-bold text-soe-navy">Review & Portfolio Command</h1><p className="mt-1 text-sm text-soe-slate">Submission control, quality assurance and cross-SOE oversight · as of {new Date(d.asOf).toLocaleString()} · {ROLE_LABEL[role]}</p></div><div className="w-48"><SelectField label="Financial year" value={reportingPeriodId} options={reportingPeriods.filter((period) => period.type === 'annual').map((period) => ({ value: period.id, label: period.label }))} onChange={(event) => setReportingPeriodId(event.target.value)} /></div></div>
+        <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-soe-blue">Ministry of Industries and Production</p><h1 className="mt-1 text-2xl font-bold text-soe-navy">MOIP Submission Review and Portfolio Oversight</h1><p className="mt-1 text-sm text-soe-slate">Track SOE submissions, MOIP review decisions, data quality and portfolio risk · as of {new Date(d.asOf).toLocaleString()} · {ROLE_LABEL[role]}</p></div><div className="w-48"><SelectField label="Financial year" value={reportingPeriodId} options={reportingPeriods.filter((period) => period.type === 'annual').map((period) => ({ value: period.id, label: period.label }))} onChange={(event) => setReportingPeriodId(event.target.value)} /></div></div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-        <CommandMetric label="SOEs in portfolio" value={String(d.summary.totalSoes)} detail={`${d.summary.expectedModules} module returns expected`} to="/moip/portfolio" icon={<Building2 size={18} />} />
-        <CommandMetric label="Returns received" value={String(d.summary.received)} detail={`${Math.round((d.summary.received / Math.max(1, d.summary.expectedModules)) * 100)}% portfolio coverage`} to="/moip/submissions" tone="teal" icon={<FileCheck2 size={18} />} />
-        <CommandMetric label="Under review" value={String(d.summary.underReview)} detail={w ? `${w.assignedReviews} assigned to your queue` : 'Active review queue'} to="/moip/submissions?status=under_review" icon={<Clock3 size={18} />} />
-        <CommandMetric label="Clarifications" value={String(d.summary.clarificationPending)} detail="Awaiting SOE response" to="/moip/clarifications" tone="amber" icon={<AlertTriangle size={18} />} />
-        <CommandMetric label="SLA breaches" value={String(d.summary.overdue)} detail="Overdue reviews or responses" to="/moip/submissions" tone="red" icon={<ShieldAlert size={18} />} />
-        <CommandMetric label="Approved returns" value={String(d.summary.approved)} detail={`${d.periodLabel} locked or approved`} to="/moip/approvals" tone="teal" icon={<CheckCircle2 size={18} />} />
-        <CommandMetric label="Average completion" value={`${d.summary.averageCompleteness}%`} detail="Across all submitted modules" to="/moip/data-quality" tone={d.summary.averageCompleteness < 80 ? 'amber' : 'teal'} icon={<Gauge size={18} />} />
-        <CommandMetric label="Quality exceptions" value={String(d.quality.blocking + d.quality.warnings + d.quality.evidenceGaps)} detail={`${d.quality.affectedSoes} SOEs affected`} to="/moip/data-quality" tone="red" icon={<Landmark size={18} />} />
+        <CommandMetric label="SOEs in MOIP portfolio" value={String(d.summary.totalSoes)} detail={`${d.summary.expectedModules} SOE module submissions expected`} to="/moip/portfolio" icon={<Building2 size={18} />} />
+        <CommandMetric label="Module submissions received" value={String(d.summary.received)} detail={`${Math.round((d.summary.received / Math.max(1, d.summary.expectedModules)) * 100)}% of expected submissions received`} to="/moip/submissions" tone="teal" icon={<FileCheck2 size={18} />} />
+        <CommandMetric label="Modules under MOIP review" value={String(d.summary.underReview)} detail={w ? `${w.assignedReviews} assigned to your review queue` : 'Active MOIP review queue'} to="/moip/submissions?status=under_review" icon={<Clock3 size={18} />} />
+        <CommandMetric label="MOIP questions awaiting response" value={String(d.summary.clarificationPending)} detail="Awaiting response from SOEs" to="/moip/clarifications" tone="amber" icon={<AlertTriangle size={18} />} />
+        <CommandMetric label="Overdue review actions" value={String(d.summary.overdue)} detail="Overdue MOIP reviews or SOE responses" to="/moip/submissions" tone="red" icon={<ShieldAlert size={18} />} />
+        <CommandMetric label="Modules approved by MOIP" value={String(d.summary.approved)} detail={`${d.periodLabel} modules approved or locked`} to="/moip/approvals" tone="teal" icon={<CheckCircle2 size={18} />} />
+        <CommandMetric label="Submitted data completeness" value={`${d.summary.averageCompleteness}%`} detail="Average across modules received from SOEs" to="/moip/data-quality" tone={d.summary.averageCompleteness < 80 ? 'amber' : 'teal'} icon={<Gauge size={18} />} />
+        <CommandMetric label="Data quality issues" value={String(d.quality.blocking + d.quality.warnings + d.quality.evidenceGaps)} detail={`${d.quality.affectedSoes} SOEs require data-quality attention`} to="/moip/data-quality" tone="red" icon={<Landmark size={18} />} />
       </div>
+
+      {performance.data ? (
+        <section className="overflow-hidden rounded-[8px] border border-soe-border bg-white shadow-[var(--shadow-sm)]">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-soe-border bg-[#f7fafc] px-5 py-4">
+            <div>
+              <div className="flex items-center gap-2"><Gauge size={17} className="text-soe-blue" /><h2 className="text-sm font-bold text-soe-navy">SOE Enterprise Performance Watch</h2></div>
+              <p className="mt-1 text-xs text-soe-slate">Actual enterprise performance and fiscal sustainability, independent of submission progress</p>
+            </div>
+            <Link className="inline-flex items-center gap-1 text-xs font-semibold text-soe-blue hover:underline" to={`/moip-review/performance-comparison?period=${reportingPeriodId}`}>Open performance comparison <ArrowRight size={14} /></Link>
+          </header>
+          <div className="grid lg:grid-cols-[0.8fr_2.2fr]">
+            <div className="grid grid-cols-3 border-b border-soe-border lg:border-b-0 lg:border-r">
+              <Link to={`/moip-review/performance-comparison?period=${reportingPeriodId}&view=overview`} className="border-r border-soe-border px-4 py-5 text-center hover:bg-soe-canvas"><TrendingUp size={17} className="mx-auto text-soe-teal" /><p className="mt-2 text-xl font-bold text-soe-navy">{performance.data.summary.improving}</p><p className="mt-1 text-[10px] font-semibold uppercase text-soe-slate">SOEs improving</p></Link>
+              <Link to={`/moip-review/performance-comparison?period=${reportingPeriodId}&view=overview`} className="border-r border-soe-border px-4 py-5 text-center hover:bg-soe-canvas"><TrendingDown size={17} className="mx-auto text-soe-critical" /><p className="mt-2 text-xl font-bold text-soe-navy">{performance.data.summary.deteriorating}</p><p className="mt-1 text-[10px] font-semibold uppercase text-soe-slate">SOEs deteriorating</p></Link>
+              <Link to={`/moip-review/performance-comparison?period=${reportingPeriodId}&view=overview`} className="px-4 py-5 text-center hover:bg-soe-canvas"><Landmark size={17} className="mx-auto text-soe-warning" /><p className="mt-2 text-xl font-bold text-soe-navy">{performance.data.summary.highSupportDependence}</p><p className="mt-1 text-[10px] font-semibold uppercase text-soe-slate">High support dependence</p></Link>
+            </div>
+            <div className="grid divide-y divide-soe-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+              {[...performance.data.scorecards].sort((a, b) => (a.overallScore ?? 101) - (b.overallScore ?? 101)).slice(0, 4).map((row) => (
+                <Link key={row.organizationId} to={`/moip-review/performance-comparison?view=scorecard&period=${reportingPeriodId}&organizationId=${row.organizationId}`} className="flex min-h-[105px] items-center justify-between gap-3 px-4 py-4 hover:bg-soe-canvas">
+                  <div className="min-w-0"><p className="text-xs font-semibold text-soe-navy">{row.abbreviation}</p><p className="mt-1 truncate text-[10px] text-soe-slate">{row.peerGroup}</p><p className={cn('mt-2 text-[11px] font-semibold', row.trend === 'deteriorating' ? 'text-soe-critical' : row.trend === 'improving' ? 'text-soe-teal' : 'text-soe-slate')}>{row.trend === 'deteriorating' ? 'Deteriorating' : row.trend === 'improving' ? 'Improving' : 'Stable'}</p></div>
+                  <span className={cn('flex h-11 min-w-11 items-center justify-center rounded-control border px-2 text-sm font-bold', row.overallScore == null ? 'border-soe-border bg-soe-canvas text-soe-slate' : row.overallScore >= 70 ? 'border-[#bde2d5] bg-[#e7f5f0] text-[#0d6b57]' : row.overallScore >= 50 ? 'border-[#efd49c] bg-[#fff4dd] text-[#8a5a05]' : 'border-[#efc5c1] bg-[#fff0ef] text-soe-critical')}>{row.overallScore ?? '—'}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-        <Card><DashboardSectionTitle title="Submission pipeline" action={<Link className={linkClass} to="/moip/submissions">Open review queue</Link>} /><div className="h-[260px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={d.workflow} margin={{ top: 8, right: 10, left: -16, bottom: 30 }}><CartesianGrid stroke={DASHBOARD_COLORS.grid} vertical={false} /><XAxis dataKey="label" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ borderRadius: 4, borderColor: DASHBOARD_COLORS.grid, fontSize: 11 }} /><Bar dataKey="count" name="Returns" radius={[3, 3, 0, 0]}>{d.workflow.map((item) => <Cell key={item.status} fill={item.status === 'clarification_requested' ? DASHBOARD_COLORS.amber : item.status === 'approved' || item.status === 'locked' ? DASHBOARD_COLORS.teal : DASHBOARD_COLORS.blue} />)}</Bar></BarChart></ResponsiveContainer></div></Card>
-        <Card><DashboardSectionTitle title="Reviewer workload & quality" action={<Link className={linkClass} to="/moip/tasks">Tasks</Link>} /><div className="grid grid-cols-2 gap-x-5 gap-y-4">{w ? <><div><p className="text-xs text-soe-slate">Assigned reviews</p><p className="text-xl font-bold text-soe-navy">{w.assignedReviews}</p></div><div><p className="text-xs text-soe-slate">Due soon</p><p className="text-xl font-bold text-soe-navy">{w.dueSoon}</p></div><div><p className="text-xs text-soe-slate">Overdue</p><p className="text-xl font-bold text-soe-critical">{w.overdue}</p></div><div><p className="text-xs text-soe-slate">Approvals pending</p><p className="text-xl font-bold text-soe-navy">{w.approvalsPending}</p></div></> : null}<div><p className="text-xs text-soe-slate">Blocking checks</p><p className="text-xl font-bold text-soe-critical">{d.quality.blocking}</p></div><div><p className="text-xs text-soe-slate">Evidence gaps</p><p className="text-xl font-bold text-soe-warning">{d.quality.evidenceGaps}</p></div></div><div className="mt-5 border-t border-soe-border pt-4"><div className="flex justify-between text-xs"><span>Portfolio completion</span><strong>{d.summary.averageCompleteness}%</strong></div><div className="mt-2 h-2 bg-soe-canvas"><div className="h-full bg-soe-teal" style={{ width: `${d.summary.averageCompleteness}%` }} /></div></div></Card>
+        <Card><DashboardSectionTitle title="MOIP module review workflow" action={<Link className={linkClass} to="/moip/submissions">Open review queue</Link>} /><div className="h-[260px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={reviewWorkflow} margin={{ top: 8, right: 10, left: -16, bottom: 30 }}><CartesianGrid stroke={DASHBOARD_COLORS.grid} vertical={false} /><XAxis dataKey="label" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ borderRadius: 4, borderColor: DASHBOARD_COLORS.grid, fontSize: 11 }} /><Bar dataKey="count" name="Modules" radius={[3, 3, 0, 0]}>{reviewWorkflow.map((item) => <Cell key={item.status} fill={item.status === 'clarification_requested' ? DASHBOARD_COLORS.amber : item.status === 'approved' || item.status === 'locked' ? DASHBOARD_COLORS.teal : DASHBOARD_COLORS.blue} />)}</Bar></BarChart></ResponsiveContainer></div></Card>
+        <Card><DashboardSectionTitle title="Your MOIP review workload and data quality" action={<Link className={linkClass} to="/moip/tasks">Tasks</Link>} /><div className="grid grid-cols-2 gap-x-5 gap-y-4">{w ? <><div><p className="text-xs text-soe-slate">Modules assigned to you</p><p className="text-xl font-bold text-soe-navy">{w.assignedReviews}</p></div><div><p className="text-xs text-soe-slate">Reviews due soon</p><p className="text-xl font-bold text-soe-navy">{w.dueSoon}</p></div><div><p className="text-xs text-soe-slate">Overdue reviewer actions</p><p className="text-xl font-bold text-soe-critical">{w.overdue}</p></div><div><p className="text-xs text-soe-slate">Awaiting MOIP decision</p><p className="text-xl font-bold text-soe-navy">{w.approvalsPending}</p></div></> : null}<div><p className="text-xs text-soe-slate">Blocking validation findings</p><p className="text-xl font-bold text-soe-critical">{d.quality.blocking}</p></div><div><p className="text-xs text-soe-slate">Missing required evidence</p><p className="text-xl font-bold text-soe-warning">{d.quality.evidenceGaps}</p></div></div><div className="mt-5 border-t border-soe-border pt-4"><div className="flex justify-between text-xs"><span>Submitted data completeness</span><strong>{d.summary.averageCompleteness}%</strong></div><div className="mt-2 h-2 bg-soe-canvas"><div className="h-full bg-soe-teal" style={{ width: `${d.summary.averageCompleteness}%` }} /></div></div></Card>
       </div>
 
-      <Card><DashboardSectionTitle title="Module submission coverage and review quality" action={<Link className={linkClass} to="/moip/modules/enterprise">Explore portfolio data</Link>} /><div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="text-[11px] uppercase text-soe-slate"><tr><th className="py-2">Module</th><th>Coverage</th><th>Received</th><th>Approved</th><th>Completion</th><th>Review issues</th><th>Evidence gaps</th><th></th></tr></thead><tbody>{d.moduleCoverage.map((item) => <tr key={item.module} className="border-t border-soe-border"><td className="py-2.5 font-medium text-soe-navy">{item.label}</td><td className="w-48"><div className="h-1.5 bg-soe-canvas"><div className="h-full bg-soe-blue" style={{ width: `${Math.round((item.received / Math.max(1, item.expected)) * 100)}%` }} /></div></td><td>{item.received} / {item.expected}</td><td>{item.approved}</td><td>{item.averageCompleteness}%</td><td className={item.issues ? 'font-semibold text-soe-critical' : ''}>{item.issues}</td><td className={item.evidenceGaps ? 'font-semibold text-soe-warning' : ''}>{item.evidenceGaps}</td><td><Link className={linkClass} to={`/moip/modules/${item.module}`}>Inspect</Link></td></tr>)}</tbody></table></div></Card>
+      <Card><DashboardSectionTitle title="SOE module submission coverage and MOIP review findings" action={<Link className={linkClass} to="/moip/modules/enterprise">Explore portfolio data</Link>} /><div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="text-[11px] uppercase text-soe-slate"><tr><th className="py-2">Module</th><th>Submission coverage</th><th>Received from SOEs</th><th>Approved by MOIP</th><th>Data completeness</th><th>Review findings</th><th>Missing evidence</th><th></th></tr></thead><tbody>{d.moduleCoverage.map((item) => <tr key={item.module} className="border-t border-soe-border"><td className="py-2.5 font-medium text-soe-navy">{item.label}</td><td className="w-48"><div className="h-1.5 bg-soe-canvas"><div className="h-full bg-soe-blue" style={{ width: `${Math.round((item.received / Math.max(1, item.expected)) * 100)}%` }} /></div></td><td>{item.received} / {item.expected}</td><td>{item.approved}</td><td>{item.averageCompleteness}%</td><td className={item.issues ? 'font-semibold text-soe-critical' : ''}>{item.issues}</td><td className={item.evidenceGaps ? 'font-semibold text-soe-warning' : ''}>{item.evidenceGaps}</td><td><Link className={linkClass} to={`/moip/modules/${item.module}`}>Inspect</Link></td></tr>)}</tbody></table></div></Card>
+
+      <MoipLitigationRegisterSection />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card><DashboardSectionTitle title="Fiscal exposure & portfolio result" action={<Link className={linkClass} to="/moip/modules/finance">Financials</Link>} /><div className="grid grid-cols-2 gap-4 sm:grid-cols-4"><div><p className="text-xs text-soe-slate">Asset value</p><p className="mt-1 text-lg font-bold text-soe-navy">{formatCurrencyPkr(d.fiscal.assetValue)}</p></div><div><p className="text-xs text-soe-slate">Total debt</p><p className="mt-1 text-lg font-bold text-soe-navy">{formatCurrencyPkr(d.fiscal.debt)}</p></div><div><p className="text-xs text-soe-slate">Guarantees</p><p className="mt-1 text-lg font-bold text-soe-navy">{formatCurrencyPkr(d.fiscal.guarantees)}</p></div><div><p className="text-xs text-soe-slate">Subsidies & support</p><p className="mt-1 text-lg font-bold text-soe-navy">{formatCurrencyPkr(d.fiscal.subsidies)}</p></div></div><div className="mt-5 grid grid-cols-3 border-t border-soe-border pt-4"><div><p className="text-xs text-soe-slate">Net result</p><p className={cn('text-xl font-bold', d.fiscal.netPortfolioResult < 0 ? 'text-soe-critical' : 'text-soe-teal')}>{formatCurrencyPkr(d.fiscal.netPortfolioResult)}</p></div><div><p className="text-xs text-soe-slate">Profitable</p><p className="text-xl font-bold text-soe-teal">{d.fiscal.profitable}</p></div><div><p className="text-xs text-soe-slate">Loss-making</p><p className="text-xl font-bold text-soe-critical">{d.fiscal.lossMaking}</p></div></div></Card>
-        <Card><DashboardSectionTitle title="Governance, accountability & operational risk" /><div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4"><div><p className="text-xs text-soe-slate">Board vacancies</p><p className="text-xl font-bold text-soe-navy">{d.risk.boardVacancies}</p></div><div><p className="text-xs text-soe-slate">Open audit paras</p><p className="text-xl font-bold text-soe-critical">{d.risk.openAuditParas}</p><p className="text-[11px] text-soe-slate">{formatCurrencyPkr(d.risk.auditExposure)}</p></div><div><p className="text-xs text-soe-slate">Active litigation</p><p className="text-xl font-bold text-soe-critical">{d.risk.activeLitigation}</p><p className="text-[11px] text-soe-slate">{formatCurrencyPkr(d.risk.litigationExposure)}</p></div><div><p className="text-xs text-soe-slate">Overdue loans</p><p className="text-xl font-bold text-soe-warning">{d.risk.overdueLoans}</p></div><div><p className="text-xs text-soe-slate">Non-compliance</p><p className="text-xl font-bold text-soe-critical">{d.risk.nonCompliantObligations}</p></div><div><p className="text-xs text-soe-slate">Capacity utilization</p><p className="text-xl font-bold text-soe-navy">{d.risk.averageCapacityUtilization}%</p></div>{userRisk ? <><div><p className="text-xs text-soe-slate">MFA gaps</p><p className="text-xl font-bold text-soe-warning">{userRisk.mfaMissing}</p></div><div><p className="text-xs text-soe-slate">Restricted users</p><p className="text-xl font-bold text-soe-navy">{userRisk.locked}</p></div></> : null}</div></Card>
+        <Card><DashboardSectionTitle title="Governance, accountability & operational risk" action={<Link className={linkClass} to="/moip-review/modules/litigation">Litigation register</Link>} /><div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4"><div><p className="text-xs text-soe-slate">Board vacancies</p><p className="text-xl font-bold text-soe-navy">{d.risk.boardVacancies}</p></div><div><p className="text-xs text-soe-slate">Open audit paras</p><p className="text-xl font-bold text-soe-critical">{d.risk.openAuditParas}</p><p className="text-[11px] text-soe-slate">{formatCurrencyPkr(d.risk.auditExposure)}</p></div><div><p className="text-xs text-soe-slate">Overdue loans</p><p className="text-xl font-bold text-soe-warning">{d.risk.overdueLoans}</p></div><div><p className="text-xs text-soe-slate">Non-compliance</p><p className="text-xl font-bold text-soe-critical">{d.risk.nonCompliantObligations}</p></div><div><p className="text-xs text-soe-slate">Capacity utilization</p><p className="text-xl font-bold text-soe-navy">{d.risk.averageCapacityUtilization}%</p></div>{userRisk ? <><div><p className="text-xs text-soe-slate">MFA gaps</p><p className="text-xl font-bold text-soe-warning">{userRisk.mfaMissing}</p></div><div><p className="text-xs text-soe-slate">Restricted users</p><p className="text-xl font-bold text-soe-navy">{userRisk.locked}</p></div></> : null}</div></Card>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">

@@ -1,11 +1,17 @@
 import {
+  DEMO_AS_OF_DATE,
   EMPLOYMENT_TYPE,
+  MODULE,
+  ROLE,
+  WORKFORCE_STATUS,
   type EmploymentType,
 } from '@/constants'
 import { db, getMockRuntime } from '@/mock-data'
 import { paginate } from '@/mock-services/_helpers'
 import type {
   Consultant,
+  ContinuousRegisterEvent,
+  ContinuousRegisterSummary,
   DailyWager,
   Employee,
   ListQuery,
@@ -47,6 +53,136 @@ export interface WorkforceService {
   getConsultant(id: string): Promise<Consultant>
   createConsultant(payload: Omit<Consultant, 'id'> & { id?: string }): Promise<Consultant>
   updateConsultant(id: string, patch: Partial<Consultant>): Promise<Consultant>
+  getContinuousSummary(organizationId?: string, portfolioScope?: boolean): Promise<ContinuousRegisterSummary>
+  getEmployeeEvents(employeeId: string): Promise<ContinuousRegisterEvent[]>
+}
+
+const workforceEvents = new Map<string, ContinuousRegisterEvent[]>()
+
+function eventDate(offsetDays: number) {
+  const date = new Date(`${DEMO_AS_OF_DATE}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + offsetDays)
+  return date.toISOString().slice(0, 10)
+}
+
+function daysBetween(from: string | undefined, to = DEMO_AS_OF_DATE) {
+  if (!from) return 999
+  const start = Date.parse(from)
+  const end = Date.parse(to)
+  if (Number.isNaN(start) || Number.isNaN(end)) return 999
+  return Math.floor((end - start) / 86_400_000)
+}
+
+function employeeMetadata(
+  row: Employee,
+  override?: Partial<Employee>,
+): Pick<Employee, 'effectiveFrom' | 'lastChangedAt' | 'lastSubmittedAt' | 'lastVerifiedAt' | 'assuranceState' | 'version'> {
+  const version = override?.version ?? ((row.version ?? 1) + (override ? 1 : 0))
+  const changedAt = override?.lastChangedAt ?? row.lastChangedAt ?? eventDate(-Math.max(1, version * 2))
+  const submittedAt = override?.lastSubmittedAt ?? row.lastSubmittedAt ?? changedAt
+  return {
+    effectiveFrom: override?.effectiveFrom ?? row.effectiveFrom ?? row.joiningDate ?? changedAt,
+    lastChangedAt: changedAt,
+    lastSubmittedAt: submittedAt,
+    lastVerifiedAt: override?.lastVerifiedAt ?? row.lastVerifiedAt,
+    assuranceState: override?.assuranceState ?? row.assuranceState ?? 'submitted',
+    version,
+  }
+}
+
+function employeeStatus(employee: Employee) {
+  return employee.status ?? WORKFORCE_STATUS.ACTIVE
+}
+
+function isCurrentWorkforce(employee: Employee) {
+  const status = employeeStatus(employee)
+  return (
+    status === WORKFORCE_STATUS.ACTIVE ||
+    status === WORKFORCE_STATUS.ON_DEPUTATION ||
+    status === WORKFORCE_STATUS.ON_LEAVE
+  )
+}
+
+function ensureEmployeeEvents(employee: Employee) {
+  const existing = workforceEvents.get(employee.id)
+  if (existing && existing[0]?.occurredAt === (employee.lastChangedAt ?? employee.joiningDate)) {
+    return existing
+  }
+  const baseDate = employee.joiningDate ?? eventDate(-45)
+  const events: ContinuousRegisterEvent[] = [
+    {
+      id: `wf-${employee.id}-created`,
+      recordId: employee.id,
+      organizationId: employee.organizationId,
+      moduleId: MODULE.WORKFORCE,
+      occurredAt: baseDate,
+      effectiveAt: employee.effectiveFrom ?? baseDate,
+      actorRole: ROLE.HR_OFFICER,
+      actorName: 'SOE HR Officer',
+      eventType: 'employment_record_created',
+      title: 'Employee record opened',
+      detail: `${employee.designation} recorded as ${employeeStatus(employee).replaceAll('_', ' ')} in the live workforce register.`,
+      assuranceState: employee.assuranceState ?? 'submitted',
+      isMaterial: true,
+      isDummyDemonstrationData: true,
+    },
+  ]
+  if (employee.lastVerifiedAt) {
+    events.unshift({
+      id: `wf-${employee.id}-verified`,
+      recordId: employee.id,
+      organizationId: employee.organizationId,
+      moduleId: MODULE.WORKFORCE,
+      occurredAt: employee.lastVerifiedAt,
+      effectiveAt: employee.lastVerifiedAt,
+      actorRole: ROLE.SOE_CERTIFIER,
+      actorName: 'SOE Reviewer',
+      eventType: 'soe_verified',
+      title: 'SOE reviewer verified workforce change',
+      assuranceState: employee.assuranceState ?? 'soe_verified',
+      isDummyDemonstrationData: true,
+    })
+  }
+  workforceEvents.set(employee.id, events)
+  return events
+}
+
+function appendEmployeeEvent(employee: Employee, title: string, detail?: string) {
+  const events = ensureEmployeeEvents(employee)
+  events.unshift({
+    id: `wf-${employee.id}-${Date.now()}`,
+    recordId: employee.id,
+    organizationId: employee.organizationId,
+    moduleId: MODULE.WORKFORCE,
+    occurredAt: employee.lastChangedAt ?? DEMO_AS_OF_DATE,
+    effectiveAt: employee.effectiveFrom ?? employee.lastChangedAt,
+    actorRole: ROLE.HR_OFFICER,
+    actorName: 'SOE HR Officer',
+    eventType: 'workforce_change',
+    title,
+    detail,
+    assuranceState: employee.assuranceState ?? 'submitted',
+    isMaterial: true,
+    isDummyDemonstrationData: true,
+  })
+}
+
+function hydrateEmployee(employee: Employee, index = 0): Employee {
+  return {
+    ...employee,
+    status: employee.status ?? WORKFORCE_STATUS.ACTIVE,
+    statusEffectiveDate: employee.statusEffectiveDate ?? employee.joiningDate ?? employee.effectiveFrom,
+    ...employeeMetadata(employee, {
+      lastChangedAt: employee.lastChangedAt ?? eventDate(-((index % 9) + 2)),
+      lastSubmittedAt: employee.lastSubmittedAt ?? eventDate(-((index % 9) + 1)),
+      lastVerifiedAt:
+        employee.lastVerifiedAt ?? (index % 4 === 0 ? undefined : eventDate(-Math.max(1, index % 7))),
+      assuranceState:
+        employee.assuranceState ??
+        (index % 6 === 0 ? 'clarification_open' : index % 4 === 0 ? 'submitted' : 'soe_verified'),
+      version: employee.version ?? 1,
+    }),
+  }
 }
 
 function filterEmployees(query?: WorkforceQuery): Employee[] {
@@ -104,13 +240,25 @@ function pensionersForPosts(posts: SanctionedPost[]): number {
 
 export const mockWorkforceService: WorkforceService = {
   async getEmployees(query) {
-    return simulateLatency(paginate(filterEmployees(query), query))
+    return simulateLatency(
+      paginate(
+        filterEmployees(query).map((employee, index) => hydrateEmployee(employee, index)),
+        query,
+      ),
+    )
   },
 
   async getEmployee(id) {
     const row = db.employees.find((e) => e.id === id)
     if (!row) throw new AppError('Employee not found', 'NOT_FOUND')
-    return simulateLatency(row)
+    const hydrated = {
+      ...row,
+      status: row.status ?? WORKFORCE_STATUS.ACTIVE,
+      statusEffectiveDate: row.statusEffectiveDate ?? row.joiningDate ?? row.effectiveFrom,
+      ...employeeMetadata(row, { version: row.version ?? 1 }),
+    }
+    ensureEmployeeEvents(hydrated)
+    return simulateLatency(hydrated)
   },
 
   async getSanctionedPosts(organizationId) {
@@ -239,21 +387,53 @@ export const mockWorkforceService: WorkforceService = {
       ...payload,
       id,
       employeeCode,
+      status: payload.status ?? WORKFORCE_STATUS.ACTIVE,
+      statusEffectiveDate: payload.statusEffectiveDate ?? payload.joiningDate ?? DEMO_AS_OF_DATE,
+      ...employeeMetadata(payload as Employee, {
+        lastChangedAt: DEMO_AS_OF_DATE,
+        lastSubmittedAt: DEMO_AS_OF_DATE,
+        assuranceState: 'submitted',
+        version: 1,
+      }),
       isDummyDemonstrationData: true,
     }
     const errors = validateEmployee(next).filter((i) => i.severity === 'error')
     if (errors.length) throw new AppError(errors.map((i) => i.message).join(' '), 'VALIDATION')
     db.employees.push(next)
+    appendEmployeeEvent(next, 'Workforce record submitted', 'New workforce record submitted for SOE review.')
     return simulateMutation(next)
   },
 
   async updateEmployee(id, patch) {
     const idx = db.employees.findIndex((e) => e.id === id)
     if (idx < 0) throw new AppError('Employee not found', 'NOT_FOUND')
-    const next = { ...db.employees[idx], ...patch, id }
+    const current = db.employees[idx]
+    const statusChanged = patch.status !== undefined && patch.status !== current.status
+    const next = {
+      ...current,
+      ...patch,
+      id,
+      status: patch.status ?? current.status ?? WORKFORCE_STATUS.ACTIVE,
+      statusEffectiveDate:
+        patch.statusEffectiveDate ??
+        (statusChanged ? DEMO_AS_OF_DATE : current.statusEffectiveDate ?? current.joiningDate),
+      ...employeeMetadata(current, {
+        ...patch,
+        lastChangedAt: DEMO_AS_OF_DATE,
+        lastSubmittedAt: DEMO_AS_OF_DATE,
+        assuranceState: 'submitted',
+      }),
+    }
     const errors = validateEmployee(next).filter((i) => i.severity === 'error')
     if (errors.length) throw new AppError(errors.map((i) => i.message).join(' '), 'VALIDATION')
     db.employees[idx] = next
+    appendEmployeeEvent(
+      next,
+      statusChanged ? 'Workforce status change submitted' : 'Workforce change submitted',
+      statusChanged
+        ? `Status changed to ${employeeStatus(next).replaceAll('_', ' ')} effective ${next.statusEffectiveDate ?? DEMO_AS_OF_DATE}.`
+        : 'Effective-dated change is awaiting SOE reviewer verification.',
+    )
     return simulateMutation(next)
   },
 
@@ -305,6 +485,48 @@ export const mockWorkforceService: WorkforceService = {
     if (errors.length) throw new AppError(errors.map((i) => i.message).join(' '), 'VALIDATION')
     db.consultants[idx] = next
     return simulateMutation(next)
+  },
+
+  async getContinuousSummary(organizationId, portfolioScope) {
+    const employees = filterEmployees({
+      organizationId: portfolioScope ? undefined : organizationId,
+      portfolioScope,
+      scopedOrganizationId: portfolioScope ? undefined : organizationId,
+    }).map((employee, index) => hydrateEmployee(employee, index))
+    const currentEmployees = employees.filter(isCurrentWorkforce)
+    const pendingSoeReview = employees.filter((e) => e.assuranceState === 'submitted').length
+    const clarificationOpen = employees.filter((e) => e.assuranceState === 'clarification_open').length
+    const staleRecords = employees.filter((e) => daysBetween(e.lastSubmittedAt) > 30 && e.assuranceState !== 'soe_verified').length
+    const materialChanges30d = employees.filter((e) => daysBetween(e.lastChangedAt) <= 30).length
+    const lastVerifiedAt = employees
+      .map((e) => e.lastVerifiedAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1)
+    return simulateLatency({
+      moduleId: MODULE.WORKFORCE,
+      cadence: 'continuous',
+      activeRecords: currentEmployees.length,
+      pendingSoeReview,
+      pendingMoipAcknowledgement: 0,
+      clarificationOpen,
+      staleRecords,
+      materialChanges30d,
+      dueSoon: db.consultants.filter(
+        (c) =>
+          (portfolioScope || !organizationId || c.organizationId === organizationId) &&
+          c.contractEnd <= eventDate(30),
+      ).length,
+      lastVerifiedAt,
+      snapshotPeriodLabel: 'FY2027 certified snapshot generated from live register',
+      asOfDate: DEMO_AS_OF_DATE,
+    })
+  },
+
+  async getEmployeeEvents(employeeId) {
+    const row = db.employees.find((e) => e.id === employeeId)
+    if (!row) throw new AppError('Employee not found', 'NOT_FOUND')
+    return simulateLatency(ensureEmployeeEvents(hydrateEmployee(row)))
   },
 }
 

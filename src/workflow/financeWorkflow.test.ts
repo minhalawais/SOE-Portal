@@ -128,7 +128,7 @@ describe('Phase 5 golden finance workflow', () => {
     ).rejects.toBeInstanceOf(AppError)
   })
 
-  it('allows Executive Viewer to edit locked finance snapshots in demo override mode', async () => {
+  it('keeps Executive Viewer read-only on locked finance snapshots', async () => {
     const orgId = 'org-psm'
     const periodId = 'period-fy2027'
 
@@ -165,16 +165,16 @@ describe('Phase 5 golden finance workflow', () => {
       periodId,
       ROLE.EXECUTIVE_VIEWER,
     )
-    expect(workspace.readOnly).toBe(false)
+    expect(workspace.readOnly).toBe(true)
 
-    const saved = await mockFinanceWorkflowService.saveDraft(
-      orgId,
-      periodId,
-      { revenue: 21_000_000_000 },
-      ROLE.EXECUTIVE_VIEWER,
-    )
-    expect(saved.revenue).toBe(21_000_000_000)
-    expect(saved.status).toBe(SUBMISSION_STATUS.LOCKED)
+    await expect(
+      mockFinanceWorkflowService.saveDraft(
+        orgId,
+        periodId,
+        { revenue: 21_000_000_000 },
+        ROLE.EXECUTIVE_VIEWER,
+      ),
+    ).rejects.toBeInstanceOf(AppError)
   })
 
   it('bumps versions correctly', () => {

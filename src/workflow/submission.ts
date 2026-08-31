@@ -149,9 +149,9 @@ export function isImmutableStatus(status: SubmissionStatus): boolean {
   return status === SUBMISSION_STATUS.LOCKED || status === SUBMISSION_STATUS.APPROVED
 }
 
-/** Demo-only: Executive Viewer may edit approved/locked snapshots. */
 export function canOverrideWorkflowLock(role: RoleId): boolean {
-  return role === ROLE.EXECUTIVE_VIEWER
+  void role
+  return false
 }
 
 export function isWorkflowLockedForRole(status: SubmissionStatus, role: RoleId): boolean {

@@ -122,7 +122,7 @@ export function SubmissionReadinessPage() {
             <ul className="space-y-1 text-sm">
               {r.outstandingClarifications.map((c) => (
                 <li key={c.id}>
-                  <Link className="text-soe-blue underline" to="/soe/clarifications">
+                  <Link className="text-soe-blue underline" to="/soe/submissions?tab=clarifications">
                     {c.question}
                   </Link>
                 </li>

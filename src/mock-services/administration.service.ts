@@ -2,6 +2,10 @@ import {
   MODULE,
   ROLE,
   SOE_STATUS,
+  ENTERPRISE_CONSOLIDATION_TREATMENT,
+  ENTERPRISE_CONTROL_TYPE,
+  ENTERPRISE_ENTITY_TYPE,
+  ENTERPRISE_REPORTING_OBLIGATION,
   type LegalStatus,
   type ModuleId,
   type RoleId,
@@ -58,6 +62,7 @@ export interface UserAccount {
   roles: RoleId[]
   customRoleEnabled: boolean
   modulePermissions: ModulePermissionGrant[]
+  enterpriseEntityId?: string
   organizationId?: string
   organizationIds: string[]
   ministryScopes: string[]
@@ -145,6 +150,7 @@ function seedUser(input: Partial<UserAccount> & Pick<UserAccount, 'id' | 'name' 
     roles: input.roles ?? [input.role],
     customRoleEnabled: input.customRoleEnabled ?? false,
     modulePermissions: input.modulePermissions ?? [],
+    enterpriseEntityId: input.enterpriseEntityId ?? input.organizationId ?? input.organizationIds?.[0],
     organizationId: input.organizationId,
     organizationIds: input.organizationIds ?? (input.organizationId ? [input.organizationId] : []),
     ministryScopes: input.ministryScopes ?? (input.organizationId ? [] : ['Ministry of Industries and Production']),
@@ -180,6 +186,32 @@ function assertAccessAssignment(roles: RoleId[], customRoleEnabled: boolean, mod
   }
 }
 
+function isFocalAssignment(roles: RoleId[]) {
+  return roles.includes(ROLE.SOE_FOCAL_PERSON) || roles.includes(ROLE.SOE_DATA_CONTRIBUTOR)
+}
+
+function assertFocalEnterpriseAssignment(roles: RoleId[], organizationIds: string[], userId?: string) {
+  if (!isFocalAssignment(roles)) return
+  const uniqueIds = [...new Set(organizationIds.filter(Boolean))]
+  if (uniqueIds.length !== 1) {
+    throw new AppError('A focal person must be assigned to exactly one enterprise entity.', 'VALIDATION')
+  }
+  const enterpriseEntityId = uniqueIds[0]
+  const enterpriseExists = db.organizations.some((organization) => organization.enterpriseEntityId === enterpriseEntityId)
+  if (!enterpriseExists) throw new AppError('Enterprise entity not found.', 'VALIDATION')
+  const existingFocal = users.find(
+    (user) =>
+      user.id !== userId &&
+      user.status !== 'revoked' &&
+      user.status !== 'suspended' &&
+      isFocalAssignment(user.roles) &&
+      user.enterpriseEntityId === enterpriseEntityId,
+  )
+  if (existingFocal) {
+    throw new AppError('This enterprise entity already has a focal person assigned.', 'VALIDATION')
+  }
+}
+
 function normalizeModulePermissions(grants: ModulePermissionGrant[] | undefined, enabled: boolean) {
   if (!enabled) return []
   return (grants ?? []).filter((grant) => grant.view || grant.create || grant.edit || grant.delete)
@@ -188,7 +220,16 @@ function normalizeModulePermissions(grants: ModulePermissionGrant[] | undefined,
 const users: UserAccount[] = [
   seedUser({ id: 'usr-moip-reviewer', name: 'Ayesha Khan', email: 'ayesha.khan@moip.gov.pk', role: ROLE.MOIP_REVIEWER, lastLoginAt: '2026-08-08T08:15:00Z' }),
   seedUser({ id: 'usr-moip-supervisor', name: 'Faisal Mahmood', email: 'faisal.mahmood@moip.gov.pk', role: ROLE.MOIP_SUPERVISOR, lastLoginAt: '2026-08-08T07:45:00Z' }),
-  seedUser({ id: 'usr-pidc-focal', name: 'Sara Ahmed', email: 'focal@pidc.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-pidc', lastLoginAt: '2026-08-07T12:05:00Z' }),
+  seedUser({ id: 'usr-pidc-focal', name: 'Hina Qureshi', email: 'focal.pidc@pidc.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-pidc', lastLoginAt: '2026-08-07T12:15:00Z' }),
+  seedUser({ id: 'usr-psm-focal', name: 'Imran Sheikh', email: 'focal@psm.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-psm', lastLoginAt: '2026-08-07T11:55:00Z' }),
+  seedUser({ id: 'usr-usc-focal', name: 'Rabia Noor', email: 'focal@usc.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-usc', lastLoginAt: '2026-08-07T11:45:00Z' }),
+  seedUser({ id: 'usr-nfc-focal', name: 'Bilal Akhtar', email: 'focal@nfc.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-nfc', lastLoginAt: '2026-08-07T11:35:00Z' }),
+  seedUser({ id: 'usr-peco-focal', name: 'Sadia Tariq', email: 'focal@peco.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-peco', lastLoginAt: '2026-08-07T11:25:00Z' }),
+  seedUser({ id: 'usr-nfml-focal', name: 'Omar Farooq', email: 'focal@nfml.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-nfml', lastLoginAt: '2026-08-07T11:15:00Z' }),
+  seedUser({ id: 'usr-pasdec-focal', name: 'Maha Saleem', email: 'focal@pasdec.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-pasdec', lastLoginAt: '2026-08-07T11:05:00Z' }),
+  seedUser({ id: 'usr-tusdec-focal', name: 'Sara Ahmed', email: 'focal@pidc.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-tusdec', lastLoginAt: '2026-08-07T12:05:00Z' }),
+  seedUser({ id: 'usr-smeda-focal', name: 'Zain Siddiqui', email: 'focal@smeda.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-smeda', lastLoginAt: '2026-08-07T10:55:00Z' }),
+  seedUser({ id: 'usr-pitac-focal', name: 'Amina Shah', email: 'focal@pitac.gov.pk', role: ROLE.SOE_FOCAL_PERSON, organizationId: 'org-pitac', lastLoginAt: '2026-08-07T10:45:00Z' }),
   seedUser({ id: 'usr-pidc-certifier', name: 'Usman Raza', email: 'certifier@pidc.gov.pk', role: ROLE.SOE_CERTIFIER, organizationId: 'org-pidc', lastLoginAt: '2026-08-06T11:00:00Z' }),
   seedUser({ id: 'usr-psm-certifier', name: 'Kamran Ali', email: 'certifier@psm.gov.pk', role: ROLE.SOE_CERTIFIER, organizationId: 'org-psm', mfaEnabled: false, failedLoginCount: 2, lastLoginAt: '2026-08-06T10:30:00Z' }),
   seedUser({ id: 'usr-audit', name: 'Nadia Iqbal', email: 'assurance@audit.gov.pk', role: ROLE.ASSURANCE_USER, status: 'suspended', activeSessions: [] }),
@@ -260,6 +301,7 @@ function defaultOrganizationSettings(organizationId: string): OrganizationAdminS
   const existing = organizationSettings.get(organizationId)
   if (existing) return existing
   const assignedUsers = users.filter((user) => user.organizationIds.includes(organizationId))
+  const organization = getOrganization(organizationId)
   const settings: OrganizationAdminSettings = {
     organizationId,
     accessStatus: 'active',
@@ -273,7 +315,7 @@ function defaultOrganizationSettings(organizationId: string): OrganizationAdminS
       dueDate: `2027-${String(1 + Math.floor(index / 5)).padStart(2, '0')}-${String(15 + (index % 5)).padStart(2, '0')}`,
       status: 'open',
     })),
-    focalUserId: assignedUsers.find((user) => user.roles.includes(ROLE.SOE_FOCAL_PERSON))?.id,
+    focalUserId: organization.focalUserId ?? assignedUsers.find((user) => user.roles.includes(ROLE.SOE_FOCAL_PERSON))?.id,
     certifierUserId: assignedUsers.find((user) => user.roles.includes(ROLE.SOE_CERTIFIER))?.id,
     updatedAt: now,
   }
@@ -312,6 +354,7 @@ export const mockAdministrationService = {
     const customRoleEnabled = Boolean(input.customRoleEnabled)
     const modulePermissions = normalizeModulePermissions(input.modulePermissions, customRoleEnabled)
     assertAccessAssignment(input.roles, customRoleEnabled, modulePermissions)
+    assertFocalEnterpriseAssignment(input.roles, input.organizationIds ?? [])
     const invitedAt = new Date().toISOString()
     const primaryRole = input.roles[0] ?? ROLE.MOIP_ANALYST
     const user = seedUser({
@@ -382,6 +425,7 @@ export const mockAdministrationService = {
     const customRoleEnabled = Boolean(input.customRoleEnabled)
     const modulePermissions = normalizeModulePermissions(input.modulePermissions, customRoleEnabled)
     assertAccessAssignment(input.roles, customRoleEnabled, modulePermissions)
+    assertFocalEnterpriseAssignment(input.roles, input.organizationIds, userId)
     const user = getUser(userId)
     user.roles = [...new Set(input.roles)]
     user.role = user.roles[0] ?? ROLE.MOIP_ANALYST
@@ -389,6 +433,7 @@ export const mockAdministrationService = {
     user.modulePermissions = modulePermissions
     user.organizationIds = [...new Set(input.organizationIds)]
     user.organizationId = user.organizationIds[0]
+    user.enterpriseEntityId = user.organizationId
     user.ministryScopes = [...new Set(input.ministryScopes.filter(Boolean))]
     user.departmentScopes = [...new Set(input.departmentScopes.filter(Boolean))]
     user.temporaryAccessUntil = input.temporaryAccessUntil || undefined
@@ -462,6 +507,13 @@ export const mockAdministrationService = {
     if (db.organizations.some((organization) => organization.abbreviation.toLowerCase() === input.abbreviation.toLowerCase())) throw new AppError('An SOE with this abbreviation already exists.', 'VALIDATION')
     const organization: Organization = {
       id: `org-${input.abbreviation.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      enterpriseEntityId: `org-${input.abbreviation.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      entityType: ENTERPRISE_ENTITY_TYPE.INDEPENDENT_ENTERPRISE,
+      rootEnterpriseEntityId: `org-${input.abbreviation.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      ownershipPercent: input.governmentOwnershipPct,
+      controlType: ENTERPRISE_CONTROL_TYPE.MINISTRY_CONTROLLED,
+      consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.STANDALONE,
+      reportingObligation: ENTERPRISE_REPORTING_OBLIGATION.FULL_REPORTING,
       name: input.name.trim(), abbreviation: input.abbreviation.trim().toUpperCase(), legalStatus: input.legalStatus,
       sector: input.sector.trim(), subSector: input.subSector?.trim(), status: SOE_STATUS.ACTIVE,
       parentMinistry: input.parentMinistry.trim(), attachedDepartment: input.attachedDepartment?.trim(),
@@ -521,12 +573,22 @@ export const mockAdministrationService = {
     requirePermission(role, PERMISSION.ORGANIZATION_MANAGE)
     const settings = defaultOrganizationSettings(organizationId)
     ensureOrganizationIsMutable(settings)
+    if (focalUserId) {
+      const focalUser = getUser(focalUserId)
+      assertFocalEnterpriseAssignment(focalUser.roles, [organizationId], focalUserId)
+      focalUser.organizationIds = [organizationId]
+      focalUser.organizationId = organizationId
+      focalUser.enterpriseEntityId = organizationId
+    }
     settings.focalUserId = focalUserId || undefined
     settings.certifierUserId = certifierUserId || undefined
-    for (const userId of [focalUserId, certifierUserId].filter(Boolean) as string[]) {
+    const organization = getOrganization(organizationId)
+    organization.focalUserId = focalUserId || undefined
+    for (const userId of [certifierUserId].filter(Boolean) as string[]) {
       const user = getUser(userId)
       if (!user.organizationIds.includes(organizationId)) user.organizationIds.push(organizationId)
       user.organizationId ??= organizationId
+      user.enterpriseEntityId ??= user.organizationId
     }
     record(role, 'organization_users_assigned', 'organization', organizationId, 'Focal person and certifier assignments updated')
     return simulateMutation(structuredClone(settings))

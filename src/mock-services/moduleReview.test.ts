@@ -64,6 +64,60 @@ describe('generic MoIP module review', () => {
   })
 })
 
+describe('SOE internal module review', () => {
+  beforeEach(() => resetMockDb())
+
+  it('shows ready-for-certification modules in the SOE reviewer workspace', async () => {
+    const submission = db.submissions.find(
+      (item) =>
+        item.organizationId === 'org-pidc' &&
+        item.reportingPeriodId === 'period-fy2027' &&
+        item.module === MODULE.ASSETS,
+    )!
+    submission.status = SUBMISSION_STATUS.READY_FOR_CERTIFICATION
+    submission.completeness = 96
+
+    const result = await mockModuleReviewService.getSoeReview(submission.id, ROLE.SOE_CERTIFIER)
+    expect(result.submission.id).toBe(submission.id)
+    expect(result.records.length).toBeGreaterThan(0)
+  })
+
+  it('allows SOE reviewer approve, clarify and return actions on internal submissions', async () => {
+    const submission = db.submissions.find(
+      (item) =>
+        item.organizationId === 'org-pidc' &&
+        item.reportingPeriodId === 'period-fy2027' &&
+        item.module === MODULE.WORKFORCE,
+    )!
+    submission.status = SUBMISSION_STATUS.READY_FOR_CERTIFICATION
+    submission.completeness = 100
+
+    const approved = await mockModuleReviewService.approveSoeSubmission(
+      submission.id,
+      ROLE.SOE_CERTIFIER,
+      'Reviewed and ready for period submission',
+    )
+    expect(approved.status).toBe(SUBMISSION_STATUS.CERTIFIED)
+
+    submission.status = SUBMISSION_STATUS.READY_FOR_CERTIFICATION
+    const clarification = await mockModuleReviewService.requestSoeClarification(
+      submission.id,
+      ROLE.SOE_CERTIFIER,
+      'general',
+      'Please explain the workforce movement.',
+    )
+    expect(clarification.submissionId).toBe(submission.id)
+    expect(submission.status).toBe(SUBMISSION_STATUS.CLARIFICATION_REQUESTED)
+
+    const returned = await mockModuleReviewService.returnSoeSubmission(
+      submission.id,
+      ROLE.SOE_CERTIFIER,
+      'Board-approved evidence is still missing.',
+    )
+    expect(returned.status).toBe(SUBMISSION_STATUS.RETURNED)
+  })
+})
+
 describe('MoIP administration', () => {
   beforeEach(() => resetMockDb())
 

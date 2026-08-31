@@ -21,10 +21,15 @@ describe('Phase 4 mock data integrity', () => {
   it('seeds ten SOEs covering all scenarios', () => {
     const seed = createSeedDataset()
     expect(seed.organizations).toHaveLength(10)
+    const orgIds = new Set(seed.organizations.map((o) => o.id))
     const scenarios = new Set(seed.organizations.map((o) => o.scenarioId))
     expect(scenarios.size).toBe(scenarioCatalogue.length)
     seed.organizations.forEach((o) => {
       expect(o.isDummyDemonstrationData).toBe(true)
+      expect(o.enterpriseEntityId).toBe(o.id)
+      expect(orgIds.has(o.rootEnterpriseEntityId)).toBe(true)
+      if (o.parentEntityId) expect(orgIds.has(o.parentEntityId)).toBe(true)
+      expect(o.focalUserId).toBeTruthy()
     })
   })
 

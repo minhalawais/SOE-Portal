@@ -28,11 +28,10 @@ function matchesImplemented(route: string): boolean {
 describe('Phase 23 navigation catalogue', () => {
   it('registers core portal homes as implemented', () => {
     for (const home of [
-      '/soe/dashboard',
-      '/moip/dashboard',
-      '/secretary/dashboard',
-      '/minister/dashboard',
-      '/pmo/dashboard',
+      '/soe-entry/dashboard',
+      '/soe-review/dashboard',
+      '/moip-review/dashboard',
+      '/moip-executive/dashboard',
       '/assurance/dashboard',
     ]) {
       expect(implementedRoutes.has(home)).toBe(true)
@@ -54,16 +53,15 @@ describe('Phase 23 navigation catalogue', () => {
     }
     // Phase 23 gate: critical stakeholder routes must not be placeholders.
     const critical = [
-      '/soe/finance/form',
-      '/soe/readiness',
-      '/moip/submissions',
-      '/moip/approvals',
-      '/secretary/critical',
-      '/minister/portfolio',
-      '/pmo/indicators',
-      '/soe/map',
-      '/moip/search',
-      '/minister/reports',
+      '/soe-entry/submissions',
+      '/soe-entry/finance/form',
+      '/soe-review/readiness',
+      '/moip-review/submissions',
+      '/moip-review/approvals',
+      '/moip-executive/indicators',
+      '/soe-entry/map',
+      '/moip-review/search',
+      '/moip-executive/reports',
     ]
     for (const route of critical) {
       expect(implementedRoutes.has(route), `critical route missing: ${route}`).toBe(true)
@@ -73,7 +71,7 @@ describe('Phase 23 navigation catalogue', () => {
 
   it('filters MoIP approvals from analyst navigation', () => {
     const nav = filterNavigation(
-      portalDefinitions.moip.navigation,
+      portalDefinitions.moip_review.navigation,
       ROLE.MOIP_ANALYST,
       hasPermission,
     )
@@ -81,7 +79,8 @@ describe('Phase 23 navigation catalogue', () => {
     expect(blob).not.toContain('Approvals')
   })
 
-  it('keeps PMO / Minister portals non-operational-edit', () => {
+  it('keeps executive dashboard portals non-operational-edit', () => {
+    expect(portalDefinitions.moip_executive.allowsOperationalEdit).toBe(false)
     expect(portalDefinitions.pmo.allowsOperationalEdit).toBe(false)
     expect(portalDefinitions.minister.allowsOperationalEdit).toBe(false)
     expect(portalDefinitions.secretary.allowsOperationalEdit).toBe(false)
@@ -95,7 +94,7 @@ describe('Phase 23 navigation catalogue', () => {
   })
 
   it('exposes SOE demo controls only under SOE prototype tooling', () => {
-    expect(implementedRoutes.has('/soe/demo-controls')).toBe(true)
-    expect(implementedRoutes.has('/moip/demo-controls')).toBe(false)
+    expect(implementedRoutes.has('/soe-entry/demo-controls')).toBe(true)
+    expect(implementedRoutes.has('/moip-review/demo-controls')).toBe(false)
   })
 })

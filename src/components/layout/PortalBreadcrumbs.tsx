@@ -12,10 +12,18 @@ export function PortalBreadcrumbs() {
   const trail = findNavTrail(definition.navigation, location.pathname)
 
   const shellShowsPortalTitle =
-    role === ROLE.EXECUTIVE_VIEWER || role === ROLE.PMO
+    role === ROLE.EXECUTIVE_VIEWER ||
+    role === ROLE.SECRETARY ||
+    role === ROLE.MINISTER ||
+    role === ROLE.PMO
 
   // PMO command dashboard uses its own branded page header.
-  if (location.pathname === '/pmo/dashboard' || location.pathname === '/pmo') {
+  if (
+    location.pathname === '/moip-executive/dashboard' ||
+    location.pathname === '/moip-executive' ||
+    location.pathname === '/pmo/dashboard' ||
+    location.pathname === '/pmo'
+  ) {
     return null
   }
 

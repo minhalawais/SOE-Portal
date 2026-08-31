@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
 import { EntryFormSection, EntryFormShell, useScrollToEntryOnSelect } from '@/components/soe'
+import { Button } from '@/design-system/components/Button'
 import { SelectField, CurrencyField, TextField } from '@/design-system/components/Fields'
 import { ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
+import { StatusBadge } from '@/design-system/components/StatusBadge'
 import {
   AUDIT_PARA_STATUS,
   AUDIT_PARA_STATUS_LABEL,
@@ -11,6 +13,11 @@ import {
   COMPLIANCE_STATUS,
   COMPLIANCE_STATUS_LABEL,
   DEMO_AS_OF_DATE,
+  DOCUMENT_CATEGORY,
+  DOCUMENT_EVIDENCE_STATUS,
+  LITIGATION_STAGE,
+  LITIGATION_STAGE_LABEL,
+  LITIGATION_STAGE_ORDER,
   LITIGATION_STATUS,
   LITIGATION_STATUS_LABEL,
   PAC_STATUS,
@@ -26,10 +33,12 @@ import {
   TRANSFORMATION_TYPE_LABEL,
   type AuditType,
   type ComplianceStatus,
+  type LitigationStageId,
 } from '@/constants'
 import {
   mockAuditService,
   mockComplianceService,
+  mockDocumentService,
   mockLitigationService,
   mockPrivatizationService,
 } from '@/mock-services'
@@ -41,6 +50,7 @@ import type {
   AuditRegister,
   ComplianceItem,
   LitigationCase,
+  LitigationCaseEvent,
   PacObservation,
   PrivatizationCase,
   ProcurementAnnualPlan,
@@ -111,8 +121,193 @@ function emptyLitigationCase(organizationId: string): LitigationCase {
     nature: '',
     lawyer: '',
     status: LITIGATION_STATUS.ACTIVE,
+    caseStage: LITIGATION_STAGE_LABEL[LITIGATION_STAGE.INTAKE],
+    filedDate: '',
+    receivedDate: '',
+    legalOwner: 'SOE Legal Cell',
+    currentExposurePkr: 0,
+    bestCaseExposurePkr: 0,
+    worstCaseExposurePkr: 0,
+    probabilityOfLoss: 'possible',
+    accountingTreatment: 'disclosed',
+    confidentiality: 'sensitive',
+    nextAction: '',
+    actionDueDate: '',
     evidenceAvailable: false,
     isDummyDemonstrationData: true,
+  }
+}
+
+interface LitigationProgressDraft {
+  stage: LitigationStageId
+  occurredAt: string
+  title: string
+  detail: string
+  referenceNumber: string
+  nextHearing: string
+  actionOwner: string
+  actionDueDate: string
+  exposureDeltaPkr: number
+  financialImpactPkr: number
+  stageOutcome: string
+  stageDecision: string
+  complianceRequired: string
+  appealDeadline: string
+  appellateForum: string
+  settlementTerms: string
+  approvedAuthority: string
+  paymentSchedule: string
+  closureReason: string
+  evidenceAvailable: boolean
+  evidenceTitle: string
+  evidenceFileName: string
+  evidenceNotes: string
+  evidenceFiles: { name: string; title: string; notes: string }[]
+  amendmentOfEventId?: string
+}
+
+const LITIGATION_PROGRESS_STAGE_OPTIONS = LITIGATION_STAGE_ORDER.filter(
+  (stage) => stage !== LITIGATION_STAGE.INTAKE,
+)
+
+function emptyLitigationProgressDraft(): LitigationProgressDraft {
+  return {
+    stage: LITIGATION_STAGE.HEARINGS,
+    occurredAt: DEMO_AS_OF_DATE,
+    title: '',
+    detail: '',
+    referenceNumber: '',
+    nextHearing: '',
+    actionOwner: 'SOE Legal Cell',
+    actionDueDate: '',
+    exposureDeltaPkr: 0,
+    financialImpactPkr: 0,
+    stageOutcome: '',
+    stageDecision: '',
+    complianceRequired: '',
+    appealDeadline: '',
+    appellateForum: '',
+    settlementTerms: '',
+    approvedAuthority: '',
+    paymentSchedule: '',
+    closureReason: '',
+    evidenceAvailable: false,
+    evidenceTitle: '',
+    evidenceFileName: '',
+    evidenceNotes: '',
+    evidenceFiles: [],
+  }
+}
+
+function correctionDraftFromEvent(event: LitigationCaseEvent): LitigationProgressDraft {
+  return {
+    ...emptyLitigationProgressDraft(),
+    stage: event.stage ?? LITIGATION_STAGE.HEARINGS,
+    occurredAt: DEMO_AS_OF_DATE,
+    title: `Correction: ${event.title}`,
+    detail: event.detail ?? '',
+    nextHearing: event.nextHearing ?? '',
+    exposureDeltaPkr: event.exposureDeltaPkr ?? 0,
+    evidenceAvailable: true,
+    amendmentOfEventId: event.id,
+  }
+}
+
+function litigationEventTypeForStage(stage: LitigationStageId): LitigationCaseEvent['eventType'] {
+  if (stage === LITIGATION_STAGE.FILING) return 'case_filed'
+  if (stage === LITIGATION_STAGE.PLEADINGS) return 'notice_received'
+  if (stage === LITIGATION_STAGE.HEARINGS) return 'hearing'
+  if (stage === LITIGATION_STAGE.INTERIM_ORDERS) return 'order'
+  if (stage === LITIGATION_STAGE.EVIDENCE_ARGUMENTS) return 'evidence'
+  if (stage === LITIGATION_STAGE.JUDGMENT) return 'judgment'
+  if (stage === LITIGATION_STAGE.APPEAL_REVIEW) return 'appeal'
+  if (stage === LITIGATION_STAGE.SETTLEMENT) return 'settlement'
+  if (stage === LITIGATION_STAGE.CLOSURE) return 'closure'
+  return 'correction'
+}
+
+function litigationProgressPayload(progress: LitigationProgressDraft) {
+  return {
+    referenceNumber: progress.referenceNumber || undefined,
+    actionOwner: progress.actionOwner || undefined,
+    actionDueDate: progress.actionDueDate || undefined,
+    financialImpactPkr: progress.financialImpactPkr || undefined,
+    stageOutcome: progress.stageOutcome || undefined,
+    stageDecision: progress.stageDecision || undefined,
+    complianceRequired: progress.complianceRequired || undefined,
+    appealDeadline: progress.appealDeadline || undefined,
+    appellateForum: progress.appellateForum || undefined,
+    settlementTerms: progress.settlementTerms || undefined,
+    approvedAuthority: progress.approvedAuthority || undefined,
+    paymentSchedule: progress.paymentSchedule || undefined,
+    closureReason: progress.closureReason || undefined,
+    evidenceAvailable: progress.evidenceAvailable,
+    evidenceFiles: progress.evidenceFiles.map((file) => file.name).join(', ') || undefined,
+    amendmentOfEventId: progress.amendmentOfEventId,
+  }
+}
+
+function litigationStagePayload(draft: LitigationCase, stage: LitigationStageId) {
+  if (stage === LITIGATION_STAGE.INTAKE) {
+    return {
+      receivedDate: draft.receivedDate,
+      legalOwner: draft.legalOwner,
+      petitioner: draft.petitioner,
+      respondent: draft.respondent,
+      nature: draft.nature,
+      confidentiality: draft.confidentiality,
+    }
+  }
+  if (stage === LITIGATION_STAGE.FILING) {
+    return {
+      filedDate: draft.filedDate,
+      court: draft.court,
+      caseNumber: draft.caseNumber,
+      lawyer: draft.lawyer,
+    }
+  }
+  if (stage === LITIGATION_STAGE.PLEADINGS) {
+    return {
+      petitioner: draft.petitioner,
+      respondent: draft.respondent,
+      nextAction: draft.nextAction,
+      actionDueDate: draft.actionDueDate,
+    }
+  }
+  if (stage === LITIGATION_STAGE.HEARINGS) {
+    return {
+      nextHearing: draft.nextHearing,
+      nextAction: draft.nextAction,
+      actionDueDate: draft.actionDueDate,
+    }
+  }
+  if (stage === LITIGATION_STAGE.EVIDENCE_ARGUMENTS) {
+    return {
+      evidenceAvailable: draft.evidenceAvailable,
+      relatedAssetId: draft.relatedAssetId,
+      relatedAuditParaId: draft.relatedAuditParaId,
+    }
+  }
+  if (stage === LITIGATION_STAGE.JUDGMENT || stage === LITIGATION_STAGE.SETTLEMENT) {
+    return {
+      currentExposurePkr: draft.currentExposurePkr,
+      bestCaseExposurePkr: draft.bestCaseExposurePkr,
+      worstCaseExposurePkr: draft.worstCaseExposurePkr,
+      probabilityOfLoss: draft.probabilityOfLoss,
+      accountingTreatment: draft.accountingTreatment,
+    }
+  }
+  if (stage === LITIGATION_STAGE.CLOSURE) {
+    return {
+      status: draft.status,
+      nextAction: draft.nextAction,
+      actionDueDate: draft.actionDueDate,
+    }
+  }
+  return {
+    nextAction: draft.nextAction,
+    actionDueDate: draft.actionDueDate,
+    currentExposurePkr: draft.currentExposurePkr,
   }
 }
 
@@ -157,6 +352,7 @@ export function useProcurementEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockAuditService.createProcurement(payload)
       }
       return mockAuditService.updateProcurement(draft.id, draft)
@@ -319,6 +515,7 @@ export function useAuditRegisterEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockAuditService.createAuditRegister(payload)
       }
       throw new AppError('Audit register update not supported in prototype', 'VALIDATION')
@@ -437,9 +634,20 @@ export function useLitigationEntry(
   const qc = useQueryClient()
   const pushToast = useUiStore((s) => s.pushToast)
   const isCreate = !caseId
+  const [progressDraft, setProgressDraft] = useState<LitigationProgressDraft | null>(null)
   const query = useQuery({
     queryKey: ['litigation-case', caseId],
     queryFn: () => mockLitigationService.getCase(caseId!),
+    enabled: Boolean(caseId),
+  })
+  const stages = useQuery({
+    queryKey: ['litigation-case-stages', caseId],
+    queryFn: () => mockLitigationService.getCaseStages(caseId!),
+    enabled: Boolean(caseId),
+  })
+  const events = useQuery({
+    queryKey: ['litigation-case-events', caseId],
+    queryFn: () => mockLitigationService.getCaseEvents(caseId!),
     enabled: Boolean(caseId),
   })
   const [draft, setDraft] = useState<LitigationCase | null>(null)
@@ -453,21 +661,88 @@ export function useLitigationEntry(
   useScrollToEntryOnSelect(caseId)
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
+      let next: LitigationCase
       if (isCreate) {
         const { id: _id, ...payload } = draft
-        return mockLitigationService.createCase(payload)
+        void _id
+        next = await mockLitigationService.createCase(payload)
+      } else {
+        next = await mockLitigationService.updateCase(draft.id, draft)
       }
-      return mockLitigationService.updateCase(draft.id, draft)
+      if (!progressDraft) return next
+
+      const uploadedEvidence = await Promise.all(
+        progressDraft.evidenceFiles.map((file) =>
+          mockDocumentService.createDocument({
+            organizationId,
+            title: file.title || file.name,
+            category: DOCUMENT_CATEGORY.COURT_ORDERS,
+            fileName: file.name,
+            notes: file.notes || undefined,
+            uploadedBy: role,
+            linkedRecordType: 'litigation_case',
+            linkedRecordId: next.id,
+            linkedModule: 'litigation',
+            evidenceStatus: DOCUMENT_EVIDENCE_STATUS.PENDING_REVIEW,
+            status: DOCUMENT_EVIDENCE_STATUS.PENDING_REVIEW,
+            classification: 'evidence',
+            isRestricted: next.confidentiality === 'privileged',
+            isSensitive: next.confidentiality !== 'official',
+          }),
+        ),
+      )
+      const evidenceRefs = uploadedEvidence.map((doc) => `${doc.title} (${doc.id})`)
+      await mockLitigationService.addCaseEvent(next.id, {
+        occurredAt: progressDraft.occurredAt,
+        effectiveAt: progressDraft.occurredAt,
+        actorRole: role,
+        actorName: 'SOE Legal Officer',
+        eventType: progressDraft.amendmentOfEventId ? 'correction' : litigationEventTypeForStage(progressDraft.stage),
+        stage: progressDraft.stage,
+        title: progressDraft.title || `${LITIGATION_STAGE_LABEL[progressDraft.stage]} update`,
+        detail: [
+          progressDraft.detail,
+          evidenceRefs.length ? `Evidence uploaded: ${evidenceRefs.join(', ')}` : '',
+        ]
+          .filter(Boolean)
+          .join(' | ') || undefined,
+        nextHearing: progressDraft.nextHearing || undefined,
+        exposureDeltaPkr: progressDraft.exposureDeltaPkr || undefined,
+        amendmentOfEventId: progressDraft.amendmentOfEventId,
+        supersedesEventId: progressDraft.amendmentOfEventId,
+        stagePayload: {
+          ...litigationProgressPayload(progressDraft),
+          evidenceDocumentIds: uploadedEvidence.map((doc) => doc.id).join(', ') || undefined,
+          evidenceDocumentTitles: uploadedEvidence.map((doc) => doc.title).join(', ') || undefined,
+        },
+      })
+      await mockLitigationService.saveCaseStage(next.id, progressDraft.stage, {
+        ...litigationStagePayload(next, progressDraft.stage),
+        latestProgressTitle: progressDraft.title,
+        latestProgressDetail: progressDraft.detail,
+        occurredAt: progressDraft.occurredAt,
+        nextHearing: progressDraft.nextHearing || next.nextHearing,
+        exposureDeltaPkr: progressDraft.exposureDeltaPkr || undefined,
+        ...litigationProgressPayload(progressDraft),
+        evidenceDocumentIds: uploadedEvidence.map((doc) => doc.id).join(', ') || undefined,
+        evidenceDocumentTitles: uploadedEvidence.map((doc) => doc.title).join(', ') || undefined,
+      })
+      await mockLitigationService.submitCaseStage(next.id, progressDraft.stage)
+      return mockLitigationService.getCase(next.id)
     },
     onSuccess: (next) => {
       void qc.invalidateQueries({ queryKey: ['litigation-case', next.id] })
+      void qc.invalidateQueries({ queryKey: ['litigation-case-stages', next.id] })
+      void qc.invalidateQueries({ queryKey: ['litigation-case-events', next.id] })
       void qc.invalidateQueries({ queryKey: ['litigation'] })
+      void qc.invalidateQueries({ queryKey: ['litigation-continuous-summary'] })
       setDraft(next)
+      setProgressDraft(null)
       onRecordSaved(next.id)
       pushToast({
-        title: isCreate ? 'Litigation case added.' : 'Litigation case saved.',
+        title: progressDraft ? 'Litigation progress submitted.' : isCreate ? 'Litigation case added.' : 'Litigation case saved.',
         tone: 'success',
       })
     },
@@ -491,74 +766,239 @@ export function useLitigationEntry(
       </EntryFormShell>
     )
   } else {
+    const visibleStages =
+      stages.data?.filter((stage) => stage.status !== 'not_started') ?? []
+    const progressEvents = events.data ?? []
     entry = (
-      <EntryFormShell
-        title="Litigation case"
-        subtitle={isCreate ? 'New case entry' : draft.caseNumber}
-        meta={isCreate ? undefined : draft.id}
-        mode={isCreate ? 'create' : 'edit'}
-      >
-        <EntryFormSection title="Case" />
-          <TextField
-            label="Case number"
-            value={draft.caseNumber}
-            disabled={!canEdit}
-            required
-            onChange={(e) => setDraft({ ...draft, caseNumber: e.target.value })}
-          />
-          <TextField
-            label="Court"
-            value={draft.court}
-            disabled={!canEdit}
-            required
-            onChange={(e) => setDraft({ ...draft, court: e.target.value })}
-          />
-          <TextField
-            label="Petitioner"
-            value={draft.petitioner}
-            disabled={!canEdit}
-            onChange={(e) => setDraft({ ...draft, petitioner: e.target.value })}
-          />
-          <TextField
-            label="Respondent"
-            value={draft.respondent}
-            disabled={!canEdit}
-            onChange={(e) => setDraft({ ...draft, respondent: e.target.value })}
-          />
-        <EntryFormSection title="Parties & schedule" />
-          <TextField
-            label="Nature"
-            value={draft.nature}
-            disabled={!canEdit}
-            onChange={(e) => setDraft({ ...draft, nature: e.target.value })}
-          />
-          <CurrencyField
-            label="Amount involved PKR"
-            value={draft.amountInvolved ?? 0}
-            disabled={!canEdit}
-            onChange={(e) => setDraft({ ...draft, amountInvolved: Number(e.target.value) })}
-          />
-          <TextField
-            label="Lawyer"
-            value={draft.lawyer}
-            disabled={!canEdit}
-            onChange={(e) => setDraft({ ...draft, lawyer: e.target.value })}
-          />
-          <SelectField
-            label="Status"
-            value={draft.status}
-            disabled={!canEdit}
-            options={Object.entries(LITIGATION_STATUS_LABEL).map(([k, v]) => ({ value: k, label: v }))}
-            onChange={(e) => setDraft({ ...draft, status: e.target.value })}
-          />
-          <TextField
-            label="Next hearing"
-            type="date"
-            value={draft.nextHearing ?? ''}
-            disabled={!canEdit}
-            onChange={(e) => setDraft({ ...draft, nextHearing: e.target.value })}
-          />
-      </EntryFormShell>
+      <>
+        <EntryFormShell
+          title="Litigation case header"
+          subtitle={isCreate ? 'Intake fields open the case. Later stages are added from Progress timeline.' : draft.caseNumber}
+          meta={isCreate ? undefined : draft.id}
+          mode={isCreate ? 'create' : 'edit'}
+        >
+          <EntryFormSection title="Case identity (intake)" />
+          <TextField label="Case number" value={draft.caseNumber} disabled={!canEdit} required onChange={(e) => setDraft({ ...draft, caseNumber: e.target.value })} />
+          <TextField label="Court" value={draft.court} disabled={!canEdit} required onChange={(e) => setDraft({ ...draft, court: e.target.value })} />
+          <TextField label="Petitioner" value={draft.petitioner} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, petitioner: e.target.value })} />
+          <TextField label="Respondent" value={draft.respondent} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, respondent: e.target.value })} />
+          <EntryFormSection title="Current posture" />
+          <TextField label="Nature" value={draft.nature} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, nature: e.target.value })} />
+          <TextField label="Current stage" value={draft.caseStage ?? ''} disabled onChange={() => undefined} />
+          <SelectField label="Status" value={draft.status} disabled={!canEdit} options={Object.entries(LITIGATION_STATUS_LABEL).map(([k, v]) => ({ value: k, label: v }))} onChange={(e) => setDraft({ ...draft, status: e.target.value })} />
+          <TextField label="Legal owner" value={draft.legalOwner ?? ''} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, legalOwner: e.target.value })} />
+          <TextField label="Next hearing" type="date" value={draft.nextHearing ?? ''} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, nextHearing: e.target.value })} />
+          <TextField label="Next action" value={draft.nextAction ?? ''} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, nextAction: e.target.value })} />
+          <CurrencyField label="Current exposure PKR" value={draft.currentExposurePkr ?? draft.amountInvolved ?? 0} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, currentExposurePkr: Number(e.target.value), amountInvolved: Number(e.target.value) })} />
+          <SelectField label="Confidentiality" value={draft.confidentiality ?? 'sensitive'} disabled={!canEdit} options={[{ value: 'official', label: 'Official' }, { value: 'sensitive', label: 'Sensitive' }, { value: 'privileged', label: 'Privileged' }]} onChange={(e) => setDraft({ ...draft, confidentiality: e.target.value as LitigationCase['confidentiality'] })} />
+        </EntryFormShell>
+        <EntryFormShell title="Progress timeline" subtitle="Add only the stage that has actually happened" mode="edit">
+          <div className="col-span-full">
+            {visibleStages.length ? (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {visibleStages.map((stage) => (
+                  <StatusBadge key={stage.id} status={stage.status} family="reporting" label={`${LITIGATION_STAGE_LABEL[stage.stage]} · ${stage.status.replaceAll('_', ' ')}`} />
+                ))}
+              </div>
+            ) : null}
+            {events.isLoading ? (
+              <LoadingBlock label="Loading progress timeline..." />
+            ) : progressEvents.length ? (
+              <div className="divide-y divide-soe-border rounded-card border border-soe-border bg-white">
+                {progressEvents.slice(0, 5).map((event) => (
+                  <div key={event.id} className="grid gap-2 px-3 py-2 text-sm md:grid-cols-[7rem_1fr_auto]">
+                    <span className="font-medium tabular-nums text-soe-navy">{event.occurredAt}</span>
+                    <div>
+                      <p className="font-semibold text-soe-navy">{event.title}</p>
+                      <p className="text-xs text-soe-slate">
+                        {event.stage ? LITIGATION_STAGE_LABEL[event.stage] : event.eventType.replaceAll('_', ' ')}
+                        {event.supersedesEventId ? ' · correction' : ''}
+                      </p>
+                      {event.detail ? <p className="mt-1 text-xs text-soe-ink">{event.detail}</p> : null}
+                      {event.stagePayload ? (
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-soe-slate">
+                          {Object.entries(event.stagePayload)
+                            .filter(([, value]) => value !== undefined && value !== '' && value !== false)
+                            .slice(0, 4)
+                            .map(([key, value]) => (
+                              <span key={key}>{key.replaceAll(/([A-Z])/g, ' $1').replaceAll('_', ' ')}: {String(value)}</span>
+                            ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-start justify-end gap-2">
+                      <StatusBadge status={event.assuranceState} family="reporting" label={event.assuranceState.replaceAll('_', ' ')} />
+                      {canEdit && event.assuranceState !== 'draft' ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setProgressDraft(correctionDraftFromEvent(event))}
+                        >
+                          Add correction
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-card border border-dashed border-soe-border bg-soe-canvas px-3 py-4 text-sm text-soe-slate">
+                No progress stages added yet.
+              </p>
+            )}
+            {canEdit && !progressDraft ? (
+              <Button className="mt-3" size="sm" onClick={() => setProgressDraft(emptyLitigationProgressDraft())}>
+                Add progress stage
+              </Button>
+            ) : null}
+          </div>
+          {progressDraft ? (
+            <>
+              <EntryFormSection title="New progress stage" />
+              <SelectField
+                label="Stage"
+                value={progressDraft.stage}
+                disabled={!canEdit}
+                options={LITIGATION_PROGRESS_STAGE_OPTIONS.map((stage) => ({ value: stage, label: LITIGATION_STAGE_LABEL[stage] }))}
+                onChange={(e) => setProgressDraft({ ...progressDraft, stage: e.target.value as LitigationStageId })}
+              />
+              <TextField label="Progress date" type="date" value={progressDraft.occurredAt} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, occurredAt: e.target.value })} />
+              <TextField label="Progress title" value={progressDraft.title} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, title: e.target.value })} />
+              <TextField label="Details / outcome" value={progressDraft.detail} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, detail: e.target.value })} />
+              <TextField label="Court / reference number" value={progressDraft.referenceNumber} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, referenceNumber: e.target.value })} />
+              <TextField label="Action owner" value={progressDraft.actionOwner} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, actionOwner: e.target.value })} />
+              <TextField label="Action due date" type="date" value={progressDraft.actionDueDate} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, actionDueDate: e.target.value })} />
+              {progressDraft.stage === LITIGATION_STAGE.FILING ? (
+                <>
+                  <TextField label="Filed date" type="date" value={draft.filedDate ?? ''} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, filedDate: e.target.value })} />
+                  <TextField label="Counsel" value={draft.lawyer} disabled={!canEdit} onChange={(e) => setDraft({ ...draft, lawyer: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.PLEADINGS ? (
+                <>
+                  <TextField label="Pleadings filed / received" value={progressDraft.stageOutcome} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, stageOutcome: e.target.value })} />
+                  <TextField label="Response due date" type="date" value={progressDraft.actionDueDate} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, actionDueDate: e.target.value })} />
+                  <TextField label="Counterparty position" value={progressDraft.complianceRequired} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, complianceRequired: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.HEARINGS ? (
+                <>
+                  <TextField label="Hearing outcome" value={progressDraft.stageOutcome} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, stageOutcome: e.target.value })} />
+                  <TextField label="Next hearing" type="date" value={progressDraft.nextHearing} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, nextHearing: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.INTERIM_ORDERS ? (
+                <>
+                  <TextField label="Order decision" value={progressDraft.stageDecision} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, stageDecision: e.target.value })} />
+                  <TextField label="Compliance required" value={progressDraft.complianceRequired} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, complianceRequired: e.target.value })} />
+                  <TextField label="Next hearing" type="date" value={progressDraft.nextHearing} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, nextHearing: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.EVIDENCE_ARGUMENTS ? (
+                <>
+                  <TextField label="Evidence / argument status" value={progressDraft.stageOutcome} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, stageOutcome: e.target.value })} />
+                  <TextField label="Missing documents" value={progressDraft.complianceRequired} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, complianceRequired: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.JUDGMENT ? (
+                <>
+                  <TextField label="Judgment decision" value={progressDraft.stageDecision} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, stageDecision: e.target.value })} />
+                  <CurrencyField label="Financial impact PKR" value={progressDraft.financialImpactPkr} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, financialImpactPkr: Number(e.target.value) })} />
+                  <TextField label="Appeal deadline" type="date" value={progressDraft.appealDeadline} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, appealDeadline: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.APPEAL_REVIEW ? (
+                <>
+                  <TextField label="Appellate forum" value={progressDraft.appellateForum} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, appellateForum: e.target.value })} />
+                  <TextField label="Appeal deadline / filed date" type="date" value={progressDraft.appealDeadline} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, appealDeadline: e.target.value })} />
+                  <TextField label="Next hearing" type="date" value={progressDraft.nextHearing} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, nextHearing: e.target.value })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.SETTLEMENT ? (
+                <>
+                  <TextField label="Settlement terms" value={progressDraft.settlementTerms} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, settlementTerms: e.target.value })} />
+                  <TextField label="Approving authority" value={progressDraft.approvedAuthority} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, approvedAuthority: e.target.value })} />
+                  <TextField label="Payment schedule" value={progressDraft.paymentSchedule} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, paymentSchedule: e.target.value })} />
+                  <CurrencyField label="Exposure change PKR" value={progressDraft.exposureDeltaPkr} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, exposureDeltaPkr: Number(e.target.value) })} />
+                </>
+              ) : null}
+              {progressDraft.stage === LITIGATION_STAGE.CLOSURE ? (
+                <>
+                  <TextField label="Closure reason" value={progressDraft.closureReason} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, closureReason: e.target.value })} />
+                  <CurrencyField label="Final financial impact PKR" value={progressDraft.financialImpactPkr} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, financialImpactPkr: Number(e.target.value) })} />
+                </>
+              ) : null}
+              <SelectField label="Evidence for this stage" value={progressDraft.evidenceAvailable ? 'yes' : 'no'} disabled={!canEdit} options={[{ value: 'no', label: 'Pending' }, { value: 'yes', label: 'Available' }]} onChange={(e) => setProgressDraft({ ...progressDraft, evidenceAvailable: e.target.value === 'yes' })} />
+              <EntryFormSection title="Stage evidence upload" />
+              <TextField label="Evidence title" value={progressDraft.evidenceTitle} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, evidenceTitle: e.target.value })} />
+              <TextField label="Evidence notes" value={progressDraft.evidenceNotes} disabled={!canEdit} onChange={(e) => setProgressDraft({ ...progressDraft, evidenceNotes: e.target.value })} />
+              <div className="field col-span-full">
+                <label className="mb-1 block text-xs font-semibold text-soe-navy">
+                  Upload document
+                </label>
+                <input
+                  type="file"
+                  disabled={!canEdit}
+                  className="block w-full rounded-md border border-soe-border bg-white px-3 py-2 text-sm text-soe-ink file:mr-3 file:rounded-control file:border-0 file:bg-soe-blue file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white disabled:bg-[var(--color-pending-soft)]"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setProgressDraft({
+                      ...progressDraft,
+                      evidenceAvailable: true,
+                      evidenceFileName: file.name,
+                      evidenceFiles: [
+                        ...progressDraft.evidenceFiles,
+                        {
+                          name: file.name,
+                          title: progressDraft.evidenceTitle || file.name,
+                          notes: progressDraft.evidenceNotes,
+                        },
+                      ],
+                      evidenceTitle: '',
+                      evidenceNotes: '',
+                    })
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+              {progressDraft.evidenceFiles.length ? (
+                <div className="col-span-full rounded-card border border-soe-border bg-soe-canvas px-3 py-2">
+                  <p className="mb-2 text-xs font-semibold uppercase text-soe-slate">Attached evidence</p>
+                  <div className="space-y-2">
+                    {progressDraft.evidenceFiles.map((file, index) => (
+                      <div key={`${file.name}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm">
+                        <div>
+                          <p className="font-medium text-soe-navy">{file.title}</p>
+                          <p className="text-xs text-soe-slate">{file.name}{file.notes ? ` · ${file.notes}` : ''}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            setProgressDraft({
+                              ...progressDraft,
+                              evidenceFiles: progressDraft.evidenceFiles.filter((_, i) => i !== index),
+                              evidenceAvailable: progressDraft.evidenceFiles.length > 1,
+                            })
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="col-span-full">
+                <Button size="sm" variant="secondary" onClick={() => setProgressDraft(null)}>
+                  Cancel progress stage
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </EntryFormShell>
+      </>
     )
   }
 
@@ -569,7 +1009,7 @@ export function useLitigationEntry(
     saving: save.isPending,
     saveDisabled: !draft || !draft.caseNumber.trim() || !draft.court.trim(),
     showFormActions: Boolean(canEdit && draft),
-    saveLabel: isCreate ? 'Add case' : 'Save case',
+    saveLabel: progressDraft ? `Submit ${LITIGATION_STAGE_LABEL[progressDraft.stage]} progress` : isCreate ? 'Add case' : 'Save case',
   }
 }
 
@@ -593,6 +1033,7 @@ export function usePrivatizationCaseEntry(
     mutationFn: () => {
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       const { id: _id, ...payload } = draft
+        void _id
       return mockPrivatizationService.createCase(payload)
     },
     onSuccess: (next) => {
@@ -746,6 +1187,7 @@ export function useAuditParaEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockAuditService.createAuditPara(payload)
       }
       return mockAuditService.updateAuditPara(draft.id, draft)
@@ -910,6 +1352,7 @@ export function usePacObservationEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockAuditService.createPacObservation(payload)
       }
       return mockAuditService.updatePacObservation(draft.id, draft)
@@ -1060,6 +1503,7 @@ export function useComplianceItemEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockComplianceService.createComplianceItem(payload)
       }
       return mockComplianceService.updateComplianceItem(draft.id, draft)
@@ -1199,6 +1643,7 @@ export function useTransformationEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockPrivatizationService.createTransformation(payload)
       }
       return mockPrivatizationService.updateTransformation(draft.id, draft)
@@ -1346,6 +1791,7 @@ export function useProcurementPlanEntry(
       if (!draft) throw new AppError('Nothing to save', 'VALIDATION')
       if (isCreate) {
         const { id: _id, ...payload } = draft
+        void _id
         return mockAuditService.createProcurementAnnualPlan(payload)
       }
       return mockAuditService.updateProcurementAnnualPlan(draft.id, draft)

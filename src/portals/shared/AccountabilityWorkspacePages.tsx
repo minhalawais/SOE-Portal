@@ -18,6 +18,9 @@ import {
   AUDIT_TYPE_LABEL,
   COMPLIANCE_STATUS,
   COMPLIANCE_STATUS_LABEL,
+  LITIGATION_STAGE_LABEL,
+  LITIGATION_STAGE_ORDER,
+  LITIGATION_STAGE_STATUS_LABEL,
   LITIGATION_STATUS_LABEL,
   PPRA_COMPLIANCE_LABEL,
   PROCUREMENT_HIGH_VALUE_THRESHOLD_PKR,
@@ -29,6 +32,7 @@ import {
   TRANSFORMATION_TYPE_LABEL,
   MODULE,
   type AuditType,
+  type LitigationStageId,
   type PrivatizationStage,
 } from '@/constants'
 import {
@@ -84,6 +88,27 @@ const RECOVERY_STATUS_LABEL: Record<string, string> = {
   written_off: 'Written off',
 }
 
+const ASSURANCE_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  submitted: 'SOE review',
+  returned: 'Returned',
+  soe_verified: 'SOE verified',
+  published_to_moip: 'MoIP queue',
+  moip_acknowledged: 'MoIP acknowledged',
+  clarification_open: 'Clarification',
+}
+
+function litigationStageMatches(value: string | undefined, stage: LitigationStageId | '') {
+  if (!stage) return true
+  const label = LITIGATION_STAGE_LABEL[stage].toLowerCase()
+  const normalized = (value ?? '').toLowerCase()
+  if (normalized === label) return true
+  if (stage === 'evidence_arguments' && normalized.includes('evidence')) return true
+  if (stage === 'appeal_review' && normalized.includes('appeal')) return true
+  if (stage === 'interim_orders' && (normalized.includes('order') || normalized.includes('stay'))) return true
+  return normalized.includes(stage.replaceAll('_', ' '))
+}
+
 const PAC_STATUS_LABEL: Record<string, string> = {
   none: 'None',
   open: 'Open',
@@ -117,8 +142,14 @@ function auditParaPath(_portal: PortalMode, id: string) {
   return `/soe/accountability/audit/paras/${id}`
 }
 
-function litigationPath(_portal: PortalMode, id: string) {
+function litigationPath(portal: PortalMode, id: string) {
+  if (portal === 'moip') return `/moip-review/accountability/litigation/${id}`
   return `/soe/accountability/litigation/${id}`
+}
+
+function litigationRegisterPath(portal: PortalMode) {
+  if (portal === 'moip') return '/moip-review/accountability/litigation'
+  return '/soe/accountability/litigation'
 }
 
 function privatizationDetailPath(_portal: PortalMode, caseId: string) {
@@ -1393,6 +1424,7 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
   const [searchParams, setSearchParams] = useSearchParams()
   const court = searchParams.get('court') ?? ''
   const status = searchParams.get('status') ?? ''
+  const stage = (searchParams.get('stage') ?? '') as LitigationStageId | ''
   const caseId = searchParams.get('caseId')
 
   const selectCase = (id: string | null) => {
@@ -1408,12 +1440,28 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
   )
 
   const cases = useQuery({
-    queryKey: ['litigation', scoped, court, status],
+    queryKey: ['litigation', scoped, court, status, stage],
     queryFn: () =>
-      mockLitigationService.getCases(scoped, {
-        court: court || undefined,
-        status: status || undefined,
-      }),
+      mockLitigationService
+        .getCases(scoped, {
+          court: court || undefined,
+          status: status || undefined,
+        })
+        .then((rows) =>
+          stage
+            ? rows.filter((row) => litigationStageMatches(row.caseStage, stage))
+            : rows,
+        ),
+  })
+
+  const continuousSummary = useQuery({
+    queryKey: ['litigation-continuous-summary', scoped ?? 'portfolio'],
+    queryFn: () => mockLitigationService.getContinuousSummary(scoped),
+  })
+
+  const stageSummary = useQuery({
+    queryKey: ['litigation-stage-summary', scoped ?? 'portfolio'],
+    queryFn: () => mockLitigationService.getStageSummary(scoped),
   })
 
   const courts = useMemo(() => {
@@ -1449,11 +1497,32 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
         cell: ({ getValue }) => <MoneyCell value={Number(getValue() ?? 0)} />,
       },
       {
+        accessorKey: 'caseStage',
+        header: 'Stage',
+        cell: ({ row }) => row.original.caseStage ?? '—',
+      },
+      {
         accessorKey: 'status',
         header: 'Status',
         cell: ({ getValue }) => LITIGATION_STATUS_LABEL[String(getValue())] ?? String(getValue()),
       },
       { accessorKey: 'nextHearing', header: 'Next hearing' },
+      {
+        accessorKey: 'lastChangedAt',
+        header: 'Updated',
+        cell: ({ row }) => row.original.lastChangedAt ?? '—',
+      },
+      {
+        accessorKey: 'assuranceState',
+        header: 'Assurance',
+        cell: ({ row }) => (
+          <StatusBadge
+            status={row.original.assuranceState ?? 'submitted'}
+            family="reporting"
+            label={ASSURANCE_LABEL[row.original.assuranceState ?? 'submitted']}
+          />
+        ),
+      },
     ],
     [portal, selectCase],
   )
@@ -1494,11 +1563,82 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
           </option>
         ))}
       </select>
+      <select
+        className={cn(inputClass, 'w-auto min-w-[160px]')}
+        value={stage}
+        onChange={(e) => {
+          const next = new URLSearchParams(searchParams)
+          if (e.target.value) next.set('stage', e.target.value)
+          else next.delete('stage')
+          setSearchParams(next)
+        }}
+      >
+        <option value="">All stages</option>
+        {LITIGATION_STAGE_ORDER.map((stageOption) => (
+          <option key={stageOption} value={stageOption}>
+            {LITIGATION_STAGE_LABEL[stageOption]}
+          </option>
+        ))}
+      </select>
     </div>
   )
 
   const registryBody = (
     <>
+      {continuousSummary.data ? (
+        <div className="mb-4 border-y border-soe-border bg-white px-4 py-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-soe-slate">
+                Event-based litigation register
+              </p>
+              <p className="text-sm text-soe-ink">
+                {continuousSummary.data.snapshotPeriodLabel}
+              </p>
+            </div>
+            <StatusBadge
+              status="submitted"
+              family="reporting"
+              label={`Live as of ${continuousSummary.data.asOfDate}`}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <KpiCard label="Active cases" value={String(continuousSummary.data.activeRecords)} />
+            <KpiCard label="SOE review" value={String(continuousSummary.data.pendingSoeReview)} />
+            <KpiCard label="MoIP queue" value={String(continuousSummary.data.pendingMoipAcknowledgement)} />
+            <KpiCard label="Hearings 30 days" value={String(continuousSummary.data.dueSoon)} />
+            <KpiCard label="Stale updates" value={String(continuousSummary.data.staleRecords)} />
+          </div>
+          {stageSummary.data?.length ? (
+            <div className="mt-4 grid gap-2 md:grid-cols-5">
+              {stageSummary.data.map((item) => (
+                <button
+                  key={item.stage}
+                  type="button"
+                  className={cn(
+                    'rounded-card border border-soe-border bg-soe-canvas px-3 py-2 text-left hover:border-soe-blue',
+                    stage === item.stage && 'border-soe-blue bg-[#e8eef3]',
+                  )}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams)
+                    if (stage === item.stage) next.delete('stage')
+                    else next.set('stage', item.stage)
+                    setSearchParams(next)
+                  }}
+                >
+                  <p className="text-[11px] font-semibold uppercase text-soe-slate">{item.label}</p>
+                  <p className="mt-1 text-lg font-semibold text-soe-navy">{item.count}</p>
+                  <p className="text-[11px] text-soe-slate">
+                    {formatCurrencyPkr(item.exposurePkr)} · {item.pendingReview} review
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : continuousSummary.isLoading ? (
+        <LoadingBlock label="Loading litigation assurance posture..." />
+      ) : null}
       {cases.isLoading ? <LoadingBlock /> : null}
       {cases.data?.length ? (
         <DataTable
@@ -1566,6 +1706,16 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
     enabled: Boolean(id),
     queryFn: () => mockLitigationService.getCase(id!),
   })
+  const events = useQuery({
+    queryKey: ['litigation-case-events', id],
+    enabled: Boolean(id),
+    queryFn: () => mockLitigationService.getCaseEvents(id!),
+  })
+  const stages = useQuery({
+    queryKey: ['litigation-case-stages', id],
+    enabled: Boolean(id),
+    queryFn: () => mockLitigationService.getCaseStages(id!),
+  })
   const [draft, setDraft] = useState<LitigationCase | null>(null)
   useEffect(() => {
     if (row.data) setDraft(row.data)
@@ -1577,7 +1727,9 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
     },
     onSuccess: (next) => {
       void qc.invalidateQueries({ queryKey: ['litigation-case', id] })
+      void qc.invalidateQueries({ queryKey: ['litigation-case-events', id] })
       void qc.invalidateQueries({ queryKey: ['litigation'] })
+      void qc.invalidateQueries({ queryKey: ['litigation-continuous-summary'] })
       setDraft(next)
       pushToast({ title: 'Litigation case saved.', tone: 'success' })
     },
@@ -1588,11 +1740,44 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
       })
     },
   })
+  const reviewStage = useMutation({
+    mutationFn: ({
+      stage,
+      decision,
+    }: {
+      stage: LitigationStageId
+      decision: 'verify' | 'return'
+    }) =>
+      mockLitigationService.reviewCaseStage(
+        id!,
+        stage,
+        decision,
+        decision === 'return' ? 'Returned for SOE legal-cell correction.' : undefined,
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['litigation-case', id] })
+      void qc.invalidateQueries({ queryKey: ['litigation-case-stages', id] })
+      void qc.invalidateQueries({ queryKey: ['litigation-case-events', id] })
+      void qc.invalidateQueries({ queryKey: ['litigation'] })
+      void qc.invalidateQueries({ queryKey: ['litigation-continuous-summary'] })
+      pushToast({ title: 'Litigation stage review recorded.', tone: 'success' })
+    },
+    onError: (err: unknown) => {
+      pushToast({
+        title: err instanceof AppError ? err.message : 'Stage review failed',
+        tone: 'critical',
+      })
+    },
+  })
 
   if (row.isLoading) return <LoadingBlock />
   if (row.isError || !row.data) return <ErrorState title="Case not found" />
 
   const c = row.data
+  const canReviewStage =
+    hasPermission(role, PERMISSION.SUBMISSION_CERTIFY) ||
+    hasPermission(role, PERMISSION.SUBMISSION_REVIEW) ||
+    hasPermission(role, PERMISSION.SUBMISSION_APPROVE)
   return (
     <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
       <div>
@@ -1600,7 +1785,7 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
           title={c.caseNumber}
           subtitle={`${c.court} · demo data`}
           actions={
-            <Link className={linkClass} to="/soe/accountability/litigation">
+            <Link className={linkClass} to={litigationRegisterPath(portal)}>
               Back to register
             </Link>
           }
@@ -1648,12 +1833,37 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
           <Card title="Exposure & counsel">
             <DetailDl>
               <DetailRow label="Amount involved" value={<MoneyCell value={c.amountInvolved} />} />
+              <DetailRow label="Current exposure" value={<MoneyCell value={c.currentExposurePkr} />} />
+              <DetailRow label="Worst case" value={<MoneyCell value={c.worstCaseExposurePkr} />} />
+              <DetailRow label="Loss probability" value={c.probabilityOfLoss} />
+              <DetailRow label="Accounting" value={c.accountingTreatment} />
               <DetailRow label="Counsel" value={c.lawyer} />
               <DetailRow
                 label="Status"
                 value={LITIGATION_STATUS_LABEL[c.status] ?? c.status}
               />
               <DetailRow label="Next hearing" value={c.nextHearing} />
+              <DetailRow label="Next action" value={c.nextAction} />
+              <DetailRow label="Action due" value={c.actionDueDate} />
+            </DetailDl>
+          </Card>
+          <Card title="Assurance">
+            <DetailDl>
+              <DetailRow
+                label="State"
+                value={
+                  <StatusBadge
+                    status={c.assuranceState ?? 'submitted'}
+                    family="reporting"
+                    label={ASSURANCE_LABEL[c.assuranceState ?? 'submitted']}
+                  />
+                }
+              />
+              <DetailRow label="Version" value={c.version ? `v${c.version}` : '—'} />
+              <DetailRow label="Last changed" value={c.lastChangedAt} />
+              <DetailRow label="Submitted" value={c.lastSubmittedAt} />
+              <DetailRow label="Verified" value={c.lastVerifiedAt} />
+              <DetailRow label="Classification" value={c.confidentiality} />
             </DetailDl>
           </Card>
           <Card title="Related records">
@@ -1685,6 +1895,112 @@ export function LitigationDetailWorkspace({ portal = 'soe' }: { portal?: PortalM
             </DetailDl>
           </Card>
         </div>
+        <Card title="Stage-wise progress" className="mt-4">
+          {stages.isLoading ? (
+            <LoadingBlock label="Loading litigation stages..." />
+          ) : stages.data?.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] text-left text-sm">
+                <thead className="border-b border-soe-border text-[11px] uppercase text-soe-slate">
+                  <tr>
+                    <th className="py-2">Stage</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th>Submitted</th>
+                    <th>Evidence</th>
+                    <th>Reviewer comments</th>
+                    <th className="text-right">Review</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stages.data.map((stageRecord) => (
+                    <tr key={stageRecord.id} className="border-b border-soe-border last:border-0">
+                      <td className="py-2 font-medium text-soe-navy">
+                        {LITIGATION_STAGE_LABEL[stageRecord.stage]}
+                      </td>
+                      <td>
+                        <StatusBadge
+                          status={stageRecord.status}
+                          family="reporting"
+                          label={LITIGATION_STAGE_STATUS_LABEL[stageRecord.status]}
+                        />
+                      </td>
+                      <td>{stageRecord.updatedAt}</td>
+                      <td>{stageRecord.submittedAt ?? '—'}</td>
+                      <td>{stageRecord.evidenceComplete ? 'Complete' : 'Pending'}</td>
+                      <td>{stageRecord.reviewerComments ?? '—'}</td>
+                      <td>
+                        {canReviewStage && stageRecord.status === 'submitted' ? (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              loading={reviewStage.isPending}
+                              onClick={() =>
+                                reviewStage.mutate({
+                                  stage: stageRecord.stage,
+                                  decision: 'return',
+                                })
+                              }
+                            >
+                              Return
+                            </Button>
+                            <Button
+                              size="sm"
+                              loading={reviewStage.isPending}
+                              onClick={() =>
+                                reviewStage.mutate({
+                                  stage: stageRecord.stage,
+                                  decision: 'verify',
+                                })
+                              }
+                            >
+                              Verify
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="block text-right text-xs text-soe-slate">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState title="No stage records generated" />
+          )}
+        </Card>
+        <Card title="Case event timeline" className="mt-4">
+          {events.isLoading ? (
+            <LoadingBlock label="Loading case events..." />
+          ) : events.data?.length ? (
+            <div className="divide-y divide-soe-border">
+              {events.data.map((event) => (
+                <div key={event.id} className="grid gap-2 py-3 text-sm md:grid-cols-[9rem_1fr_auto]">
+                  <div className="font-medium tabular-nums text-soe-navy">{event.occurredAt}</div>
+                  <div>
+                    <p className="font-semibold text-soe-navy">{event.title}</p>
+                    <p className="text-xs text-soe-slate">
+                      {event.actorName} · {event.eventType.replaceAll('_', ' ')}
+                      {event.stage ? ` · ${LITIGATION_STAGE_LABEL[event.stage]}` : ''}
+                    </p>
+                    {event.detail ? <p className="mt-1 text-xs text-soe-ink">{event.detail}</p> : null}
+                  </div>
+                  <div className="flex items-start justify-end">
+                    <StatusBadge
+                      status={event.assuranceState}
+                      family="reporting"
+                      label={ASSURANCE_LABEL[event.assuranceState]}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No case events recorded" />
+          )}
+        </Card>
       </div>
     </RequirePermission>
   )

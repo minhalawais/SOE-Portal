@@ -60,7 +60,8 @@ function flattenExecutiveSidebarModules(items: PortalNavigationItem[]): PortalNa
     if (EXECUTIVE_FLAT_SIDEBAR_MODULE_IDS.has(item.id as ModuleSectionId) && next.children?.length) {
       const sectionId = item.id as ModuleSectionId
       const defaultRoute = MODULE_SECTIONS[sectionId][0]?.to ?? next.route
-      const { children: _children, ...rest } = next
+      const rest = { ...next }
+      delete rest.children
       return { ...rest, route: defaultRoute }
     }
     if (next.children?.length) {
@@ -70,41 +71,34 @@ function flattenExecutiveSidebarModules(items: PortalNavigationItem[]): PortalNa
   })
 }
 
+function rebaseNavigation(
+  items: PortalNavigationItem[],
+  fromPrefix: string,
+  toPrefix: string,
+): PortalNavigationItem[] {
+  return items.map((item) => ({
+    ...item,
+    route:
+      item.route === fromPrefix || item.route.startsWith(`${fromPrefix}/`)
+        ? item.route.replace(fromPrefix, toPrefix)
+        : item.route,
+    children: item.children
+      ? rebaseNavigation(item.children, fromPrefix, toPrefix)
+      : undefined,
+  }))
+}
+
 const soeContributorModuleNavigation: PortalNavigationItem[] = [
   {
     id: 'soe-submissions',
     label: 'Submissions & Approvals',
-    route: '/soe/reporting',
-        children: [
-          {
-            id: 'soe-reporting',
-            label: 'Reporting Workspace',
-            route: '/soe/reporting',
-            enabled: true,
-          },
-          {
-            id: 'soe-clarifications',
-            label: 'Clarifications',
-            route: '/soe/clarifications',
-          },
-          {
-            id: 'soe-validation',
-            label: 'Validation & Readiness',
-            route: '/soe/validation',
-          },
-          {
-            id: 'soe-readiness',
-            label: 'Submission Readiness',
-            route: '/soe/readiness',
-            permission: PERMISSION.SUBMISSION_SUBMIT,
-          },
-        ],
-      },
-      {
-        id: 'soe-search',
-        label: 'Search & Intelligence',
-        route: '/soe/search',
-      },
+    route: '/soe/submissions',
+  },
+  {
+    id: 'soe-search',
+    label: 'Search & Intelligence',
+    route: '/soe/search',
+  },
       {
         id: 'soe-enterprise',
         label: 'Enterprise',
@@ -227,34 +221,6 @@ const soeContributorModuleNavigation: PortalNavigationItem[] = [
       },
 ]
 
-const soeCertifierComplianceModule: PortalNavigationItem = {
-  id: 'soe-cert-compliance',
-  label: 'Compliance Data',
-  route: '/soe/accountability/compliance',
-  permission: PERMISSION.ACCOUNTABILITY_READ,
-}
-
-const soeCertifierEvidenceModule: PortalNavigationItem = {
-  id: 'soe-cert-documents',
-  label: 'Evidence & Documents',
-  route: '/soe/documents',
-  permission: PERMISSION.DOCUMENT_READ,
-  children: [
-    { id: 'soe-cert-docs-repo', label: 'Repository', route: '/soe/documents' },
-    {
-      id: 'soe-cert-docs-subhist',
-      label: 'Audit Trail & History',
-      route: '/soe/documents/submission-history',
-    },
-  ],
-}
-
-/** Certifier portal modules — reused in certifier role nav */
-const soeCertifierExecutiveModules: PortalNavigationItem[] = [
-  soeCertifierComplianceModule,
-  soeCertifierEvidenceModule,
-]
-
 /** Executive viewer extras — reserved for modules not covered by contributor flattening */
 const soeExecutiveViewerExtras: PortalNavigationItem[] = []
 
@@ -328,11 +294,160 @@ const pmDashboardNavigation: PortalNavigationItem[] = (() => {
   ]
 })()
 
+const soeEntrySidebarModules = flattenExecutiveSidebarModules(soeContributorModuleNavigation)
+const soeEntryLogsModule = soeEntrySidebarModules.find((item) => item.id === 'soe-logs-alerts')
+
+const soeEntryNavigation = rebaseNavigation(
+  [
+    { id: 'soe-dashboard', label: 'Dashboard', route: '/soe/dashboard' },
+    ...soeEntrySidebarModules.filter((item) => item.id !== 'soe-logs-alerts'),
+    {
+      id: 'soe-ai-import',
+      label: 'AI Data Import',
+      route: '/soe/ai-import',
+      permission: PERMISSION.AI_IMPORT_USE,
+    },
+    ...(soeEntryLogsModule ? [soeEntryLogsModule] : []),
+  ],
+  '/soe',
+  '/soe-entry',
+)
+
+const soeReviewNavigation: PortalNavigationItem[] = rebaseNavigation(
+  [
+    { id: 'soe-review-dashboard', label: 'Dashboard', route: '/soe/dashboard' },
+    { id: 'soe-review-submissions', label: 'Submissions & Approvals', route: '/soe/submissions' },
+    {
+      id: 'soe-review-alerts',
+      label: 'Logs & Alerts',
+      route: '/soe/logs',
+      children: [
+        { id: 'soe-review-logs', label: 'Logs', route: '/soe/logs' },
+        { id: 'soe-review-alert-list', label: 'Alerts', route: '/soe/alerts' },
+      ],
+    },
+  ],
+  '/soe',
+  '/soe-review',
+)
+
+const moipReviewNavigation = rebaseNavigation(
+  [
+    { id: 'moip-dashboard', label: 'Oversight Dashboard', route: '/moip/dashboard' },
+    {
+      id: 'moip-review',
+      label: 'Submissions & Approvals',
+      route: '/moip/submissions',
+      permission: PERMISSION.SUBMISSION_REVIEW,
+    },
+    {
+      id: 'moip-soe-management',
+      label: 'SOE Management',
+      route: '/moip/admin/soes',
+      children: [
+        {
+          id: 'moip-soe-registry',
+          label: 'SOE Registry',
+          route: '/moip/admin/soes',
+          permission: PERMISSION.ORGANIZATION_MANAGE,
+        },
+        {
+          id: 'moip-users',
+          label: 'Users & Access',
+          route: '/moip/admin/users',
+          permission: PERMISSION.USER_READ,
+        },
+        {
+          id: 'moip-access-audit',
+          label: 'Account Activity',
+          route: '/moip/admin/audit-log',
+          permission: PERMISSION.AUDIT_LOG_READ,
+        },
+      ],
+    },
+    {
+      id: 'moip-performance-comparison',
+      label: 'SOE Performance Comparison',
+      route: '/moip/performance-comparison',
+      permission: PERMISSION.PERFORMANCE_COMPARISON_READ,
+    },
+    { id: 'moip-search', label: 'Search & Intelligence', route: '/moip/search', permission: PERMISSION.PORTFOLIO_READ },
+    {
+      id: 'moip-ai-import',
+      label: 'AI Data Import',
+      route: '/moip/ai-import',
+      permission: PERMISSION.AI_IMPORT_USE,
+    },
+    {
+      id: 'moip-logs',
+      label: 'Logs & Alerts',
+      route: '/moip/logs',
+      children: [
+        { id: 'moip-log-list', label: 'Logs', route: '/moip/logs' },
+        { id: 'moip-alerts', label: 'Alerts', route: '/moip/alerts' },
+      ],
+    },
+  ],
+  '/moip',
+  '/moip-review',
+)
+
+const moipExecutiveNavigation: PortalNavigationItem[] = [
+  { id: 'moip-exec-dashboard', label: 'National Dashboard', route: '/moip-executive/dashboard' },
+  { id: 'moip-exec-search', label: 'Search & Intelligence', route: '/moip-executive/search', permission: PERMISSION.EXECUTIVE_DASHBOARD_READ },
+  { id: 'moip-exec-reports', label: 'Strategic Reports', route: '/moip-executive/reports', permission: PERMISSION.EXECUTIVE_DASHBOARD_READ },
+]
+
 export const portalDefinitions: Record<PortalId, PortalDefinition> = {
+  [PORTAL.SOE_ENTRY]: {
+    id: PORTAL.SOE_ENTRY,
+    name: 'SOE Data Entry Portal',
+    primaryQuestion: 'What do I need to complete, review, certify or submit?',
+    density: 'operational',
+    allowsOrganizationSwitch: false,
+    allowsOperationalEdit: true,
+    homeRoute: '/soe-entry/dashboard',
+    navigation: soeEntryNavigation,
+  },
+
+  [PORTAL.SOE_REVIEW]: {
+    id: PORTAL.SOE_REVIEW,
+    name: 'SOE Reviewer Portal',
+    primaryQuestion: 'What needs internal review, certification, clarification or executive attention?',
+    density: 'operational',
+    allowsOrganizationSwitch: false,
+    allowsOperationalEdit: false,
+    homeRoute: '/soe-review/dashboard',
+    navigation: soeReviewNavigation,
+  },
+
+  [PORTAL.MOIP_REVIEW]: {
+    id: PORTAL.MOIP_REVIEW,
+    name: 'MOIP Review Portal',
+    primaryQuestion: 'What has been submitted, what requires a decision, and what does the national SOE portfolio show?',
+    density: 'operational',
+    allowsOrganizationSwitch: true,
+    allowsOperationalEdit: false,
+    homeRoute: '/moip-review/dashboard',
+    navigation: moipReviewNavigation,
+  },
+
+  [PORTAL.MOIP_EXECUTIVE]: {
+    id: PORTAL.MOIP_EXECUTIVE,
+    name: 'MOIP Executive Dashboard Portal',
+    primaryQuestion: 'What matters nationally and where is intervention required?',
+    density: 'executive',
+    allowsOrganizationSwitch: false,
+    allowsOperationalEdit: false,
+    featureFlag: APP_CONFIG.ENABLE_PMO_PORTAL,
+    homeRoute: '/moip-executive/dashboard',
+    navigation: moipExecutiveNavigation,
+  },
+
   [PORTAL.SOE]: {
     id: PORTAL.SOE,
     name: 'SOE Management & Submission',
-    primaryQuestion: 'What do I need to complete, review, certify or submit?',
+    primaryQuestion: 'Legacy route alias for SOE portal.',
     density: 'operational',
     allowsOrganizationSwitch: false,
     allowsOperationalEdit: true,
@@ -346,7 +461,7 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
   [PORTAL.MOIP]: {
     id: PORTAL.MOIP,
     name: 'MoIP Oversight & Review',
-    primaryQuestion: 'What has been submitted, what requires a decision, and what does the national SOE portfolio show?',
+    primaryQuestion: 'Legacy route alias for MoIP review portal.',
     density: 'operational',
     allowsOrganizationSwitch: true,
     allowsOperationalEdit: false,
@@ -410,20 +525,32 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
         id: 'moip-soe-management',
         label: 'SOE Management',
         route: '/moip/admin/soes',
-        permission: PERMISSION.ORGANIZATION_MANAGE,
         children: [
-          { id: 'moip-soe-registry', label: 'SOE Registry', route: '/moip/admin/soes' },
+          {
+            id: 'moip-soe-registry',
+            label: 'SOE Registry',
+            route: '/moip/admin/soes',
+            permission: PERMISSION.ORGANIZATION_MANAGE,
+          },
+          {
+            id: 'moip-users',
+            label: 'Users & Access',
+            route: '/moip/admin/users',
+            permission: PERMISSION.USER_READ,
+          },
+          {
+            id: 'moip-access-audit',
+            label: 'Account Activity',
+            route: '/moip/admin/audit-log',
+            permission: PERMISSION.AUDIT_LOG_READ,
+          },
         ],
       },
       {
-        id: 'moip-user-admin',
-        label: 'User Management',
-        route: '/moip/admin/users',
-        permission: PERMISSION.USER_READ,
-        children: [
-          { id: 'moip-users', label: 'Users', route: '/moip/admin/users' },
-          { id: 'moip-access-audit', label: 'Account Activity', route: '/moip/admin/audit-log' },
-        ],
+        id: 'moip-performance-comparison',
+        label: 'SOE Performance Comparison',
+        route: '/moip/performance-comparison',
+        permission: PERMISSION.PERFORMANCE_COMPARISON_READ,
       },
       { id: 'moip-logs', label: 'Logs & Escalations', route: '/moip/logs' },
       { id: 'moip-dq', label: 'Validation & Readiness', route: '/moip/data-quality', permission: PERMISSION.PORTFOLIO_READ },
@@ -587,65 +714,19 @@ const soeExecutiveNavigation: PortalNavigationItem[] = [
   { id: 'soe-executive-search', label: 'Search & Intelligence', route: '/soe/search' },
 ]
 
-const soeCertifierNavigation: PortalNavigationItem[] = [
-  { id: 'soe-cert-dashboard', label: 'Dashboard', route: '/soe/dashboard' },
-  {
-    id: 'soe-cert-submissions',
-    label: 'Submissions & Certification',
-    route: '/soe/validation',
-    children: [
-      { id: 'soe-cert-clarifications', label: 'Clarifications', route: '/soe/clarifications' },
-      { id: 'soe-cert-validation', label: 'Validation & Readiness', route: '/soe/validation' },
-    ],
-  },
-  ...soeCertifierExecutiveModules,
-  {
-    id: 'soe-cert-logs-alerts',
-    label: 'Logs & Alerts',
-    route: '/soe/logs',
-    children: [
-      { id: 'soe-cert-logs-centre', label: 'Logs', route: '/soe/logs' },
-      { id: 'soe-cert-alerts', label: 'Alerts', route: '/soe/alerts' },
-    ],
-  },
-]
-
 export function getPortalDefinitionForRole(portal: PortalId, role: RoleId): PortalDefinition {
   const definition = portalDefinitions[portal]
 
-  if (
-    portal === PORTAL.MINISTER &&
-    (role === ROLE.EXECUTIVE_VIEWER || role === ROLE.PMO)
-  ) {
-    return {
-      ...definition,
-      navigation: pmDashboardNavigation,
-      homeRoute: '/pmo/dashboard',
-      allowsOperationalEdit: true,
-    }
-  }
-
-  if (
-    portal === PORTAL.PMO &&
-    (role === ROLE.EXECUTIVE_VIEWER || role === ROLE.PMO)
-  ) {
-    return {
-      ...definition,
-      navigation: pmDashboardNavigation,
-      homeRoute: '/pmo/dashboard',
-      allowsOperationalEdit: true,
-    }
-  }
-
-  if (portal !== PORTAL.SOE) return definition
+  if (portal !== PORTAL.SOE && portal !== PORTAL.SOE_REVIEW) return definition
 
   if (role === ROLE.SOE_CERTIFIER) {
     return {
       ...definition,
-      name: 'SOE Compliance Certification',
+      id: PORTAL.SOE_REVIEW,
+      name: 'SOE Reviewer Portal',
       primaryQuestion: 'What compliance data, evidence or certification action needs attention?',
-      homeRoute: '/soe/dashboard',
-      navigation: soeCertifierNavigation,
+      homeRoute: '/soe-review/dashboard',
+      navigation: soeReviewNavigation,
     }
   }
 
@@ -653,16 +734,21 @@ export function getPortalDefinitionForRole(portal: PortalId, role: RoleId): Port
 
   return {
     ...definition,
-    name: 'SOE Executive Intelligence',
+    id: PORTAL.SOE_REVIEW,
+    name: 'SOE Reviewer Portal',
     primaryQuestion: 'Where is performance changing, value at risk, or executive action required?',
     density: 'executive',
     allowsOperationalEdit: false,
-    homeRoute: '/soe/executive',
-    navigation: soeExecutiveNavigation,
+    homeRoute: '/soe-review/executive',
+    navigation: rebaseNavigation(soeExecutiveNavigation, '/soe', '/soe-review'),
   }
 }
 
 export const portalHome: Record<PortalId, string> = {
+  soe_entry: portalDefinitions.soe_entry.homeRoute,
+  soe_review: portalDefinitions.soe_review.homeRoute,
+  moip_review: portalDefinitions.moip_review.homeRoute,
+  moip_executive: portalDefinitions.moip_executive.homeRoute,
   soe: portalDefinitions.soe.homeRoute,
   moip: portalDefinitions.moip.homeRoute,
   secretary: portalDefinitions.secretary.homeRoute,
@@ -753,11 +839,20 @@ export function getPortalDefinition(portal: PortalId): PortalDefinition {
 
 export function roleAllowsOrgSwitch(role: RoleId): boolean {
   return (
+    role === ROLE.MOIP_REVIEWER ||
+    role === ROLE.MOIP_ANALYST ||
+    role === ROLE.MOIP_SUPERVISOR ||
     role === ROLE.ASSURANCE_USER ||
     role === ROLE.SYSTEM_ADMIN
   )
 }
 
 export function roleIsExecutive(role: RoleId): boolean {
-  return role === ROLE.EXECUTIVE_VIEWER || role === ROLE.SOE_EXECUTIVE
+  return (
+    role === ROLE.EXECUTIVE_VIEWER ||
+    role === ROLE.SOE_EXECUTIVE ||
+    role === ROLE.SECRETARY ||
+    role === ROLE.MINISTER ||
+    role === ROLE.PMO
+  )
 }

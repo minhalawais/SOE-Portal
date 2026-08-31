@@ -906,7 +906,7 @@ export const mockMoipPortalService: MoipPortalService = {
       organizationId: submission.organizationId,
       title: 'Submission returned',
       body: payload.reason,
-      linkRoute: '/soe/reporting',
+      linkRoute: '/soe/submissions',
       createdAt: new Date().toISOString(),
       status: 'unread',
       linkedRecordType: 'submission',

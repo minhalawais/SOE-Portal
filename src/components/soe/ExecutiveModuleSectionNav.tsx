@@ -14,9 +14,16 @@ export function useShowExecutiveModuleSectionNav(): boolean {
   const portal = useActivePortal()
   const role = useSessionStore((s) => s.role)
   return (
+    portal === 'soe_entry' ||
     (portal === 'minister' || portal === 'pmo') &&
     (role === ROLE.EXECUTIVE_VIEWER || role === ROLE.PMO)
   )
+}
+
+function portalTabPath(path: string, portal: ReturnType<typeof useActivePortal>) {
+  if (portal === 'soe_entry') return path.replace(/^\/soe(?=\/|$)/, '/soe-entry')
+  if (portal === 'soe_review') return path.replace(/^\/soe(?=\/|$)/, '/soe-review')
+  return path
 }
 
 function tabClassName(active: boolean) {
@@ -34,6 +41,7 @@ export function ModuleSectionNav({
   ariaLabel: string
 }) {
   const { pathname } = useLocation()
+  const portal = useActivePortal()
 
   return (
     <nav
@@ -45,7 +53,7 @@ export function ModuleSectionNav({
         return (
           <NavLink
             key={tab.to}
-            to={tab.to}
+            to={portalTabPath(tab.to, portal)}
             end={tab.end}
             className={() => tabClassName(active)}
             aria-current={active ? 'page' : undefined}

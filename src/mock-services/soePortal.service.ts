@@ -83,6 +83,34 @@ export interface SubmissionReadiness {
   certifiers: string[]
 }
 
+export type ClarificationInboxRow = Clarification & {
+  moduleId: ModuleId
+  moduleLabel: string
+  route: string
+  assignedRole: RoleId
+}
+
+export interface SubmissionsApprovalsWorkspace {
+  organization: Organization
+  period: ReportingPeriod
+  summary: {
+    overallCompletion: number
+    modulesComplete: number
+    modulesTotal: number
+    blockingCount: number
+    warningCount: number
+    evidenceGapCount: number
+    openClarifications: number
+    certifiedCount: number
+    canSubmit: boolean
+    version: string
+  }
+  modules: ModuleWorkspaceRow[]
+  issues: ModuleValidationIssue[]
+  clarifications: ClarificationInboxRow[]
+  readiness: SubmissionReadiness
+}
+
 function findPeriod(reportingPeriodId: string): ReportingPeriod {
   const period = db.reportingPeriods.find((p) => p.id === reportingPeriodId)
   if (!period) throw new AppError('Reporting period not found', 'NOT_FOUND')
@@ -295,6 +323,11 @@ export interface SoePortalService {
     organizationId: string,
     reportingPeriodId: string,
   ): Promise<SubmissionReadiness>
+  getSubmissionsApprovalsWorkspace(
+    organizationId: string,
+    reportingPeriodId: string,
+    role: RoleId,
+  ): Promise<SubmissionsApprovalsWorkspace>
   confirmPeriodSubmission(
     organizationId: string,
     reportingPeriodId: string,
@@ -392,7 +425,7 @@ export const mockSoePortalService: SoePortalService = {
         pendingActions.push({
           id: `pa-clar-${m.submission.id}`,
           title: `Respond to clarification: ${m.def.label}`,
-          route: '/soe/clarifications',
+          route: '/soe-entry/submissions?tab=clarifications',
           priority: 'critical',
         })
       }
@@ -418,7 +451,7 @@ export const mockSoePortalService: SoePortalService = {
         title: t.title,
         route:
           t.linkedRecordType === 'clarification'
-            ? '/soe/clarifications'
+            ? '/soe-entry/submissions?tab=clarifications'
             : t.linkedRecordType === 'submission'
               ? '/soe/finance'
               : '/soe/logs',
@@ -431,7 +464,7 @@ export const mockSoePortalService: SoePortalService = {
         id: 'dl-annual',
         title: `${period.label} annual submission`,
         dueDate: period.endDate,
-        route: '/soe/readiness',
+        route: '/soe-entry/submissions?tab=submit',
       },
       {
         id: 'dl-board',
@@ -514,7 +547,7 @@ export const mockSoePortalService: SoePortalService = {
           route:
             sub?.module === 'finance'
               ? '/soe/finance/clarification'
-              : (def?.route ?? '/soe/clarifications'),
+              : (def?.route ?? '/soe-entry/submissions?tab=clarifications'),
           assignedRole: def?.ownerRole ?? ROLE.SOE_FOCAL_PERSON,
         }
       })
@@ -573,6 +606,45 @@ export const mockSoePortalService: SoePortalService = {
       ],
       canSubmit,
       certifiers: [ROLE_LABEL[ROLE.SOE_CERTIFIER]],
+    })
+  },
+
+  async getSubmissionsApprovalsWorkspace(organizationId, reportingPeriodId, role) {
+    const [workspace, issues, clarifications, readiness] = await Promise.all([
+      mockSoePortalService.getReportingWorkspace(organizationId, reportingPeriodId, role),
+      mockSoePortalService.getValidationCentre(organizationId, reportingPeriodId),
+      mockSoePortalService.getClarificationInbox(organizationId),
+      mockSoePortalService.getSubmissionReadiness(organizationId, reportingPeriodId),
+    ])
+    const organization = findOrg(organizationId)
+    const period = findPeriod(reportingPeriodId)
+    const blockingCount = issues.filter((i) => i.severity === 'blocking').length
+    const warningCount = issues.filter((i) => i.severity === 'warning').length
+    const evidenceGapCount = issues.filter((i) => i.severity === 'evidence').length
+    const openClarifications = clarifications.filter((c) => c.status === 'open').length
+    const certifiedCount = workspace.modules.filter(
+      (m) => m.submission.status === SUBMISSION_STATUS.CERTIFIED,
+    ).length
+
+    return simulateLatency({
+      organization,
+      period,
+      summary: {
+        overallCompletion: workspace.overallCompletion,
+        modulesComplete: readiness.modulesComplete,
+        modulesTotal: readiness.modulesTotal,
+        blockingCount,
+        warningCount,
+        evidenceGapCount,
+        openClarifications,
+        certifiedCount,
+        canSubmit: readiness.canSubmit,
+        version: readiness.version,
+      },
+      modules: workspace.modules,
+      issues,
+      clarifications,
+      readiness,
     })
   },
 

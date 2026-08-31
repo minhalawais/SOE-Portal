@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
-  FileCheck2,
   MessageSquareWarning,
   RotateCcw,
   SearchCheck,
@@ -16,7 +15,7 @@ import { Card } from '@/design-system/components/Card'
 import { SelectField, TextareaField } from '@/design-system/components/Fields'
 import { Alert, EmptyState, ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import { KpiCard } from '@/design-system/components/KpiCard'
-import { ConfirmDialog } from '@/design-system/components/Overlays'
+import { Modal } from '@/design-system/components/Overlays'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
 import { ROLE_LABEL, SUBMISSION_STATUS, SUBMISSION_STATUS_LABEL, type SubmissionStatus } from '@/constants'
 import { mockModuleReviewService } from '@/mock-services'
@@ -24,7 +23,7 @@ import { useSessionStore } from '@/state/session'
 import { useUiStore } from '@/state/ui'
 import { AppError, cn } from '@/utils'
 
-type WorkspaceTab = 'data' | 'evidence' | 'findings' | 'history' | 'decision'
+type WorkspaceTab = 'data' | 'evidence' | 'findings' | 'history'
 
 function statusLabel(status?: SubmissionStatus) {
   return status ? SUBMISSION_STATUS_LABEL[status] : 'Not submitted'
@@ -134,7 +133,7 @@ export function MoipModuleReviewPage() {
   const [question, setQuestion] = useState('')
   const [returnReason, setReturnReason] = useState('')
   const [approvalStatement, setApprovalStatement] = useState('')
-  const [confirmApprove, setConfirmApprove] = useState(false)
+  const [actionModal, setActionModal] = useState<'clarify' | 'return' | 'approve' | null>(null)
 
   const review = useQuery({
     queryKey: ['moip-module-review', submissionId],
@@ -188,7 +187,7 @@ export function MoipModuleReviewPage() {
     ...mutationOptions,
     onSuccess: () => {
       mutationOptions.onSuccess()
-      setConfirmApprove(false)
+      setActionModal(null)
       pushToast({ title: 'Module approved and locked.', tone: 'success' })
     },
   })
@@ -208,11 +207,10 @@ export function MoipModuleReviewPage() {
     { id: 'evidence', label: `Evidence (${data.evidence.length})` },
     { id: 'findings', label: `Validation (${data.validation.blocking + data.validation.warnings + data.validation.evidenceGaps})` },
     { id: 'history', label: 'History' },
-    { id: 'decision', label: 'Review decision' },
   ]
 
   return (
-    <div>
+    <div className="pb-32">
       <PageHeader
         title={`${data.organization.abbreviation} · ${data.moduleLabel}`}
         subtitle={`${data.periodLabel} · submitted version ${data.submission.version} · source values are read-only`}
@@ -296,23 +294,161 @@ export function MoipModuleReviewPage() {
             </Card>
           ) : null}
 
-          {tab === 'decision' ? (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card title="Request clarification" actions={<MessageSquareWarning size={18} className="text-[#c76b00]" />}>
-                <div className="space-y-3"><SelectField label="Affected field or record" value={field} options={fieldOptions} onChange={(event) => setField(event.target.value)} /><TextareaField label="Question for the SOE" value={question} rows={3} onChange={(event) => setQuestion(event.target.value)} /><Button variant="secondary" disabled={!canDecide || !question.trim()} loading={clarifyMutation.isPending} onClick={() => clarifyMutation.mutate()}>Send clarification</Button></div>
-              </Card>
-              <Card title="Return module" actions={<RotateCcw size={18} className="text-soe-critical" />}>
-                <div className="space-y-3"><TextareaField label="Required corrections" value={returnReason} rows={4} onChange={(event) => setReturnReason(event.target.value)} /><Button variant="destructive" disabled={!canDecide || !returnReason.trim()} loading={returnMutation.isPending} onClick={() => returnMutation.mutate()}>Return to SOE</Button></div>
-              </Card>
-              <Card className="lg:col-span-2" title="Approve submitted version" actions={<FileCheck2 size={18} className="text-soe-teal" />}>
-                <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end"><TextareaField label="Approval statement" value={approvalStatement} rows={2} onChange={(event) => setApprovalStatement(event.target.value)} hint="The approved submitted version becomes immutable." /><Button variant="teal" disabled={!canDecide || data.validation.blocking > 0} onClick={() => setConfirmApprove(true)}><CheckCircle2 size={16} />Approve and lock</Button></div>
-              </Card>
-            </div>
-          ) : null}
         </div>
       </div>
 
-      <ConfirmDialog open={confirmApprove} title="Approve submitted module" message={`Approve and lock ${data.organization.abbreviation} ${data.moduleLabel}, ${data.periodLabel}, version ${data.submission.version}? This decision is recorded in the audit history.`} confirmLabel="Approve and lock" onConfirm={() => approveMutation.mutate()} onCancel={() => setConfirmApprove(false)} />
+      {canDecide ? (
+        <div className="fixed bottom-6 left-1/2 z-[45] w-[min(1080px,calc(100vw-1.5rem))] -translate-x-1/2 px-2">
+          <div className="rounded-[16px] border border-soe-border bg-white/96 px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0 pr-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-soe-slate">
+                  Review decision
+                </p>
+                <p className="text-sm text-soe-ink">
+                  Record one MoIP decision after reviewing submitted data and evidence.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 md:flex-nowrap">
+                <Button
+                  variant="tertiary"
+                  className="h-10 rounded-full border border-[#b8cee2] bg-white px-4 text-soe-blue hover:border-soe-blue hover:bg-[#f5f9fc]"
+                  onClick={() => setActionModal('clarify')}
+                >
+                  <MessageSquareWarning size={16} />
+                  Request clarification
+                </Button>
+                <Button
+                  variant="tertiary"
+                  className="h-10 rounded-full border border-[#ebc4c4] bg-[#fff5f5] px-4 text-soe-critical hover:border-[#d99c9c] hover:bg-[#fff0f0]"
+                  onClick={() => setActionModal('return')}
+                >
+                  <RotateCcw size={16} />
+                  Return module
+                </Button>
+                <Button
+                  variant="teal"
+                  className={cn(
+                    'h-10 rounded-full px-4 shadow-[0_10px_22px_rgba(20,128,111,0.16)]',
+                    data.validation.blocking > 0 ? '' : 'shadow-[0_10px_24px_rgba(20,128,111,0.2)]',
+                  )}
+                  disabled={data.validation.blocking > 0}
+                  onClick={() => setActionModal('approve')}
+                >
+                  <CheckCircle2 size={16} />
+                  Approve and lock
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <Modal
+        open={actionModal === 'clarify'}
+        title="Request clarification"
+        onClose={() => setActionModal(null)}
+        footer={
+          <>
+            <Button variant="tertiary" onClick={() => setActionModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!canDecide || !question.trim()}
+              loading={clarifyMutation.isPending}
+              onClick={() => clarifyMutation.mutate()}
+            >
+              Send clarification
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-control border border-[#f3d7a7] bg-[#fff8eb] px-3 py-2 text-sm text-soe-ink">
+            Ask for a precise clarification so the SOE can respond without ambiguity.
+          </div>
+          <SelectField
+            label="Affected field or record"
+            value={field}
+            options={fieldOptions}
+            onChange={(event) => setField(event.target.value)}
+          />
+          <TextareaField
+            label="Question for the SOE"
+            value={question}
+            rows={5}
+            onChange={(event) => setQuestion(event.target.value)}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={actionModal === 'return'}
+        title="Return module"
+        onClose={() => setActionModal(null)}
+        footer={
+          <>
+            <Button variant="tertiary" onClick={() => setActionModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!canDecide || !returnReason.trim()}
+              loading={returnMutation.isPending}
+              onClick={() => returnMutation.mutate()}
+            >
+              Return to SOE
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-control border border-[#f1c9c9] bg-[#fff4f4] px-3 py-2 text-sm text-soe-ink">
+            Return the module only when the submitted version cannot proceed in its current form.
+          </div>
+          <TextareaField
+            label="Required corrections"
+            value={returnReason}
+            rows={6}
+            onChange={(event) => setReturnReason(event.target.value)}
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={actionModal === 'approve'}
+        title="Approve submitted module"
+        onClose={() => setActionModal(null)}
+        footer={
+          <>
+            <Button variant="tertiary" onClick={() => setActionModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="teal"
+              disabled={!canDecide || data.validation.blocking > 0}
+              loading={approveMutation.isPending}
+              onClick={() => approveMutation.mutate()}
+            >
+              Approve and lock
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-control border border-[#bfe5db] bg-[#effaf7] px-3 py-2 text-sm text-soe-ink">
+            This decision locks the approved submitted version into the review history.
+          </div>
+          <TextareaField
+            label="Approval statement"
+            value={approvalStatement}
+            rows={4}
+            onChange={(event) => setApprovalStatement(event.target.value)}
+            hint="Capture the approval rationale or note the controls already verified."
+          />
+        </div>
+      </Modal>
     </div>
   )
 }

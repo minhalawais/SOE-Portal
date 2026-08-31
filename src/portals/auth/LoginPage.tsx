@@ -4,8 +4,8 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { APP_CONFIG } from '@/app/config/app.config'
 import { PoweredByFooter } from '@/components/layout/PoweredByFooter'
 import { Button } from '@/design-system/components/Button'
-import { ROLE } from '@/constants'
 import { useSessionStore } from '@/state/session'
+import { getHomeForRole } from '@/permissions'
 import { cn } from '@/utils'
 
 type LoginStep = 'credentials' | 'mfa' | 'passkey' | 'recovery'
@@ -27,8 +27,8 @@ function AuthenticationHeader({ title, description }: { title: string; descripti
 export function LoginPage() {
   const navigate = useNavigate()
   const isAuthenticated = useSessionStore((state) => state.isAuthenticated)
+  const role = useSessionStore((state) => state.role)
   const signIn = useSessionStore((state) => state.signIn)
-  const setRole = useSessionStore((state) => state.setRole)
   const [step, setStep] = useState<LoginStep>('credentials')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -39,7 +39,7 @@ export function LoginPage() {
   const [working, setWorking] = useState(false)
   const [recoverySent, setRecoverySent] = useState(false)
 
-  if (isAuthenticated) return <Navigate to="/pmo/dashboard" replace />
+  if (isAuthenticated) return <Navigate to={getHomeForRole(role)} replace />
 
   const validEmail = /^\S+@\S+\.\S+$/.test(email)
 
@@ -57,8 +57,8 @@ export function LoginPage() {
     setWorking(true)
     window.setTimeout(() => {
       signIn(email)
-      setRole(ROLE.EXECUTIVE_VIEWER)
-      navigate('/pmo/dashboard', { replace: true })
+      const nextRole = useSessionStore.getState().role
+      navigate(getHomeForRole(nextRole), { replace: true })
     }, 450)
   }
 

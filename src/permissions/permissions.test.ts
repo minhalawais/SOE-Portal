@@ -12,10 +12,10 @@ describe('permissions', () => {
   })
 
   it('routes roles to portals', () => {
-    expect(getPortalForRole(ROLE.MOIP_REVIEWER)).toBe('moip')
-    expect(getPortalForRole(ROLE.EXECUTIVE_VIEWER)).toBe('minister')
-    expect(getPortalForRole(ROLE.SOE_FOCAL_PERSON)).toBe('soe')
-    expect(getPortalForRole(ROLE.SYSTEM_ADMIN)).toBe('moip')
+    expect(getPortalForRole(ROLE.MOIP_REVIEWER)).toBe('moip_review')
+    expect(getPortalForRole(ROLE.EXECUTIVE_VIEWER)).toBe('moip_executive')
+    expect(getPortalForRole(ROLE.SOE_FOCAL_PERSON)).toBe('soe_entry')
+    expect(getPortalForRole(ROLE.SYSTEM_ADMIN)).toBe('moip_review')
   })
 
   it('gives the MoIP Reviewer review, SOE registry and identity administration permissions', () => {
@@ -33,42 +33,70 @@ describe('permissions', () => {
     expect(DEMO_ROLES).toContain(ROLE.EXECUTIVE_VIEWER)
     expect(DEMO_ROLES).not.toContain(ROLE.ASSURANCE_USER)
     expect(DEMO_ROLES).not.toContain(ROLE.SYSTEM_ADMIN)
-    expect(DEMO_ROLES).not.toContain(ROLE.SECRETARY)
-    expect(DEMO_ROLES).not.toContain(ROLE.MINISTER)
-    expect(DEMO_ROLES).not.toContain(ROLE.PMO)
+    expect(DEMO_ROLES).toContain(ROLE.SECRETARY)
+    expect(DEMO_ROLES).toContain(ROLE.MINISTER)
+    expect(DEMO_ROLES).toContain(ROLE.PMO)
   })
 
-  it('normalizes legacy executive office roles to Executive Viewer', () => {
-    expect(normalizeRole(ROLE.SECRETARY)).toBe(ROLE.EXECUTIVE_VIEWER)
-    expect(normalizeRole(ROLE.MINISTER)).toBe(ROLE.EXECUTIVE_VIEWER)
-    expect(normalizeRole(ROLE.PMO)).toBe(ROLE.EXECUTIVE_VIEWER)
+  it('keeps executive office roles distinct for portal routing', () => {
+    expect(normalizeRole(ROLE.SECRETARY)).toBe(ROLE.SECRETARY)
+    expect(normalizeRole(ROLE.MINISTER)).toBe(ROLE.MINISTER)
+    expect(normalizeRole(ROLE.PMO)).toBe(ROLE.PMO)
   })
 
-  it('normalizes Assurance User and System Administrator to MoIP Reviewer', () => {
+  it('normalizes Assurance User but preserves System Administrator', () => {
     expect(normalizeRole(ROLE.ASSURANCE_USER)).toBe(ROLE.MOIP_REVIEWER)
-    expect(normalizeRole(ROLE.SYSTEM_ADMIN)).toBe(ROLE.MOIP_REVIEWER)
+    expect(normalizeRole(ROLE.SYSTEM_ADMIN)).toBe(ROLE.SYSTEM_ADMIN)
   })
 
-  it('allows Executive Viewer to access executive and SOE route namespaces', () => {
+  it('keeps Executive Viewer inside executive dashboard namespaces', () => {
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MOIP_EXECUTIVE)).toBe(true)
     expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SECRETARY)).toBe(true)
     expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MINISTER)).toBe(true)
     expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.PMO)).toBe(true)
-    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SOE)).toBe(true)
-    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MOIP)).toBe(true)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SOE_ENTRY)).toBe(false)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SOE_REVIEW)).toBe(false)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MOIP_REVIEW)).toBe(false)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.SOE)).toBe(false)
+    expect(canRoleAccessPortal(ROLE.EXECUTIVE_VIEWER, PORTAL.MOIP)).toBe(false)
   })
 
-  it('allows Executive Viewer operational write permissions', () => {
+  it('allows SOE Focal Person demo account to open all separated portal links', () => {
+    expect(canRoleAccessPortal(ROLE.SOE_FOCAL_PERSON, PORTAL.SOE_ENTRY)).toBe(true)
+    expect(canRoleAccessPortal(ROLE.SOE_FOCAL_PERSON, PORTAL.SOE_REVIEW)).toBe(true)
+    expect(canRoleAccessPortal(ROLE.SOE_FOCAL_PERSON, PORTAL.MOIP_REVIEW)).toBe(true)
+    expect(canRoleAccessPortal(ROLE.SOE_FOCAL_PERSON, PORTAL.MOIP_EXECUTIVE)).toBe(true)
+  })
+
+  it('keeps Executive Viewer read-only', () => {
     expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.PORTFOLIO_READ)).toBe(true)
     expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.EXECUTIVE_DASHBOARD_READ)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_SUBMIT)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_CERTIFY)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.FINANCE_EDIT)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.ASSETS_EDIT)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.COMPLIANCE_EDIT)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.DOCUMENT_UPLOAD)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.USER_READ)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.USER_MANAGE)).toBe(true)
-    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.AUDIT_LOG_READ)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_SUBMIT)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.SUBMISSION_CERTIFY)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.FINANCE_EDIT)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.ASSETS_EDIT)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.COMPLIANCE_EDIT)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.DOCUMENT_UPLOAD)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.USER_READ)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.USER_MANAGE)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.AUDIT_LOG_READ)).toBe(false)
+  })
+
+  it('exposes performance comparison to MoIP roles and the cross-portal focal demo account', () => {
+    expect(hasPermission(ROLE.MOIP_REVIEWER, PERMISSION.PERFORMANCE_COMPARISON_READ)).toBe(true)
+    expect(hasPermission(ROLE.MOIP_ANALYST, PERMISSION.PERFORMANCE_COMPARISON_READ)).toBe(true)
+    expect(hasPermission(ROLE.MOIP_SUPERVISOR, PERMISSION.PERFORMANCE_COMPARISON_READ)).toBe(true)
+    expect(hasPermission(ROLE.SOE_FOCAL_PERSON, PERMISSION.PERFORMANCE_COMPARISON_READ)).toBe(true)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.PERFORMANCE_COMPARISON_READ)).toBe(false)
+  })
+
+  it('allows controlled AI import for SOE entry and MOIP review roles only', () => {
+    expect(hasPermission(ROLE.SOE_FOCAL_PERSON, PERMISSION.AI_IMPORT_USE)).toBe(true)
+    expect(hasPermission(ROLE.FINANCE_OFFICER, PERMISSION.AI_IMPORT_USE)).toBe(true)
+    expect(hasPermission(ROLE.MOIP_REVIEWER, PERMISSION.AI_IMPORT_USE)).toBe(true)
+    expect(hasPermission(ROLE.MOIP_SUPERVISOR, PERMISSION.AI_IMPORT_USE)).toBe(true)
+    expect(hasPermission(ROLE.MOIP_ANALYST, PERMISSION.AI_IMPORT_USE)).toBe(false)
+    expect(hasPermission(ROLE.EXECUTIVE_VIEWER, PERMISSION.AI_IMPORT_USE)).toBe(false)
   })
 
   it('keeps legacy SOE data contributor out of the selectable demo roles', () => {

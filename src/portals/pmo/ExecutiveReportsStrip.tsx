@@ -206,19 +206,29 @@ export function ExecutiveReportsStrip({
   })
 
   const cardStride = CARD_WIDTH_PX + CARD_GAP_PX
+  const [maxIndex, setMaxIndex] = useState(0)
 
   const syncActiveIndex = useCallback(() => {
     const node = scrollRef.current
     if (!node || !cards.data?.length) return
+    const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
+    const maxIdx = Math.max(0, Math.round(maxScrollLeft / cardStride))
+    setMaxIndex(maxIdx)
+
     const index = Math.round(node.scrollLeft / cardStride)
-    setActiveIndex(Math.max(0, Math.min(index, cards.data.length - 1)))
+    setActiveIndex(Math.max(0, Math.min(index, maxIdx)))
   }, [cardStride, cards.data?.length])
 
   useEffect(() => {
     const node = scrollRef.current
     if (!node) return
+    syncActiveIndex()
     node.addEventListener('scroll', syncActiveIndex, { passive: true })
-    return () => node.removeEventListener('scroll', syncActiveIndex)
+    window.addEventListener('resize', syncActiveIndex)
+    return () => {
+      node.removeEventListener('scroll', syncActiveIndex)
+      window.removeEventListener('resize', syncActiveIndex)
+    }
   }, [syncActiveIndex, cards.data?.length])
 
   const scrollToIndex = (index: number) => {
@@ -229,7 +239,7 @@ export function ExecutiveReportsStrip({
   const scrollBy = (direction: 'left' | 'right') => {
     const next = direction === 'left' ? activeIndex - 1 : activeIndex + 1
     if (!cards.data?.length) return
-    scrollToIndex(Math.max(0, Math.min(next, cards.data.length - 1)))
+    scrollToIndex(Math.max(0, Math.min(next, maxIndex)))
   }
 
   const scopeMeta = [periodLabel, 'Cabinet & strategic briefs · read-only'].filter(Boolean).join(' · ')
@@ -290,13 +300,13 @@ export function ExecutiveReportsStrip({
             </button>
 
             <div className="flex items-center gap-1.5" role="tablist" aria-label="Report slides">
-              {cards.data.map((card, index) => (
+              {Array.from({ length: maxIndex + 1 }).map((_, index) => (
                 <button
-                  key={card.reportId}
+                  key={index}
                   type="button"
                   role="tab"
                   aria-selected={index === activeIndex}
-                  aria-label={`Go to ${card.name}`}
+                  aria-label={`Go to slide ${index + 1}`}
                   onClick={() => scrollToIndex(index)}
                   className={cn(
                     'h-2 rounded-full transition-all',
@@ -311,7 +321,7 @@ export function ExecutiveReportsStrip({
             <button
               type="button"
               aria-label="Next report"
-              disabled={activeIndex >= cards.data.length - 1}
+              disabled={activeIndex >= maxIndex}
               onClick={() => scrollBy('right')}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-soe-border bg-white text-soe-navy shadow-[var(--shadow-xs)] transition-colors hover:border-soe-blue/30 hover:bg-soe-canvas disabled:cursor-not-allowed disabled:opacity-40"
             >

@@ -1,8 +1,15 @@
 import {
   AUDIT_PARA_STATUS,
   DEMO_AS_OF_DATE,
+  LITIGATION_STAGE,
+  LITIGATION_STAGE_LABEL,
+  LITIGATION_STAGE_ORDER,
+  LITIGATION_STAGE_STATUS,
+  type LitigationStageId,
+  MODULE,
   PROCUREMENT_HIGH_VALUE_THRESHOLD_PKR,
   RECOVERY_STATUS,
+  ROLE,
 } from '@/constants'
 import { db } from '@/mock-data'
 import type {
@@ -10,9 +17,13 @@ import type {
   AuditPara,
   AuditRegister,
   ComplianceItem,
+  ContinuousRegisterSummary,
   ContractRecord,
   ListQuery,
   LitigationCase,
+  LitigationCaseEvent,
+  LitigationStageRecord,
+  LitigationStageSummary,
   PacObservation,
   PagedResult,
   ProcurementAnnualPlan,
@@ -146,6 +157,234 @@ export interface LitigationService {
   getCase(id: string): Promise<LitigationCase>
   createCase(payload: Omit<LitigationCase, 'id'> & { id?: string }): Promise<LitigationCase>
   updateCase(id: string, patch: Partial<LitigationCase>): Promise<LitigationCase>
+  addCaseEvent(caseId: string, payload: Omit<LitigationCaseEvent, 'id' | 'recordId' | 'organizationId' | 'moduleId' | 'caseId' | 'assuranceState' | 'isDummyDemonstrationData'>): Promise<LitigationCaseEvent>
+  getCaseEvents(caseId: string): Promise<LitigationCaseEvent[]>
+  getCaseStages(caseId: string): Promise<LitigationStageRecord[]>
+  saveCaseStage(
+    caseId: string,
+    stage: LitigationStageId,
+    payload: Record<string, string | number | boolean | undefined>,
+  ): Promise<LitigationStageRecord>
+  submitCaseStage(caseId: string, stage: LitigationStageId): Promise<LitigationStageRecord>
+  reviewCaseStage(
+    caseId: string,
+    stage: LitigationStageId,
+    decision: 'verify' | 'return',
+    comments?: string,
+  ): Promise<LitigationStageRecord>
+  getStageSummary(organizationId?: string): Promise<LitigationStageSummary[]>
+  getContinuousSummary(organizationId?: string): Promise<ContinuousRegisterSummary>
+}
+
+const litigationEvents = new Map<string, LitigationCaseEvent[]>()
+const litigationStages = new Map<string, LitigationStageRecord[]>()
+
+function eventDate(offsetDays: number) {
+  const date = new Date(`${DEMO_AS_OF_DATE}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + offsetDays)
+  return date.toISOString().slice(0, 10)
+}
+
+function daysSince(from: string | undefined) {
+  if (!from) return 999
+  const parsed = Date.parse(from)
+  const today = Date.parse(DEMO_AS_OF_DATE)
+  if (Number.isNaN(parsed) || Number.isNaN(today)) return 999
+  return Math.floor((today - parsed) / 86_400_000)
+}
+
+function caseAssuranceSeed(index: number): LitigationCase['assuranceState'] {
+  if (index % 7 === 0) return 'clarification_open'
+  if (index % 5 === 0) return 'published_to_moip'
+  if (index % 3 === 0) return 'submitted'
+  return 'moip_acknowledged'
+}
+
+function normalizeLitigationStage(value: string | undefined): LitigationStageId {
+  const normalized = (value ?? '').toLowerCase().replaceAll('&', ' ').replaceAll('-', ' ').replaceAll(' ', '_')
+  if (LITIGATION_STAGE_ORDER.includes(normalized as LitigationStageId)) {
+    return normalized as LitigationStageId
+  }
+  if (normalized.includes('appeal')) return LITIGATION_STAGE.APPEAL_REVIEW
+  if (normalized.includes('judg')) return LITIGATION_STAGE.JUDGMENT
+  if (normalized.includes('settle')) return LITIGATION_STAGE.SETTLEMENT
+  if (normalized.includes('evidence') || normalized.includes('argument')) return LITIGATION_STAGE.EVIDENCE_ARGUMENTS
+  if (normalized.includes('order') || normalized.includes('stay')) return LITIGATION_STAGE.INTERIM_ORDERS
+  if (normalized.includes('hearing') || normalized === 'active' || normalized === 'stayed') return LITIGATION_STAGE.HEARINGS
+  if (normalized.includes('plead')) return LITIGATION_STAGE.PLEADINGS
+  if (normalized.includes('file')) return LITIGATION_STAGE.FILING
+  if (normalized.includes('closed') || normalized.includes('disposed')) return LITIGATION_STAGE.CLOSURE
+  return LITIGATION_STAGE.INTAKE
+}
+
+function hydrateCase(row: LitigationCase, index = 0): LitigationCase {
+  const changedAt = row.lastChangedAt ?? eventDate(-((index % 12) + 1))
+  const submittedAt = row.lastSubmittedAt ?? changedAt
+  const verifiedAt = row.lastVerifiedAt ?? (index % 3 === 0 ? undefined : eventDate(-(index % 8)))
+  return {
+    ...row,
+    caseStage: row.caseStage ?? LITIGATION_STAGE_LABEL[normalizeLitigationStage(row.status)],
+    filedDate: row.filedDate ?? eventDate(-180 - index * 3),
+    receivedDate: row.receivedDate ?? eventDate(-175 - index * 3),
+    legalOwner: row.legalOwner ?? 'SOE Legal Cell',
+    currentExposurePkr: row.currentExposurePkr ?? row.amountInvolved ?? 0,
+    bestCaseExposurePkr: row.bestCaseExposurePkr ?? Math.round((row.amountInvolved ?? 0) * 0.35),
+    worstCaseExposurePkr: row.worstCaseExposurePkr ?? Math.round((row.amountInvolved ?? 0) * 1.25),
+    probabilityOfLoss: row.probabilityOfLoss ?? (index % 4 === 0 ? 'probable' : 'possible'),
+    accountingTreatment: row.accountingTreatment ?? (index % 4 === 0 ? 'provisioned' : 'disclosed'),
+    confidentiality: row.confidentiality ?? 'sensitive',
+    nextAction: row.nextAction ?? (row.nextHearing ? 'Prepare hearing brief' : 'Await court order'),
+    actionDueDate: row.actionDueDate ?? row.nextHearing,
+    latestEventTitle: row.latestEventTitle ?? (row.nextHearing ? 'Next hearing scheduled' : 'Case status updated'),
+    latestEventAt: row.latestEventAt ?? changedAt,
+    lastChangedAt: changedAt,
+    lastSubmittedAt: submittedAt,
+    lastVerifiedAt: verifiedAt,
+    assuranceState: row.assuranceState ?? caseAssuranceSeed(index),
+    version: row.version ?? index + 1,
+  }
+}
+
+function caseStagePayload(row: LitigationCase, stage: LitigationStageId) {
+  if (stage === LITIGATION_STAGE.INTAKE) {
+    return {
+      noticeReceivedAt: row.receivedDate,
+      legalOwner: row.legalOwner,
+      petitioner: row.petitioner,
+      respondent: row.respondent,
+      nature: row.nature,
+      confidentiality: row.confidentiality,
+    }
+  }
+  if (stage === LITIGATION_STAGE.FILING) {
+    return {
+      filedAt: row.filedDate,
+      court: row.court,
+      caseNumber: row.caseNumber,
+      counsel: row.lawyer,
+    }
+  }
+  if (stage === LITIGATION_STAGE.HEARINGS) {
+    return {
+      nextHearing: row.nextHearing,
+      nextAction: row.nextAction,
+      actionDueDate: row.actionDueDate,
+    }
+  }
+  if (stage === LITIGATION_STAGE.EVIDENCE_ARGUMENTS) {
+    return {
+      evidenceAvailable: row.evidenceAvailable,
+      relatedAssetId: row.relatedAssetId,
+      relatedAuditParaId: row.relatedAuditParaId,
+    }
+  }
+  if (stage === LITIGATION_STAGE.JUDGMENT || stage === LITIGATION_STAGE.SETTLEMENT) {
+    return {
+      currentExposurePkr: row.currentExposurePkr,
+      bestCaseExposurePkr: row.bestCaseExposurePkr,
+      worstCaseExposurePkr: row.worstCaseExposurePkr,
+      accountingTreatment: row.accountingTreatment,
+      probabilityOfLoss: row.probabilityOfLoss,
+    }
+  }
+  if (stage === LITIGATION_STAGE.CLOSURE) {
+    return {
+      status: row.status,
+      completedAt: row.status === 'disposed' ? row.lastChangedAt : undefined,
+    }
+  }
+  return {
+    nextAction: row.nextAction,
+    actionDueDate: row.actionDueDate,
+    currentExposurePkr: row.currentExposurePkr,
+  }
+}
+
+function ensureCaseStages(row: LitigationCase, index = 0) {
+  const existing = litigationStages.get(row.id)
+  if (existing?.length === LITIGATION_STAGE_ORDER.length) return existing
+
+  const c = hydrateCase(row, index)
+  const activeStage = normalizeLitigationStage(c.caseStage ?? c.status)
+  const activeIndex = LITIGATION_STAGE_ORDER.indexOf(activeStage)
+  const records = LITIGATION_STAGE_ORDER.map((stage, stageIndex): LitigationStageRecord => {
+    const isPast = stageIndex < activeIndex
+    const isActive = stageIndex === activeIndex
+    return {
+      id: `lit-stage-${c.id}-${stage}`,
+      caseId: c.id,
+      organizationId: c.organizationId,
+      stage,
+      status: isPast
+        ? LITIGATION_STAGE_STATUS.VERIFIED
+        : isActive
+          ? c.assuranceState === 'returned'
+            ? LITIGATION_STAGE_STATUS.RETURNED
+            : c.assuranceState === 'moip_acknowledged'
+              ? LITIGATION_STAGE_STATUS.VERIFIED
+              : LITIGATION_STAGE_STATUS.SUBMITTED
+          : LITIGATION_STAGE_STATUS.NOT_STARTED,
+      startedAt: isPast || isActive ? c.filedDate ?? c.receivedDate ?? c.lastChangedAt : undefined,
+      completedAt: isPast ? c.lastVerifiedAt ?? c.lastSubmittedAt : undefined,
+      updatedAt: isPast || isActive ? c.lastChangedAt ?? DEMO_AS_OF_DATE : DEMO_AS_OF_DATE,
+      submittedAt: isActive ? c.lastSubmittedAt : isPast ? c.lastVerifiedAt ?? c.lastSubmittedAt : undefined,
+      verifiedAt: isPast || c.assuranceState === 'moip_acknowledged' ? c.lastVerifiedAt : undefined,
+      evidenceComplete: stage === LITIGATION_STAGE.EVIDENCE_ARGUMENTS ? c.evidenceAvailable : stageIndex <= activeIndex,
+      payload: caseStagePayload(c, stage),
+      isDummyDemonstrationData: true,
+    }
+  })
+  litigationStages.set(c.id, records)
+  return records
+}
+
+function ensureCaseEvents(row: LitigationCase) {
+  const existing = litigationEvents.get(row.id)
+  if (existing && existing[0]?.title === row.latestEventTitle) {
+    return existing
+  }
+  const c = hydrateCase(row)
+  const events: LitigationCaseEvent[] = [
+    {
+      id: `lit-${c.id}-latest`,
+      recordId: c.id,
+      caseId: c.id,
+      organizationId: c.organizationId,
+      moduleId: MODULE.LITIGATION,
+      occurredAt: c.latestEventAt ?? c.lastChangedAt ?? DEMO_AS_OF_DATE,
+      effectiveAt: c.latestEventAt ?? c.lastChangedAt,
+      actorRole: ROLE.LEGAL_OFFICER,
+      actorName: 'SOE Legal Officer',
+      eventType: c.nextHearing ? 'hearing' : 'correction',
+      stage: normalizeLitigationStage(c.caseStage ?? c.status),
+      title: c.latestEventTitle ?? 'Case updated',
+      detail: c.nextAction,
+      nextHearing: c.nextHearing,
+      assuranceState: c.assuranceState ?? 'submitted',
+      isMaterial: true,
+      isDummyDemonstrationData: true,
+    },
+    {
+      id: `lit-${c.id}-created`,
+      recordId: c.id,
+      caseId: c.id,
+      organizationId: c.organizationId,
+      moduleId: MODULE.LITIGATION,
+      occurredAt: c.filedDate ?? eventDate(-180),
+      effectiveAt: c.filedDate,
+      actorRole: ROLE.LEGAL_OFFICER,
+      actorName: 'SOE Legal Officer',
+      eventType: 'case_filed',
+      stage: LITIGATION_STAGE.FILING,
+      title: 'Case opened in litigation register',
+      detail: `${c.petitioner} vs ${c.respondent}`,
+      assuranceState: 'submitted',
+      isMaterial: true,
+      isDummyDemonstrationData: true,
+    },
+  ]
+  litigationEvents.set(c.id, events)
+  return events
 }
 
 export interface ComplianceService {
@@ -423,7 +662,7 @@ export const mockAuditService: AuditService = {
 
 export const mockLitigationService: LitigationService = {
   async getCases(organizationId, filters) {
-    let items = [...db.litigation]
+    let items = db.litigation.map((item, index) => hydrateCase(item, index))
     if (organizationId) items = items.filter((c) => c.organizationId === organizationId)
     if (filters?.court) items = items.filter((c) => c.court === filters.court)
     if (filters?.status) items = items.filter((c) => c.status === filters.status)
@@ -440,9 +679,12 @@ export const mockLitigationService: LitigationService = {
     return simulateLatency(items)
   },
   async getCase(id) {
-    const row = db.litigation.find((c) => c.id === id)
+    const idx = db.litigation.findIndex((c) => c.id === id)
+    const row = idx >= 0 ? db.litigation[idx] : undefined
     if (!row) throw new AppError('Litigation case not found', 'NOT_FOUND')
-    return simulateLatency(row)
+    const hydrated = hydrateCase(row, idx)
+    ensureCaseEvents(hydrated)
+    return simulateLatency(hydrated)
   },
   async createCase(payload) {
     const id = payload.id ?? `lit-new-${Date.now()}`
@@ -451,8 +693,23 @@ export const mockLitigationService: LitigationService = {
     if (payload.amountInvolved != null && payload.amountInvolved < 0) {
       throw new AppError('Amount cannot be negative', 'VALIDATION')
     }
-    const next: LitigationCase = { ...payload, id, isDummyDemonstrationData: true }
+    const next: LitigationCase = hydrateCase(
+      {
+        ...payload,
+        id,
+        lastChangedAt: DEMO_AS_OF_DATE,
+        lastSubmittedAt: DEMO_AS_OF_DATE,
+        latestEventAt: DEMO_AS_OF_DATE,
+        latestEventTitle: 'Case submitted to SOE reviewer',
+        assuranceState: 'submitted',
+        version: 1,
+        isDummyDemonstrationData: true,
+      },
+      db.litigation.length,
+    )
     db.litigation.push(next)
+    ensureCaseEvents(next)
+    ensureCaseStages(next, db.litigation.length - 1)
     return simulateMutation(next)
   },
   async updateCase(id, patch) {
@@ -464,8 +721,289 @@ export const mockLitigationService: LitigationService = {
     if (patch.nextHearing && Number.isNaN(Date.parse(patch.nextHearing))) {
       throw new AppError('Invalid hearing date', 'VALIDATION')
     }
-    db.litigation[idx] = { ...db.litigation[idx], ...patch, id }
+    const current = hydrateCase(db.litigation[idx], idx)
+    const next = hydrateCase(
+      {
+        ...current,
+        ...patch,
+        id,
+        currentExposurePkr: patch.currentExposurePkr ?? patch.amountInvolved ?? current.currentExposurePkr,
+        latestEventAt: DEMO_AS_OF_DATE,
+        latestEventTitle: 'Case update submitted to SOE reviewer',
+        lastChangedAt: DEMO_AS_OF_DATE,
+        lastSubmittedAt: DEMO_AS_OF_DATE,
+        assuranceState: 'submitted',
+        version: (current.version ?? 1) + 1,
+      },
+      idx,
+    )
+    db.litigation[idx] = next
+    const events = ensureCaseEvents(next)
+    ensureCaseStages(next, idx)
+    events.unshift({
+      id: `lit-${id}-${Date.now()}`,
+      recordId: id,
+      caseId: id,
+      organizationId: next.organizationId,
+      moduleId: MODULE.LITIGATION,
+      occurredAt: DEMO_AS_OF_DATE,
+      effectiveAt: DEMO_AS_OF_DATE,
+      actorRole: ROLE.LEGAL_OFFICER,
+      actorName: 'SOE Legal Officer',
+      eventType: 'correction',
+      stage: normalizeLitigationStage(next.caseStage ?? next.status),
+      title: 'Case update submitted',
+      detail: 'Continuous litigation update awaiting SOE reviewer verification.',
+      nextHearing: next.nextHearing,
+      exposureDeltaPkr:
+        next.currentExposurePkr != null && current.currentExposurePkr != null
+          ? next.currentExposurePkr - current.currentExposurePkr
+          : undefined,
+      assuranceState: 'submitted',
+      isMaterial: true,
+      isDummyDemonstrationData: true,
+    })
     return simulateMutation(db.litigation[idx])
+  },
+  async addCaseEvent(caseId, payload) {
+    const idx = db.litigation.findIndex((c) => c.id === caseId)
+    if (idx < 0) throw new AppError('Litigation case not found', 'NOT_FOUND')
+    const current = hydrateCase(db.litigation[idx], idx)
+    const next: LitigationCaseEvent = {
+      ...payload,
+      id: `lit-event-${caseId}-${Date.now()}`,
+      recordId: caseId,
+      caseId,
+      organizationId: current.organizationId,
+      moduleId: MODULE.LITIGATION,
+      assuranceState: 'submitted',
+      isMaterial: payload.isMaterial ?? true,
+      isDummyDemonstrationData: true,
+    }
+    const events = ensureCaseEvents(current)
+    events.unshift(next)
+    db.litigation[idx] = hydrateCase(
+      {
+        ...current,
+        nextHearing: payload.nextHearing ?? current.nextHearing,
+        latestEventAt: payload.occurredAt,
+        latestEventTitle: payload.title,
+        lastChangedAt: payload.occurredAt,
+        lastSubmittedAt: payload.occurredAt,
+        assuranceState: 'submitted',
+        version: (current.version ?? 1) + 1,
+      },
+      idx,
+    )
+    ensureCaseStages(db.litigation[idx], idx)
+    return simulateMutation(next)
+  },
+  async getCaseEvents(caseId) {
+    const idx = db.litigation.findIndex((c) => c.id === caseId)
+    if (idx < 0) throw new AppError('Litigation case not found', 'NOT_FOUND')
+    return simulateLatency(ensureCaseEvents(hydrateCase(db.litigation[idx], idx)))
+  },
+  async getCaseStages(caseId) {
+    const idx = db.litigation.findIndex((c) => c.id === caseId)
+    if (idx < 0) throw new AppError('Litigation case not found', 'NOT_FOUND')
+    return simulateLatency(ensureCaseStages(db.litigation[idx], idx))
+  },
+  async saveCaseStage(caseId, stage, payload) {
+    const idx = db.litigation.findIndex((c) => c.id === caseId)
+    if (idx < 0) throw new AppError('Litigation case not found', 'NOT_FOUND')
+    const caseRow = hydrateCase(db.litigation[idx], idx)
+    const stages = ensureCaseStages(caseRow, idx)
+    const current = stages.find((item) => item.stage === stage)
+    if (!current) throw new AppError('Litigation stage not found', 'NOT_FOUND')
+    const next: LitigationStageRecord = {
+      ...current,
+      status:
+        current.status === LITIGATION_STAGE_STATUS.VERIFIED
+          ? LITIGATION_STAGE_STATUS.IN_PROGRESS
+          : current.status,
+      startedAt: current.startedAt ?? DEMO_AS_OF_DATE,
+      updatedAt: DEMO_AS_OF_DATE,
+      evidenceComplete: Boolean(payload.evidenceAvailable ?? current.evidenceComplete),
+      payload: {
+        ...current.payload,
+        ...payload,
+      },
+    }
+    litigationStages.set(
+      caseId,
+      stages.map((item) => (item.stage === stage ? next : item)),
+    )
+    db.litigation[idx] = hydrateCase(
+      {
+        ...caseRow,
+        caseStage: LITIGATION_STAGE_LABEL[stage],
+        lastChangedAt: DEMO_AS_OF_DATE,
+        latestEventAt: DEMO_AS_OF_DATE,
+        latestEventTitle: `${LITIGATION_STAGE_LABEL[stage]} stage updated`,
+        assuranceState: 'draft',
+        version: (caseRow.version ?? 1) + 1,
+      },
+      idx,
+    )
+    return simulateMutation(next)
+  },
+  async submitCaseStage(caseId, stage) {
+    const idx = db.litigation.findIndex((c) => c.id === caseId)
+    if (idx < 0) throw new AppError('Litigation case not found', 'NOT_FOUND')
+    const caseRow = hydrateCase(db.litigation[idx], idx)
+    const stages = ensureCaseStages(caseRow, idx)
+    const current = stages.find((item) => item.stage === stage)
+    if (!current) throw new AppError('Litigation stage not found', 'NOT_FOUND')
+    const next: LitigationStageRecord = {
+      ...current,
+      status: LITIGATION_STAGE_STATUS.SUBMITTED,
+      updatedAt: DEMO_AS_OF_DATE,
+      submittedAt: DEMO_AS_OF_DATE,
+    }
+    litigationStages.set(caseId, stages.map((item) => (item.stage === stage ? next : item)))
+    const events = ensureCaseEvents(caseRow)
+    events.unshift({
+      id: `lit-stage-submit-${caseId}-${stage}-${Date.now()}`,
+      recordId: caseId,
+      caseId,
+      organizationId: caseRow.organizationId,
+      moduleId: MODULE.LITIGATION,
+      occurredAt: DEMO_AS_OF_DATE,
+      effectiveAt: DEMO_AS_OF_DATE,
+      actorRole: ROLE.LEGAL_OFFICER,
+      actorName: 'SOE Legal Officer',
+      eventType: 'correction',
+      stage,
+      title: `${LITIGATION_STAGE_LABEL[stage]} stage submitted`,
+      detail: 'Stage-wise litigation update awaiting SOE reviewer verification.',
+      assuranceState: 'submitted',
+      isMaterial: true,
+      isDummyDemonstrationData: true,
+    })
+    db.litigation[idx] = hydrateCase(
+      {
+        ...caseRow,
+        caseStage: LITIGATION_STAGE_LABEL[stage],
+        lastChangedAt: DEMO_AS_OF_DATE,
+        lastSubmittedAt: DEMO_AS_OF_DATE,
+        latestEventAt: DEMO_AS_OF_DATE,
+        latestEventTitle: `${LITIGATION_STAGE_LABEL[stage]} stage submitted`,
+        assuranceState: 'submitted',
+        version: (caseRow.version ?? 1) + 1,
+      },
+      idx,
+    )
+    return simulateMutation(next)
+  },
+  async reviewCaseStage(caseId, stage, decision, comments) {
+    const idx = db.litigation.findIndex((c) => c.id === caseId)
+    if (idx < 0) throw new AppError('Litigation case not found', 'NOT_FOUND')
+    const caseRow = hydrateCase(db.litigation[idx], idx)
+    const stages = ensureCaseStages(caseRow, idx)
+    const current = stages.find((item) => item.stage === stage)
+    if (!current) throw new AppError('Litigation stage not found', 'NOT_FOUND')
+    const verified = decision === 'verify'
+    const next: LitigationStageRecord = {
+      ...current,
+      status: verified ? LITIGATION_STAGE_STATUS.VERIFIED : LITIGATION_STAGE_STATUS.RETURNED,
+      updatedAt: DEMO_AS_OF_DATE,
+      verifiedAt: verified ? DEMO_AS_OF_DATE : current.verifiedAt,
+      reviewerComments: comments,
+    }
+    litigationStages.set(caseId, stages.map((item) => (item.stage === stage ? next : item)))
+    const events = ensureCaseEvents(caseRow)
+    events.unshift({
+      id: `lit-stage-review-${caseId}-${stage}-${Date.now()}`,
+      recordId: caseId,
+      caseId,
+      organizationId: caseRow.organizationId,
+      moduleId: MODULE.LITIGATION,
+      occurredAt: DEMO_AS_OF_DATE,
+      effectiveAt: DEMO_AS_OF_DATE,
+      actorRole: ROLE.SOE_CERTIFIER,
+      actorName: 'SOE Reviewer',
+      eventType: verified ? 'legal_opinion' : 'correction',
+      stage,
+      title: `${LITIGATION_STAGE_LABEL[stage]} stage ${verified ? 'verified' : 'returned'}`,
+      detail: comments,
+      assuranceState: verified ? 'soe_verified' : 'returned',
+      isMaterial: true,
+      isDummyDemonstrationData: true,
+    })
+    db.litigation[idx] = hydrateCase(
+      {
+        ...caseRow,
+        caseStage: LITIGATION_STAGE_LABEL[stage],
+        lastChangedAt: DEMO_AS_OF_DATE,
+        lastVerifiedAt: verified ? DEMO_AS_OF_DATE : caseRow.lastVerifiedAt,
+        latestEventAt: DEMO_AS_OF_DATE,
+        latestEventTitle: `${LITIGATION_STAGE_LABEL[stage]} stage ${verified ? 'verified' : 'returned'}`,
+        assuranceState: verified ? 'soe_verified' : 'returned',
+        version: (caseRow.version ?? 1) + 1,
+      },
+      idx,
+    )
+    return simulateMutation(next)
+  },
+  async getStageSummary(organizationId) {
+    const cases = db.litigation
+      .map((item, index) => hydrateCase(item, index))
+      .filter((item) => !organizationId || item.organizationId === organizationId)
+    const summaries = LITIGATION_STAGE_ORDER.map((stage): LitigationStageSummary => {
+      const stageCases = cases.filter((item) => normalizeLitigationStage(item.caseStage ?? item.status) === stage)
+      const records = cases.flatMap((item, index) => ensureCaseStages(item, index)).filter((item) => item.stage === stage)
+      return {
+        stage,
+        label: LITIGATION_STAGE_LABEL[stage],
+        count: stageCases.length,
+        exposurePkr: stageCases.reduce((sum, item) => sum + (item.currentExposurePkr ?? item.amountInvolved ?? 0), 0),
+        stale: records.filter((item) => daysSince(item.submittedAt ?? item.updatedAt) > 15 && item.status !== LITIGATION_STAGE_STATUS.VERIFIED).length,
+        pendingReview: records.filter((item) => item.status === LITIGATION_STAGE_STATUS.SUBMITTED).length,
+      }
+    })
+    return simulateLatency(summaries)
+  },
+  async getContinuousSummary(organizationId) {
+    const cases = db.litigation
+      .map((item, index) => hydrateCase(item, index))
+      .filter((item) => !organizationId || item.organizationId === organizationId)
+    const active = cases.filter((item) => item.status !== 'closed')
+    const upcomingCutoff = eventDate(30)
+    const exposureDeltas = [...litigationEvents.values()]
+      .flat()
+      .filter((event) => !organizationId || event.organizationId === organizationId)
+      .filter((event) => daysSince(event.occurredAt) <= 30)
+      .reduce((sum, event) => sum + Math.abs(event.exposureDeltaPkr ?? 0), 0)
+    const lastVerifiedAt = cases
+      .map((item) => item.lastVerifiedAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1)
+    const stageCounts = cases.reduce<NonNullable<ContinuousRegisterSummary['stageCounts']>>((acc, item) => {
+      const stage = normalizeLitigationStage(item.caseStage ?? item.status)
+      acc[stage] = (acc[stage] ?? 0) + 1
+      return acc
+    }, {})
+    return simulateLatency({
+      moduleId: MODULE.LITIGATION,
+      cadence: 'event_based',
+      activeRecords: active.filter((item) => item.status !== 'disposed').length,
+      pendingSoeReview: cases.filter((item) => item.assuranceState === 'submitted').length,
+      pendingMoipAcknowledgement: cases.filter((item) => item.assuranceState === 'published_to_moip').length,
+      clarificationOpen: cases.filter((item) => item.assuranceState === 'clarification_open').length,
+      staleRecords: cases.filter((item) => daysSince(item.lastSubmittedAt) > 15 && item.assuranceState !== 'moip_acknowledged').length,
+      materialChanges30d: cases.filter((item) => daysSince(item.lastChangedAt) <= 30).length,
+      dueSoon: cases.filter(
+        (item) =>
+          item.nextHearing &&
+          item.nextHearing >= DEMO_AS_OF_DATE &&
+          item.nextHearing <= upcomingCutoff,
+      ).length,
+      lastVerifiedAt,
+      snapshotPeriodLabel: `FY2027 litigation schedule generated from live register · exposure delta ${formatCurrencyPkr(exposureDeltas)}`,
+      asOfDate: DEMO_AS_OF_DATE,
+      stageCounts,
+    })
   },
 }
 

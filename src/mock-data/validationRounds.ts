@@ -149,7 +149,7 @@ export const validationRounds: ValidationRoundDefinition[] = [
       {
         order: 4,
         role: ROLE.SOE_FOCAL_PERSON,
-        route: '/soe/readiness',
+        route: '/soe/submissions?tab=submit',
         action: 'Submit to MoIP',
         expected: 'Appears in MoIP queue',
       },
@@ -397,7 +397,7 @@ export const validationRounds: ValidationRoundDefinition[] = [
       {
         order: 1,
         role: ROLE.SOE_FOCAL_PERSON,
-        route: '/soe/readiness',
+        route: '/soe/submissions?tab=submit',
         action: 'Confirm SOE end-to-end path still coherent',
         expected: 'Task-first completion model affirmed',
       },

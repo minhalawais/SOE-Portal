@@ -1021,7 +1021,13 @@ export function LoanDetailWorkspace({ portal = 'soe' }: { portal?: PortalMode })
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-xs font-semibold text-soe-slate">Interest %</span>
-                <input className={inputClass} min={0} type="number" value={draft.interestRate} onChange={(e) => setDraft({ ...draft, interestRate: Number(e.target.value) })} />
+                <input
+                  className={inputClass}
+                  min={0}
+                  type="number"
+                  value={draft.interestRate === 0 ? '' : draft.interestRate}
+                  onChange={(e) => setDraft({ ...draft, interestRate: Number(e.target.value) })}
+                />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block text-xs font-semibold text-soe-slate">Next due</span>

@@ -86,13 +86,13 @@ describe('Phase 23 Role × Permission matrix', () => {
   })
 
   it('maps roles to correct portals (executive vs operational)', () => {
-    expect(getPortalForRole(ROLE.SOE_FOCAL_PERSON)).toBe('soe')
-    expect(getPortalForRole(ROLE.CFO)).toBe('soe')
-    expect(getPortalForRole(ROLE.MOIP_REVIEWER)).toBe('moip')
-    expect(getPortalForRole(ROLE.MOIP_ANALYST)).toBe('moip')
-    expect(getPortalForRole(ROLE.SECRETARY)).toBe('secretary')
-    expect(getPortalForRole(ROLE.MINISTER)).toBe('minister')
-    expect(getPortalForRole(ROLE.PMO)).toBe('pmo')
+    expect(getPortalForRole(ROLE.SOE_FOCAL_PERSON)).toBe('soe_entry')
+    expect(getPortalForRole(ROLE.CFO)).toBe('soe_review')
+    expect(getPortalForRole(ROLE.MOIP_REVIEWER)).toBe('moip_review')
+    expect(getPortalForRole(ROLE.MOIP_ANALYST)).toBe('moip_review')
+    expect(getPortalForRole(ROLE.SECRETARY)).toBe('moip_executive')
+    expect(getPortalForRole(ROLE.MINISTER)).toBe('moip_executive')
+    expect(getPortalForRole(ROLE.PMO)).toBe('moip_executive')
     expect(getPortalForRole(ROLE.ASSURANCE_USER)).toBe('assurance')
   })
 

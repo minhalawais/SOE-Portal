@@ -34,8 +34,13 @@ function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : 'Never'
 }
 
+function moipAdministrationRole(role: RoleId): RoleId {
+  return role === ROLE.SOE_FOCAL_PERSON ? ROLE.MOIP_REVIEWER : role
+}
+
 export function MoipSoeAdministrationPage() {
   const role = useSessionStore((state) => state.role)
+  const administrationRole = moipAdministrationRole(role)
   const pushToast = useUiStore((state) => state.pushToast)
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
@@ -51,7 +56,7 @@ export function MoipSoeAdministrationPage() {
   const [ownership, setOwnership] = useState('100')
   const organizations = useQuery({ queryKey: ['organizations', 'administration'], queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 250 }) })
   const createMutation = useMutation({
-    mutationFn: () => mockAdministrationService.createOrganization(role, { name, abbreviation, legalStatus, sector, subSector: subSector || undefined, parentMinistry: ministry, attachedDepartment: department || undefined, headOfficeAddress: address, governmentOwnershipPct: Number(ownership) }),
+    mutationFn: () => mockAdministrationService.createOrganization(administrationRole, { name, abbreviation, legalStatus, sector, subSector: subSector || undefined, parentMinistry: ministry, attachedDepartment: department || undefined, headOfficeAddress: address, governmentOwnershipPct: Number(ownership) }),
     onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['organizations'] }); setShowCreate(false); setName(''); setAbbreviation(''); setSector(''); setSubSector(''); setDepartment(''); setAddress(''); setOwnership('100'); pushToast({ title: 'SOE added to the master registry.', tone: 'success' }) },
     onError: (error) => pushToast({ title: errorTitle(error, 'Unable to add SOE.'), tone: 'critical' }),
   })
@@ -66,12 +71,13 @@ export function MoipSoeAdministrationPage() {
       <TextField label="Government ownership (%)" type="number" min="0" max="100" value={ownership} onChange={(e) => setOwnership(e.target.value)} /><div className="flex items-end gap-2"><Button disabled={!name.trim() || !abbreviation.trim() || !sector.trim() || !address.trim()} loading={createMutation.isPending} onClick={() => createMutation.mutate()}>Create enterprise</Button><Button variant="tertiary" onClick={() => setShowCreate(false)}>Cancel</Button></div>
     </div></Card> : null}
     <div className="mb-4 max-w-md"><TextField label="Search registry" value={search} placeholder="Name, abbreviation, sector or ministry" onChange={(e) => setSearch(e.target.value)} /></div>
-    {organizations.isLoading ? <LoadingBlock /> : organizations.isError ? <ErrorState title="Unable to load SOE registry" /> : <section className="overflow-hidden rounded-card border border-soe-border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[1100px] text-left text-sm"><thead className="bg-soe-canvas text-xs uppercase text-soe-slate"><tr><th className="px-4 py-3">SOE</th><th>Sector / subsector</th><th>Legal status</th><th>Ownership</th><th>Parent ministry</th><th>Lifecycle</th><th>Administration</th><th>Submitted data</th></tr></thead><tbody>{items.map((organization) => <tr key={organization.id} className="border-t border-soe-border"><td className="px-4 py-3"><p className="font-semibold text-soe-navy">{organization.name}</p><p className="text-xs text-soe-slate">{organization.abbreviation}</p></td><td>{organization.sector}<p className="text-xs text-soe-slate">{organization.subSector || 'Not classified'}</p></td><td>{LEGAL_STATUS_LABEL[organization.legalStatus]}</td><td>{organization.governmentOwnershipPct}%</td><td>{organization.parentMinistry}<p className="text-xs text-soe-slate">{organization.attachedDepartment || 'No attached department'}</p></td><td><StatusBadge status={organization.status} label={SOE_STATUS_LABEL[organization.status]} /></td><td><Link className="font-medium text-soe-blue hover:underline" to={`/moip/admin/soes/${organization.id}`}>Manage profile</Link></td><td><Link className="text-soe-blue hover:underline" to={`/moip/enterprise/${organization.id}/review`}>Review package</Link></td></tr>)}</tbody></table></div></section>}
+    {organizations.isLoading ? <LoadingBlock /> : organizations.isError ? <ErrorState title="Unable to load SOE registry" /> : <section className="overflow-hidden rounded-card border border-soe-border bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="bg-soe-canvas text-xs uppercase text-soe-slate"><tr><th className="px-4 py-3">SOE</th><th>Sector / subsector</th><th>Legal status</th><th>Ownership</th><th>Parent ministry</th><th>Lifecycle</th><th>Administration</th></tr></thead><tbody>{items.map((organization) => <tr key={organization.id} className="border-t border-soe-border"><td className="px-4 py-3"><p className="font-semibold text-soe-navy">{organization.name}</p><p className="text-xs text-soe-slate">{organization.abbreviation}</p></td><td>{organization.sector}<p className="text-xs text-soe-slate">{organization.subSector || 'Not classified'}</p></td><td>{LEGAL_STATUS_LABEL[organization.legalStatus]}</td><td>{organization.governmentOwnershipPct}%</td><td>{organization.parentMinistry}<p className="text-xs text-soe-slate">{organization.attachedDepartment || 'No attached department'}</p></td><td><StatusBadge status={organization.status} label={SOE_STATUS_LABEL[organization.status]} /></td><td><Link className="font-medium text-soe-blue hover:underline" to={`/moip-review/admin/soes/${organization.id}`}>Manage profile</Link></td></tr>)}</tbody></table></div></section>}
   </div>
 }
 
 export function MoipUserManagementPage() {
   const role = useSessionStore((state) => state.role)
+  const administrationRole = moipAdministrationRole(role)
   const pushToast = useUiStore((state) => state.pushToast)
   const queryClient = useQueryClient()
   const [showInvite, setShowInvite] = useState(false)
@@ -85,10 +91,10 @@ export function MoipUserManagementPage() {
   const [ministry, setMinistry] = useState('Ministry of Industries and Production')
   const [department, setDepartment] = useState('')
   const [temporaryAccessUntil, setTemporaryAccessUntil] = useState('')
-  const users = useQuery({ queryKey: ['admin-users'], queryFn: () => mockAdministrationService.listUsers(role) })
+  const users = useQuery({ queryKey: ['admin-users'], queryFn: () => mockAdministrationService.listUsers(administrationRole) })
   const organizations = useQuery({ queryKey: ['organizations', 'user-admin'], queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 250 }) })
   const inviteMutation = useMutation({
-    mutationFn: () => mockAdministrationService.inviteUser(role, {
+    mutationFn: () => mockAdministrationService.inviteUser(administrationRole, {
       name,
       email,
       roles,
@@ -114,7 +120,7 @@ export function MoipUserManagementPage() {
     },
     onError: (error) => pushToast({ title: errorTitle(error, 'Unable to invite user.'), tone: 'critical' }),
   })
-  const resetMutation = useMutation({ mutationFn: (id: string) => mockAdministrationService.sendPasswordReset(role, id), onSuccess: () => pushToast({ title: 'Secure password-reset link sent. Passwords are never displayed.', tone: 'success' }), onError: (error) => pushToast({ title: errorTitle(error, 'Unable to send reset link.'), tone: 'critical' }) })
+  const resetMutation = useMutation({ mutationFn: (id: string) => mockAdministrationService.sendPasswordReset(administrationRole, id), onSuccess: () => pushToast({ title: 'Secure password-reset link sent. Passwords are never displayed.', tone: 'success' }), onError: (error) => pushToast({ title: errorTitle(error, 'Unable to send reset link.'), tone: 'critical' }) })
   const items = (users.data ?? []).filter((item) => `${item.name} ${item.email} ${item.roles.join(' ')} ${item.customRoleEnabled ? 'custom' : ''} ${item.status}`.toLowerCase().includes(search.toLowerCase()))
   const orgName = (id: string) => organizations.data?.items.find((item) => item.id === id)?.abbreviation ?? id
   const canInvite =
@@ -318,10 +324,11 @@ export function MoipUserManagementPage() {
 
 export function MoipAdministrationAuditPage() {
   const role = useSessionStore((state) => state.role)
+  const administrationRole = moipAdministrationRole(role)
   const [search, setSearch] = useState('')
   const query = useQuery({
     queryKey: ['administration-audit'],
-    queryFn: () => mockAdministrationService.listAuditEvents(role),
+    queryFn: () => mockAdministrationService.listAuditEvents(administrationRole),
   })
   const items = (query.data ?? []).filter((event) =>
     `${event.action} ${event.detail} ${event.targetType} ${event.targetId} ${event.actorRole}`

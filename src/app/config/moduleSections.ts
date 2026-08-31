@@ -70,14 +70,17 @@ export function isModuleSectionTabActive(
   pathname: string,
   tabs: readonly ModuleSectionTab[] = [],
 ) {
-  if (tab.isActive) return tab.isActive(pathname)
-  if (pathname === tab.to) return true
-  if (tab.end || !pathname.startsWith(`${tab.to}/`)) return false
+  const comparablePath = pathname
+    .replace(/^\/soe-entry(?=\/|$)/, '/soe')
+    .replace(/^\/soe-review(?=\/|$)/, '/soe')
+  if (tab.isActive) return tab.isActive(comparablePath)
+  if (comparablePath === tab.to) return true
+  if (tab.end || !comparablePath.startsWith(`${tab.to}/`)) return false
   return !tabs.some(
     (peer) =>
       peer.to !== tab.to &&
       peer.to.length > tab.to.length &&
-      (pathname === peer.to || pathname.startsWith(`${peer.to}/`)),
+      (comparablePath === peer.to || comparablePath.startsWith(`${peer.to}/`)),
   )
 }
 

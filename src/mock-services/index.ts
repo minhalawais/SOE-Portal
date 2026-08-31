@@ -28,8 +28,22 @@ export { mockSoePortalService } from './soePortal.service'
 export { mockSoeExecutiveService } from './soeExecutive.service'
 export { mockExecutiveDashboardService } from './executiveDashboard.service'
 export { mockMoipPortalService } from './moipPortal.service'
+export { mockPerformanceComparisonService } from './performanceComparison.service'
 export { mockModuleReviewService } from './moduleReview.service'
 export { mockAdministrationService } from './administration.service'
+export {
+  mockIntelligentImportService,
+  intelligentImportLimits,
+  canUseIntelligentImport,
+} from './intelligentImport.service'
+export type {
+  IntelligentImportBatch,
+  IntelligentImportContext,
+  IntelligentImportFile,
+  IntelligentImportPortal,
+  IntelligentImportRow,
+  ImportValidationState,
+} from './intelligentImport.service'
 export {
   resetDemoData,
   beginQaCycle,

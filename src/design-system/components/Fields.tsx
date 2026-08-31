@@ -1,4 +1,4 @@
-import { useEffect, useState, useId, type ChangeEvent, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { useEffect, useState, useId, useRef, type ChangeEvent, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { cn, formatCompactPkrPreview, parseNumericInput } from '@/utils'
 import { LabelText, HelperText } from '@/design-system/foundations/Layout'
 
@@ -61,6 +61,10 @@ function describedBy(error?: string, hint?: string, errorId?: string, hintId?: s
   return undefined
 }
 
+function isZeroFormValue(value: InputHTMLAttributes<HTMLInputElement>['value']) {
+  return value === 0 || value === '0'
+}
+
 interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string
   error?: string
@@ -69,6 +73,36 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export function TextField({ label, error, hint, id, className, required, ...props }: TextFieldProps) {
   const { fieldId, errorId, hintId } = useFieldIds(id, props.name)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const isEditableNumber = props.type === 'number' && !props.disabled && !props.readOnly
+  const [blankInitialZero, setBlankInitialZero] = useState(() =>
+    isEditableNumber && isZeroFormValue(props.value),
+  )
+
+  useEffect(() => {
+    if (!isEditableNumber) {
+      setBlankInitialZero(false)
+      return
+    }
+    if (!isZeroFormValue(props.value)) {
+      setBlankInitialZero(false)
+      return
+    }
+    if (document.activeElement !== inputRef.current) {
+      setBlankInitialZero(true)
+    }
+  }, [isEditableNumber, props.value])
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (isEditableNumber) {
+      setBlankInitialZero(event.target.value === '')
+    }
+    props.onChange?.(event)
+  }
+
+  const displayValue =
+    isEditableNumber && blankInitialZero && isZeroFormValue(props.value) ? '' : props.value
+
   return (
     <FieldShell
       label={label}
@@ -81,11 +115,14 @@ export function TextField({ label, error, hint, id, className, required, ...prop
     >
       <input
         id={fieldId}
+        ref={inputRef}
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(error, hint, errorId, hintId)}
         className={cn(controlClass, 'h-10', error && 'border-soe-critical', className)}
         {...props}
+        value={displayValue}
+        onChange={handleChange}
       />
     </FieldShell>
   )
@@ -101,6 +138,11 @@ export function PkrAmountInput({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { previewMinAbs?: number }) {
   const isControlled = value !== undefined
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const isEditable = !props.disabled && !props.readOnly
+  const [blankInitialZero, setBlankInitialZero] = useState(() =>
+    isEditable && isZeroFormValue(value),
+  )
   const [previewSource, setPreviewSource] = useState<number | null>(() =>
     parseNumericInput(value ?? defaultValue),
   )
@@ -111,25 +153,45 @@ export function PkrAmountInput({
     }
   }, [isControlled, value])
 
+  useEffect(() => {
+    if (!isEditable) {
+      setBlankInitialZero(false)
+      return
+    }
+    if (!isZeroFormValue(value)) {
+      setBlankInitialZero(false)
+      return
+    }
+    if (document.activeElement !== inputRef.current) {
+      setBlankInitialZero(true)
+    }
+  }, [isEditable, value])
+
   const preview = formatCompactPkrPreview(
     isControlled ? value : previewSource,
     previewMinAbs,
   )
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (isEditable) {
+      setBlankInitialZero(event.target.value === '')
+    }
     if (!isControlled) {
       setPreviewSource(parseNumericInput(event.target.value))
     }
     onChange?.(event)
   }
 
+  const displayValue = isEditable && blankInitialZero && isZeroFormValue(value) ? '' : value
+
   return (
     <div className="relative">
       <input
         {...props}
+        ref={inputRef}
         type="number"
         inputMode="decimal"
-        value={value}
+        value={displayValue}
         defaultValue={defaultValue}
         onChange={handleChange}
         onBlur={onBlur}

@@ -1,8 +1,9 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { SHAREHOLDER_CATEGORY, SOE_STATUS } from '@/constants'
+import { ENTERPRISE_ENTITY_TYPE, ROLE, SHAREHOLDER_CATEGORY, SOE_STATUS } from '@/constants'
 import { db, resetMockDb } from '@/mock-data'
-import { mockOrganizationService } from '@/mock-services'
+import { mockAdministrationService, mockOrganizationService } from '@/mock-services'
 import { resetMockRuntime } from '@/mock-data/runtime'
+import { AppError } from '@/utils'
 import {
   governmentShareFromLines,
   validateOwnershipLines,
@@ -67,6 +68,61 @@ describe('Phase 7 enterprise ownership & hierarchy', () => {
     expect(tree.organizationId).toBe('org-nfc')
     expect(tree.children[0]?.organizationId).toBe('org-nfml')
     expect(tree.children[0]?.children[0]?.organizationId).toBe('org-pasdec')
+  })
+
+  it('exposes enterprise entity metadata without changing the seeded registry size', async () => {
+    const entities = await mockOrganizationService.getEnterpriseEntities({ pageSize: 50 })
+    expect(entities.items).toHaveLength(db.organizations.length)
+
+    const tusdec = entities.items.find((organization) => organization.id === 'org-tusdec')
+    expect(tusdec?.enterpriseEntityId).toBe('org-tusdec')
+    expect(tusdec?.parentEntityId).toBe('org-pidc')
+    expect(tusdec?.rootEnterpriseEntityId).toBe('org-pidc')
+    expect(tusdec?.entityType).toBe(ENTERPRISE_ENTITY_TYPE.ASSOCIATE)
+  })
+
+  it('filters enterprise entities by root SOE hierarchy', async () => {
+    const nfcGroup = await mockOrganizationService.getEnterpriseEntities({
+      rootEnterpriseEntityId: 'org-nfc',
+      pageSize: 50,
+    })
+    expect(nfcGroup.items.map((organization) => organization.id).sort()).toEqual(['org-nfc', 'org-nfml', 'org-pasdec'])
+  })
+
+  it('keeps one focal person assigned to each enterprise entity', async () => {
+    const users = await mockAdministrationService.listUsers(ROLE.MOIP_REVIEWER)
+    const focalUsers = users.filter((user) => user.roles.includes(ROLE.SOE_FOCAL_PERSON))
+    const focalByEntity = new Map<string, string>()
+
+    for (const user of focalUsers) {
+      expect(user.enterpriseEntityId).toBeTruthy()
+      expect(user.organizationIds).toEqual([user.enterpriseEntityId])
+      expect(focalByEntity.has(user.enterpriseEntityId!)).toBe(false)
+      focalByEntity.set(user.enterpriseEntityId!, user.id)
+    }
+
+    expect(focalByEntity.size).toBe(db.organizations.length)
+    expect(focalByEntity.get('org-tusdec')).toBe('usr-tusdec-focal')
+  })
+
+  it('rejects duplicate or multi-enterprise focal assignments', async () => {
+    await expect(
+      mockAdministrationService.inviteUser(ROLE.MOIP_REVIEWER, {
+        name: 'Duplicate TUSDEC Focal',
+        email: 'duplicate.tusdec@pidc.gov.pk',
+        roles: [ROLE.SOE_FOCAL_PERSON],
+        organizationIds: ['org-tusdec'],
+      }),
+    ).rejects.toBeInstanceOf(AppError)
+
+    await expect(
+      mockAdministrationService.updateUserAccess(ROLE.MOIP_REVIEWER, 'usr-tusdec-focal', {
+        roles: [ROLE.SOE_FOCAL_PERSON],
+        organizationIds: ['org-tusdec', 'org-pidc'],
+        ministryScopes: [],
+        departmentScopes: [],
+      }),
+    ).rejects.toBeInstanceOf(AppError)
   })
 
   it('scopes registry without portfolio permission to one SOE', async () => {

@@ -6,10 +6,12 @@ import {
   mockDocumentService,
   mockGisService,
   mockIntelligenceService,
+  mockLitigationService,
   mockReportsService,
   mockSearchService,
   mockWorkforceService,
 } from '@/mock-services'
+import { REPORTING_MODULES } from '@/workflow/moduleCatalog'
 import { canTransition } from '@/workflow/submission'
 
 describe('Phase 23 module / edge-case / dashboard regression', () => {
@@ -100,6 +102,61 @@ describe('Phase 23 module / edge-case / dashboard regression', () => {
     })
     expect(page.items.length).toBeLessThanOrEqual(25)
     expect(page.total).toBeGreaterThanOrEqual(page.items.length)
+  })
+
+  it('continuous cadence is explicit for workforce and litigation modules', () => {
+    const workforce = REPORTING_MODULES.find((module) => module.id === 'workforce')
+    const litigation = REPORTING_MODULES.find((module) => module.id === 'litigation')
+    expect(workforce?.cadence).toBe('continuous')
+    expect(workforce?.liveRegister).toBe(true)
+    expect(litigation?.cadence).toBe('event_based')
+    expect(litigation?.liveRegister).toBe(true)
+  })
+
+  it('workforce updates create a reviewable live-register event', async () => {
+    const page = await mockWorkforceService.getEmployees({
+      organizationId: 'org-psm',
+      pageSize: 1,
+    })
+    const employee = page.items[0]!
+    const updated = await mockWorkforceService.updateEmployee(employee.id, {
+      posting: 'Head Office',
+    })
+    const events = await mockWorkforceService.getEmployeeEvents(employee.id)
+    expect(updated.assuranceState).toBe('submitted')
+    expect(updated.version).toBeGreaterThan(employee.version ?? 1)
+    expect(events[0]?.title).toContain('Workforce change')
+  })
+
+  it('litigation keeps case timeline separate from the current case header', async () => {
+    const cases = await mockLitigationService.getCases('org-psm')
+    const first = cases[0]!
+    const event = await mockLitigationService.addCaseEvent(first.id, {
+      occurredAt: '2026-08-22',
+      effectiveAt: '2026-08-22',
+      actorRole: ROLE.LEGAL_OFFICER,
+      actorName: 'SOE Legal Officer',
+      eventType: 'hearing',
+      title: 'Hearing held and next date assigned',
+      detail: 'Court directed submission of additional documents.',
+      nextHearing: '2026-09-10',
+    })
+    const updated = await mockLitigationService.getCase(first.id)
+    const events = await mockLitigationService.getCaseEvents(first.id)
+    expect(event.caseId).toBe(first.id)
+    expect(updated.latestEventTitle).toBe(event.title)
+    expect(updated.assuranceState).toBe('submitted')
+    expect(events[0]?.id).toBe(event.id)
+  })
+
+  it('continuous summaries expose SLA and snapshot provenance for dashboards', async () => {
+    const workforce = await mockWorkforceService.getContinuousSummary(undefined, true)
+    const litigation = await mockLitigationService.getContinuousSummary()
+    expect(workforce.snapshotPeriodLabel).toContain('live register')
+    expect(litigation.snapshotPeriodLabel).toContain('live register')
+    expect(Object.values(litigation.stageCounts ?? {}).reduce((sum, count) => sum + count, 0)).toBeGreaterThan(0)
+    expect(workforce.pendingSoeReview + workforce.clarificationOpen).toBeGreaterThanOrEqual(0)
+    expect(litigation.dueSoon).toBeGreaterThanOrEqual(0)
   })
 
   it('workflow machine still recognizes clarification → resubmitted path', () => {

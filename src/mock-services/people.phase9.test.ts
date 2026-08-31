@@ -1,9 +1,11 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import {
   BOARD_EXPIRY_BAND,
+  BOARD_MEMBER_STATUS,
   DECLARATION_STATUS,
   DEMO_AS_OF_DATE,
   ROLE,
+  WORKFORCE_STATUS,
 } from '@/constants'
 import { db, resetMockDb, SCENARIO } from '@/mock-data'
 import { resetMockRuntime } from '@/mock-data/runtime'
@@ -91,5 +93,34 @@ describe('Phase 9 people & governance', () => {
     expect(
       db.employees.some((e) => e.assetDeclarationStatus === DECLARATION_STATUS.OVERDUE),
     ).toBe(true)
+  })
+
+  it('excludes separated workforce statuses from current live headcount', async () => {
+    const employee = db.employees.find((e) => e.organizationId === 'org-psm')!
+    const before = await mockWorkforceService.getContinuousSummary('org-psm')
+    await mockWorkforceService.updateEmployee(employee.id, {
+      status: WORKFORCE_STATUS.RESIGNED,
+      statusEffectiveDate: '2026-08-20',
+      statusChangeReason: 'Resignation accepted by competent authority',
+    })
+    const after = await mockWorkforceService.getContinuousSummary('org-psm')
+    const updated = await mockWorkforceService.getEmployee(employee.id)
+    expect(updated.status).toBe(WORKFORCE_STATUS.RESIGNED)
+    expect(updated.statusEffectiveDate).toBe('2026-08-20')
+    expect(after.activeRecords).toBe(before.activeRecords - 1)
+  })
+
+  it('persists board member status changes with effective date and reason', async () => {
+    const member = db.boardMembers.find((b) => b.organizationId === 'org-psm' && !b.isVacancySlot)!
+    const updated = await mockBoardService.updateBoardMember(member.id, {
+      status: BOARD_MEMBER_STATUS.RESIGNED,
+      statusEffectiveDate: '2026-08-18',
+      statusChangeReason: 'Resignation tendered and accepted',
+    })
+    const summary = await mockBoardService.getBoardSummary('org-psm')
+    expect(updated.status).toBe(BOARD_MEMBER_STATUS.RESIGNED)
+    expect(updated.statusEffectiveDate).toBe('2026-08-18')
+    expect(updated.statusChangeReason).toContain('Resignation')
+    expect(summary.activeMembers).toBeLessThan(summary.boardSize)
   })
 })

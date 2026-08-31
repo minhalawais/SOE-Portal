@@ -1104,10 +1104,6 @@ export function AssetCreateWorkspace() {
     useClassification: LAND_USE_CLASS.INDUSTRIAL,
   })
 
-  if (!hasPermission(role, PERMISSION.ASSETS_CREATE)) {
-    return <ErrorState title="Permission denied" detail="Asset create requires Asset Officer (or equivalent)." />
-  }
-
   const steps = [
     'Asset type',
     'Basic information',
@@ -1140,6 +1136,10 @@ export function AssetCreateWorkspace() {
       })
     },
   })
+
+  if (!hasPermission(role, PERMISSION.ASSETS_CREATE)) {
+    return <ErrorState title="Permission denied" detail="Asset create requires Asset Officer (or equivalent)." />
+  }
 
   return (
     <div>
@@ -1216,7 +1216,7 @@ export function AssetCreateWorkspace() {
               <input
                 type="number"
                 className={inputClass}
-                value={draft.areaAcres ?? ''}
+                value={draft.areaAcres === 0 ? '' : draft.areaAcres ?? ''}
                 onChange={(e) => {
                   const acres = Number(e.target.value)
                   setDraft({

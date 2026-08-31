@@ -33,10 +33,10 @@ export function ReportingWorkspacePage() {
         subtitle={`Overall completion ${overallCompletion}% · task-first module list`}
         actions={
           <div className="flex flex-wrap gap-3 text-sm">
-            <Link className="text-soe-blue underline" to="/soe/validation">
+            <Link className="text-soe-blue underline" to="/soe/submissions?tab=issues">
               Validation
             </Link>
-            <Link className="text-soe-blue underline" to="/soe/readiness">
+            <Link className="text-soe-blue underline" to="/soe/submissions?tab=submit">
               Readiness
             </Link>
           </div>

@@ -1,14 +1,12 @@
 import { RequirePermission } from '@/app/router/guards'
 import { PERMISSION } from '@/permissions'
-import {
-  MoipSubmissionQueueWorkspace,
-} from '@/portals/moip/MoipOversightWorkspacePages'
 import { MoipModuleReviewPage } from '@/portals/moip/MoipReviewPages'
+import { MoipSubmissionsApprovalsPage } from '@/portals/moip/MoipSubmissionsApprovalsPage'
 
 export function MoipSubmissionQueuePage() {
   return (
     <RequirePermission permission={PERMISSION.SUBMISSION_REVIEW}>
-      <MoipSubmissionQueueWorkspace />
+      <MoipSubmissionsApprovalsPage />
     </RequirePermission>
   )
 }

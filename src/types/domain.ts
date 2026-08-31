@@ -14,13 +14,19 @@ import type {
   DirectorType,
   EmploymentType,
   EncroachmentStatus,
+  EnterpriseConsolidationTreatment,
+  EnterpriseControlType,
+  EnterpriseEntityType,
   EnterpriseHistoryEventType,
+  EnterpriseReportingObligation,
   ExecutiveRole,
   Gender,
   GovernanceCalendarKind,
   LandUseClass,
   LeaseStatus,
   LegalStatus,
+  LitigationStageId,
+  LitigationStageStatus,
   MachineryOperational,
   ModuleId,
   RelationshipStatus,
@@ -30,11 +36,21 @@ import type {
   ShareholderCategory,
   SoeStatus,
   SubmissionStatus,
+  WorkforceStatus,
 } from '@/constants'
 import type { ScenarioId } from '@/mock-data/scenarios'
 
 export interface Organization {
   id: string
+  enterpriseEntityId: string
+  entityType: EnterpriseEntityType
+  parentEntityId?: string
+  rootEnterpriseEntityId: string
+  ownershipPercent: number
+  controlType: EnterpriseControlType
+  consolidationTreatment: EnterpriseConsolidationTreatment
+  reportingObligation: EnterpriseReportingObligation
+  focalUserId?: string
   name: string
   abbreviation: string
   legalStatus: LegalStatus
@@ -281,6 +297,76 @@ export interface SanctionedPost {
   vacant: number
   department: string
   criticality?: 'critical' | 'standard'
+  effectiveFrom?: string
+  lastChangedAt?: string
+  lastSubmittedAt?: string
+  lastVerifiedAt?: string
+  assuranceState?: ContinuousAssuranceState
+  version?: number
+}
+
+export type ContinuousAssuranceState =
+  | 'draft'
+  | 'submitted'
+  | 'returned'
+  | 'soe_verified'
+  | 'published_to_moip'
+  | 'moip_acknowledged'
+  | 'clarification_open'
+
+export type ReportingCadence =
+  | 'annual'
+  | 'semi_annual'
+  | 'quarterly'
+  | 'monthly'
+  | 'continuous'
+  | 'event_based'
+
+export interface ContinuousRegisterMetadata {
+  cadence: ReportingCadence
+  effectiveAt?: string
+  recordedAt?: string
+  reportedAt?: string
+  verifiedAt?: string
+  lastReviewedAt?: string
+  assuranceState: ContinuousAssuranceState
+  version: number
+  sourceOrganizationId: string
+  dataClassification?: 'public' | 'official' | 'sensitive' | 'privileged'
+}
+
+export interface ContinuousRegisterEvent {
+  id: string
+  recordId: string
+  organizationId: string
+  moduleId: string
+  occurredAt: string
+  effectiveAt?: string
+  actorRole: string
+  actorName: string
+  eventType: string
+  title: string
+  detail?: string
+  assuranceState: ContinuousAssuranceState
+  isMaterial?: boolean
+  supersedesEventId?: string
+  isDummyDemonstrationData: true
+}
+
+export interface ContinuousRegisterSummary {
+  moduleId: string
+  cadence: ReportingCadence
+  activeRecords: number
+  pendingSoeReview: number
+  pendingMoipAcknowledgement: number
+  clarificationOpen: number
+  staleRecords: number
+  materialChanges30d: number
+  dueSoon: number
+  lastVerifiedAt?: string
+  snapshotPeriodLabel: string
+  asOfDate: string
+  stageCounts?: Partial<Record<LitigationStageId, number>>
 }
 
 export interface Employee {
@@ -290,6 +376,9 @@ export interface Employee {
   name: string
   designation: string
   employmentType: EmploymentType
+  status?: WorkforceStatus
+  statusEffectiveDate?: string
+  statusChangeReason?: string
   payScale?: string
   posting?: string
   province?: string
@@ -310,6 +399,12 @@ export interface Employee {
   benefitsSummary?: string
   pensionScheme?: string
   disciplinaryOpenCases?: number
+  effectiveFrom?: string
+  lastChangedAt?: string
+  lastSubmittedAt?: string
+  lastVerifiedAt?: string
+  assuranceState?: ContinuousAssuranceState
+  version?: number
   isDummyDemonstrationData: true
 }
 
@@ -350,6 +445,8 @@ export interface BoardMember {
   expiryDate: string
   isVacancySlot?: boolean
   status: BoardMemberStatus
+  statusEffectiveDate?: string
+  statusChangeReason?: string
   attendancePct?: number
   committeeIds?: string[]
   conflictDeclarationStatus?: DeclarationStatus
@@ -720,7 +817,76 @@ export interface LitigationCase {
   evidenceAvailable: boolean
   relatedAssetId?: string
   relatedAuditParaId?: string
+  caseStage?: string
+  filedDate?: string
+  receivedDate?: string
+  legalOwner?: string
+  currentExposurePkr?: number
+  bestCaseExposurePkr?: number
+  worstCaseExposurePkr?: number
+  probabilityOfLoss?: 'remote' | 'possible' | 'probable'
+  accountingTreatment?: 'disclosed' | 'provisioned' | 'not_applicable'
+  confidentiality?: 'official' | 'sensitive' | 'privileged'
+  nextAction?: string
+  actionDueDate?: string
+  latestEventTitle?: string
+  latestEventAt?: string
+  lastChangedAt?: string
+  lastSubmittedAt?: string
+  lastVerifiedAt?: string
+  assuranceState?: ContinuousAssuranceState
+  version?: number
   isDummyDemonstrationData: true
+}
+
+export interface LitigationCaseEvent extends ContinuousRegisterEvent {
+  caseId: string
+  stage?: LitigationStageId
+  eventType:
+    | 'case_filed'
+    | 'notice_received'
+    | 'hearing'
+    | 'order'
+    | 'adjournment'
+    | 'evidence'
+    | 'legal_opinion'
+    | 'judgment'
+    | 'appeal'
+    | 'settlement'
+    | 'payment'
+    | 'closure'
+    | 'correction'
+  courtOrderDate?: string
+  nextHearing?: string
+  exposureDeltaPkr?: number
+  amendmentOfEventId?: string
+  stagePayload?: Record<string, string | number | boolean | undefined>
+}
+
+export interface LitigationStageRecord {
+  id: string
+  caseId: string
+  organizationId: string
+  stage: LitigationStageId
+  status: LitigationStageStatus
+  startedAt?: string
+  completedAt?: string
+  updatedAt: string
+  submittedAt?: string
+  verifiedAt?: string
+  reviewerComments?: string
+  evidenceComplete: boolean
+  payload: Record<string, string | number | boolean | undefined>
+  isDummyDemonstrationData: true
+}
+
+export interface LitigationStageSummary {
+  stage: LitigationStageId
+  label: string
+  count: number
+  exposurePkr: number
+  stale: number
+  pendingReview: number
 }
 
 export interface ComplianceItem {

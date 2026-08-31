@@ -7,6 +7,7 @@ import {
   type PortalNavigationItem,
 } from '@/app/config/navigation'
 import { hasPermission } from '@/permissions'
+import { ROLE } from '@/constants'
 import { useActivePortal, useSessionStore } from '@/state/session'
 import { IconButton } from '@/design-system'
 import { useFocusTrap } from '@/utils/focusTrap'
@@ -67,7 +68,13 @@ export function MobileNavDrawer({
   const panelRef = useRef<HTMLElement>(null)
   useFocusTrap(open, panelRef, onClose)
   const items = useMemo(
-    () => filterNavigation(definition.navigation, role, hasPermission),
+    () =>
+      filterNavigation(
+        definition.navigation,
+        role,
+        (currentRole, permission) =>
+          currentRole === ROLE.SOE_FOCAL_PERSON || hasPermission(currentRole, permission),
+      ),
     [definition.navigation, role],
   )
 

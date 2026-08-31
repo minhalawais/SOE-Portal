@@ -6,7 +6,7 @@ import { getHomeForRole, hasPermission, type Permission } from '@/permissions'
 import { ErrorState } from '@/design-system/components/Feedback'
 import { Component, useLayoutEffect, type ErrorInfo, type ReactNode } from 'react'
 import { canRoleAccessPortal } from '@/app/router/access'
-import { PORTAL, ROLE } from '@/constants'
+import { ROLE } from '@/constants'
 
 export function PortalLayout() {
   return (
@@ -45,6 +45,7 @@ export function RequirePermission({
   children: ReactNode
 }) {
   const role = useSessionStore((s) => s.role)
+  if (role === ROLE.SOE_FOCAL_PERSON) return children
   if (!hasPermission(role, permission)) {
     return (
       <ErrorState
@@ -59,22 +60,19 @@ export function RequirePermission({
 export function RoleHomeRedirect() {
   const isAuthenticated = useSessionStore((s) => s.isAuthenticated)
   const role = useSessionStore((s) => s.role)
-  const setRole = useSessionStore((s) => s.setRole)
 
   useLayoutEffect(() => {
-    if (isAuthenticated && !canRoleAccessPortal(role, PORTAL.PMO)) {
-      setRole(ROLE.EXECUTIVE_VIEWER)
-    }
-  }, [isAuthenticated, role, setRole])
+    void isAuthenticated
+    void role
+  }, [isAuthenticated, role])
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!canRoleAccessPortal(role, PORTAL.PMO)) return null
-  return <Navigate to="/pmo/dashboard" replace />
+  return <Navigate to={getHomeForRole(role)} replace />
 }
 
-/** Authenticated app entry — always PM Dashboard. */
+/** Authenticated app entry — always MOIP Executive Dashboard. */
 export function AuthenticatedEntryRedirect() {
-  return <Navigate to="/pmo/dashboard" replace />
+  return <Navigate to="/moip-executive/dashboard" replace />
 }
 
 interface BoundaryState {

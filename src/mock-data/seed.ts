@@ -20,6 +20,10 @@ import {
   DIRECTOR_TYPE,
   EMPLOYMENT_TYPE,
   ENCROACHMENT_STATUS,
+  ENTERPRISE_CONSOLIDATION_TREATMENT,
+  ENTERPRISE_CONTROL_TYPE,
+  ENTERPRISE_ENTITY_TYPE,
+  ENTERPRISE_REPORTING_OBLIGATION,
   ENTERPRISE_HISTORY_EVENT,
   ESCALATION_REASON,
   ESCALATION_SEVERITY,
@@ -513,37 +517,103 @@ export const reportingPeriodsSeed: ReportingPeriod[] = [
 
 const annualPeriods = reportingPeriodsSeed.filter((p) => p.type === 'annual')
 
+const enterpriseParentById: Record<string, string> = {
+  'org-nfml': 'org-nfc',
+  'org-pasdec': 'org-nfml',
+  'org-tusdec': 'org-pidc',
+}
+
+const enterpriseRootById: Record<string, string> = {
+  'org-nfml': 'org-nfc',
+  'org-pasdec': 'org-nfc',
+  'org-tusdec': 'org-pidc',
+}
+
+const enterpriseMetadataById: Record<string, {
+  entityType: Organization['entityType']
+  ownershipPercent: number
+  controlType: Organization['controlType']
+  consolidationTreatment: Organization['consolidationTreatment']
+  reportingObligation: Organization['reportingObligation']
+}> = {
+  'org-nfml': {
+    entityType: ENTERPRISE_ENTITY_TYPE.SUBSIDIARY,
+    ownershipPercent: 100,
+    controlType: ENTERPRISE_CONTROL_TYPE.DIRECT_CONTROL,
+    consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.CONSOLIDATED,
+    reportingObligation: ENTERPRISE_REPORTING_OBLIGATION.FULL_REPORTING,
+  },
+  'org-pasdec': {
+    entityType: ENTERPRISE_ENTITY_TYPE.JOINT_VENTURE,
+    ownershipPercent: 40,
+    controlType: ENTERPRISE_CONTROL_TYPE.JOINT_CONTROL,
+    consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.EQUITY_ACCOUNTED,
+    reportingObligation: ENTERPRISE_REPORTING_OBLIGATION.CONTROLLED_ENTITY_REPORTING,
+  },
+  'org-tusdec': {
+    entityType: ENTERPRISE_ENTITY_TYPE.ASSOCIATE,
+    ownershipPercent: 25,
+    controlType: ENTERPRISE_CONTROL_TYPE.SIGNIFICANT_INFLUENCE,
+    consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.DISCLOSURE_ONLY,
+    reportingObligation: ENTERPRISE_REPORTING_OBLIGATION.SUMMARY_REPORTING,
+  },
+}
+
+function enterpriseFocalUserId(organizationId: string) {
+  return `usr-${organizationId.replace(/^org-/, '')}-focal`
+}
+
 function buildOrganizations(): Organization[] {
-  return ORG_SPECS.map((s) => ({
-    id: s.id,
-    name: s.name,
-    abbreviation: s.abbreviation,
-    legalStatus: s.legalStatus,
-    sector: s.sector,
-    subSector: s.subSector,
-    natureOfBusiness: s.natureOfBusiness,
-    status: s.status,
-    parentMinistry: 'Ministry of Industries and Production',
-    attachedDepartment: 'Industrial Development Wing',
-    administrativeMinistry: 'Ministry of Industries and Production',
-    operatingMinistry: 'Ministry of Industries and Production',
-    companyRegistrationNo: `CRN-${s.abbreviation}-${hash(s.id) % 90000 + 10000}`,
-    ntn: `${hash(s.id) % 9000000 + 1000000}-1`,
-    secpRegistrationNo: `SECP-${s.abbreviation}-001`,
-    strn: `STRN-${hash(s.id) % 900000 + 100000}`,
-    dateOfIncorporation: s.incorporation,
-    website: `https://www.${s.abbreviation.toLowerCase()}.gov.pk`,
-    corporateEmail: `info@${s.abbreviation.toLowerCase()}.gov.pk`,
-    headOfficeAddress: `${s.abbreviation} Head Office, ${s.city}, ${s.province}`,
-    governmentOwnershipPct: s.govPct,
-    authorizedCapitalPkr: s.capital.authorized,
-    paidUpCapitalPkr: s.capital.paidUp,
-    issuedCapitalPkr: s.capital.issued,
-    ultimateBeneficialOwner: s.ubo,
-    scenarioId: s.scenarioId,
-    scenarioTag: s.scenarioId,
-    isDummyDemonstrationData: true as const,
-  }))
+  return ORG_SPECS.map((s) => {
+    const metadata = enterpriseMetadataById[s.id] ?? {
+      entityType: s.legalStatus === LEGAL_STATUS.HOLDING_COMPANY
+        ? ENTERPRISE_ENTITY_TYPE.PARENT_SOE
+        : ENTERPRISE_ENTITY_TYPE.INDEPENDENT_ENTERPRISE,
+      ownershipPercent: s.govPct,
+      controlType: ENTERPRISE_CONTROL_TYPE.MINISTRY_CONTROLLED,
+      consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.STANDALONE,
+      reportingObligation: ENTERPRISE_REPORTING_OBLIGATION.FULL_REPORTING,
+    }
+    return {
+      id: s.id,
+      enterpriseEntityId: s.id,
+      entityType: metadata.entityType,
+      parentEntityId: enterpriseParentById[s.id],
+      rootEnterpriseEntityId: enterpriseRootById[s.id] ?? s.id,
+      ownershipPercent: metadata.ownershipPercent,
+      controlType: metadata.controlType,
+      consolidationTreatment: metadata.consolidationTreatment,
+      reportingObligation: metadata.reportingObligation,
+      focalUserId: enterpriseFocalUserId(s.id),
+      name: s.name,
+      abbreviation: s.abbreviation,
+      legalStatus: s.legalStatus,
+      sector: s.sector,
+      subSector: s.subSector,
+      natureOfBusiness: s.natureOfBusiness,
+      status: s.status,
+      parentMinistry: 'Ministry of Industries and Production',
+      attachedDepartment: 'Industrial Development Wing',
+      administrativeMinistry: 'Ministry of Industries and Production',
+      operatingMinistry: 'Ministry of Industries and Production',
+      companyRegistrationNo: `CRN-${s.abbreviation}-${hash(s.id) % 90000 + 10000}`,
+      ntn: `${hash(s.id) % 9000000 + 1000000}-1`,
+      secpRegistrationNo: `SECP-${s.abbreviation}-001`,
+      strn: `STRN-${hash(s.id) % 900000 + 100000}`,
+      dateOfIncorporation: s.incorporation,
+      website: `https://www.${s.abbreviation.toLowerCase()}.gov.pk`,
+      corporateEmail: `info@${s.abbreviation.toLowerCase()}.gov.pk`,
+      headOfficeAddress: `${s.abbreviation} Head Office, ${s.city}, ${s.province}`,
+      governmentOwnershipPct: s.govPct,
+      authorizedCapitalPkr: s.capital.authorized,
+      paidUpCapitalPkr: s.capital.paidUp,
+      issuedCapitalPkr: s.capital.issued,
+      ultimateBeneficialOwner: s.ubo,
+      scenarioId: s.scenarioId,
+      scenarioTag: s.scenarioId,
+      isDummyDemonstrationData: true as const,
+    }
+  })
 }
 
 function buildOwnershipLines(): OwnershipLine[] {
@@ -1046,7 +1116,7 @@ function buildAssets(): {
       const encroachmentStatus =
         type === ASSET_TYPE.LAND &&
         ((org.scenarioId === SCENARIO.ASSET_RICH && landSlot % 7 === 0) ||
-          (org.province === 'Punjab' && landSlot % 10 === 0 && landSlot % 9 !== 0) ||
+          (org.province === 'Punjab' && (landSlot === 1 || landSlot % 10 === 0) && landSlot % 9 !== 0) ||
           landSlot === 5)
           ? ENCROACHMENT_STATUS.ENCROACHED
           : type === ASSET_TYPE.LAND && landSlot % 11 === 0

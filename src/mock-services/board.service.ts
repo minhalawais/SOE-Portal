@@ -54,7 +54,7 @@ export interface BoardService {
 }
 
 function filterBoard(query?: BoardQuery): BoardMember[] {
-  let items = [...db.boardMembers]
+  let items = db.boardMembers.map(hydrateBoardMember)
   const scenarioFilter = getMockRuntime().scenarioFilter
   if (scenarioFilter !== 'all') {
     const orgIds = new Set(
@@ -93,18 +93,62 @@ function filterBoard(query?: BoardQuery): BoardMember[] {
   return items
 }
 
+function hydrateBoardMember(member: BoardMember): BoardMember {
+  const isPastExpiry =
+    !member.isVacancySlot && daysUntil(member.expiryDate, DEMO_AS_OF_DATE) < 0
+  const seededStatus =
+    member.status ??
+    (member.isVacancySlot
+      ? BOARD_MEMBER_STATUS.VACANT
+      : isPastExpiry
+        ? BOARD_MEMBER_STATUS.EXPIRED
+        : BOARD_MEMBER_STATUS.ACTIVE)
+  const status =
+    seededStatus === BOARD_MEMBER_STATUS.ACTIVE && isPastExpiry
+      ? BOARD_MEMBER_STATUS.EXPIRED
+      : seededStatus
+  return {
+    ...member,
+    status,
+    statusEffectiveDate:
+      member.statusEffectiveDate ??
+      (status === BOARD_MEMBER_STATUS.ACTIVE
+        ? member.appointmentDate
+        : status === BOARD_MEMBER_STATUS.EXPIRED
+          ? member.expiryDate
+          : DEMO_AS_OF_DATE),
+  }
+}
+
+function isActiveBoardMember(member: BoardMember) {
+  return (
+    !member.isVacancySlot &&
+    member.status !== BOARD_MEMBER_STATUS.EXPIRED &&
+    member.status !== BOARD_MEMBER_STATUS.RESIGNED &&
+    member.status !== BOARD_MEMBER_STATUS.REMOVED &&
+    member.status !== BOARD_MEMBER_STATUS.DECEASED &&
+    member.status !== BOARD_MEMBER_STATUS.SUPERSEDED
+  )
+}
+
 function summarizeBoard(items: BoardMember[], organizationId?: string): BoardSummary {
-  const active = items.filter((b) => !b.isVacancySlot && b.status !== BOARD_MEMBER_STATUS.EXPIRED)
-  const vacancies = items.filter((b) => b.isVacancySlot).length
-  const expiredCount = items.filter(
+  const hydrated = items.map(hydrateBoardMember)
+  const active = hydrated.filter(isActiveBoardMember)
+  const vacancies = hydrated.filter(
+    (b) =>
+      b.isVacancySlot ||
+      b.status === BOARD_MEMBER_STATUS.VACANT ||
+      b.status === BOARD_MEMBER_STATUS.AWAITING_APPOINTMENT,
+  ).length
+  const expiredCount = hydrated.filter(
     (b) => !b.isVacancySlot && daysUntil(b.expiryDate, DEMO_AS_OF_DATE) < 0,
   ).length
-  const upcomingExpiries = items.filter((b) => {
+  const upcomingExpiries = hydrated.filter((b) => {
     if (b.isVacancySlot) return false
     const d = daysUntil(b.expiryDate, DEMO_AS_OF_DATE)
     return d >= 0 && d <= 180
   }).length
-  const missingDeclarations = items.filter(
+  const missingDeclarations = hydrated.filter(
     (b) =>
       !b.isVacancySlot &&
       (b.conflictDeclarationStatus === DECLARATION_STATUS.OVERDUE ||
@@ -119,19 +163,19 @@ function summarizeBoard(items: BoardMember[], organizationId?: string): BoardSum
   const committeeCoverage = committees.filter((c) => c.status === 'active').length
 
   let boardStatus: BoardSummary['boardStatus'] = 'complete'
-  if (items.length === 0) boardStatus = 'no_board'
+  if (hydrated.length === 0) boardStatus = 'no_board'
   else if (vacancies > 0) boardStatus = 'vacancies'
   else if (upcomingExpiries > 0 || expiredCount > 0) boardStatus = 'expiry_risk'
 
   return {
     organizationId,
-    boardSize: items.length,
+    boardSize: hydrated.length,
     activeMembers: active.length,
     vacancies,
-    womenDirectors: items.filter((b) => b.memberType === DIRECTOR_TYPE.WOMAN_DIRECTOR).length,
-    independentDirectors: items.filter((b) => b.memberType === DIRECTOR_TYPE.INDEPENDENT).length,
-    governmentDirectors: items.filter((b) => b.memberType === DIRECTOR_TYPE.GOVERNMENT).length,
-    privateDirectors: items.filter((b) => b.memberType === DIRECTOR_TYPE.PRIVATE).length,
+    womenDirectors: hydrated.filter((b) => b.memberType === DIRECTOR_TYPE.WOMAN_DIRECTOR).length,
+    independentDirectors: hydrated.filter((b) => b.memberType === DIRECTOR_TYPE.INDEPENDENT).length,
+    governmentDirectors: hydrated.filter((b) => b.memberType === DIRECTOR_TYPE.GOVERNMENT).length,
+    privateDirectors: hydrated.filter((b) => b.memberType === DIRECTOR_TYPE.PRIVATE).length,
     upcomingExpiries,
     expiredCount,
     missingDeclarations,
@@ -142,7 +186,7 @@ function summarizeBoard(items: BoardMember[], organizationId?: string): BoardSum
 
 export const mockBoardService: BoardService = {
   async getBoardMembers(organizationId) {
-    let items = [...db.boardMembers]
+    let items = db.boardMembers.map(hydrateBoardMember)
     if (organizationId) items = items.filter((b) => b.organizationId === organizationId)
     return simulateLatency(items)
   },
@@ -154,7 +198,7 @@ export const mockBoardService: BoardService = {
   async getBoardMember(id) {
     const row = db.boardMembers.find((b) => b.id === id)
     if (!row) throw new AppError('Board member not found', 'NOT_FOUND')
-    return simulateLatency(row)
+    return simulateLatency(hydrateBoardMember(row))
   },
 
   async getCommittees(organizationId) {
@@ -263,7 +307,13 @@ export const mockBoardService: BoardService = {
 
   async createBoardMember(payload) {
     const id = payload.id ?? `board-new-${Date.now()}`
-    const next: BoardMember = { ...payload, id, isDummyDemonstrationData: true }
+    const next: BoardMember = hydrateBoardMember({
+      ...payload,
+      id,
+      status: payload.status ?? BOARD_MEMBER_STATUS.ACTIVE,
+      statusEffectiveDate: payload.statusEffectiveDate ?? payload.appointmentDate,
+      isDummyDemonstrationData: true,
+    })
     if (!next.name?.trim()) throw new AppError('Board member name is required.', 'VALIDATION')
     if (new Date(next.appointmentDate) > new Date(next.expiryDate)) {
       throw new AppError('Appointment date must be before expiry', 'VALIDATION')
@@ -275,7 +325,16 @@ export const mockBoardService: BoardService = {
   async updateBoardMember(id, patch) {
     const idx = db.boardMembers.findIndex((b) => b.id === id)
     if (idx < 0) throw new AppError('Board member not found', 'NOT_FOUND')
-    const next = { ...db.boardMembers[idx], ...patch, id }
+    const current = hydrateBoardMember(db.boardMembers[idx])
+    const statusChanged = patch.status !== undefined && patch.status !== current.status
+    const next = hydrateBoardMember({
+      ...current,
+      ...patch,
+      id,
+      statusEffectiveDate:
+        patch.statusEffectiveDate ??
+        (statusChanged ? DEMO_AS_OF_DATE : current.statusEffectiveDate),
+    })
     if (new Date(next.appointmentDate) > new Date(next.expiryDate)) {
       throw new AppError('Appointment date must be before expiry', 'VALIDATION')
     }

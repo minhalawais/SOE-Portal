@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import {
   AppErrorBoundary,
   NotFoundPage,
@@ -11,9 +11,9 @@ import { LoginPage } from '@/portals/auth/LoginPage'
 import { SoeDashboardPage } from '@/portals/soe/SoeDashboardPage'
 import { SoeExecutiveDashboardPage } from '@/portals/soe/SoeExecutiveDashboardPage'
 import { OrganizationsPage } from '@/portals/soe/OrganizationsPage'
-import { ReportingWorkspacePage } from '@/portals/soe/ReportingWorkspacePage'
-import { ClarificationInboxPage } from '@/portals/soe/ClarificationInboxPage'
-import { ValidationCentrePage } from '@/portals/soe/ValidationCentrePage'
+import { SoeSubmissionsApprovalsPage } from '@/portals/soe/SoeSubmissionsApprovalsPage'
+import { SoeReviewModulePage } from '@/portals/soe/SoeReviewModulePage'
+import { SoeReviewSubmissionsPage } from '@/portals/soe/SoeReviewSubmissionsPage'
 import { SubmissionReadinessPage } from '@/portals/soe/SubmissionReadinessPage'
 import { DocumentsPage } from '@/portals/soe/DocumentsPage'
 import {
@@ -46,9 +46,7 @@ import {
   FinanceExposurePage,
   FinancePerformancePage,
   FinanceStatementsPage,
-  IndustrialWorkspacePage,
   LoanDetailWorkspace,
-  MoipFinanceIntelligencePage,
 } from '@/portals/shared/FinanceFiscalWorkspacePages'
 import {
   AuditModulePage,
@@ -77,6 +75,7 @@ import {
   ProcurementDetailWorkspace,
   TransformationTrackerWorkspace,
   LitigationDetailWorkspace,
+  LitigationRegistryWorkspace,
 } from '@/portals/shared/AccountabilityWorkspacePages'
 import {
   SecretaryAuditLegalCommandPage,
@@ -117,7 +116,6 @@ import {
 } from '@/portals/shared/NationalIndustrialAssetMapPages'
 import {
   MinisterIntelligencePage,
-  MoipIntelligencePage,
   SecretaryIntelligencePage,
 } from '@/portals/shared/IntelligenceRiskWorkspacePages'
 import {
@@ -128,7 +126,6 @@ import {
 } from '@/portals/shared/AdvancedSearchWorkspacePages'
 import {
   MinisterReportsPage,
-  MoipReportsPage,
   PmoReportsPage,
   SecretaryReportsPage,
   SoeReportsPage,
@@ -148,13 +145,11 @@ import {
   MoipSubmissionQueuePage,
 } from '@/portals/moip/MoipFinanceReviewPages'
 import {
-  MoipApprovalsPage,
-  MoipClarificationQueuePage,
-  MoipDataQualityPage,
   MoipPortfolioPage,
 } from '@/portals/moip/MoipOversightWorkspacePages'
-import { MoipReviewPackagePage } from '@/portals/moip/MoipReviewPages'
 import { MoipPortfolioModulePage } from '@/portals/moip/MoipPortfolioModulePage'
+import { MoipReviewPackagePage } from '@/portals/moip/MoipReviewPages'
+import { MoipPerformanceComparisonPage } from '@/portals/moip/MoipPerformanceComparisonPage'
 import {
   MoipAdministrationAuditPage,
   MoipSoeAdministrationPage,
@@ -184,6 +179,7 @@ import {
   PmoDashboardPage,
 } from '@/portals/shared/PortalLandings'
 import { ModulePlaceholderPage } from '@/portals/shared/PortalShells'
+import { IntelligentDataImportPage } from '@/portals/shared/IntelligentDataImportPage'
 import { APP_CONFIG } from '@/app/config/app.config'
 import { flattenNavigation, portalDefinitions } from '@/app/config/navigation'
 import { implementedRoutes } from '@/app/router/implementedRoutes'
@@ -193,8 +189,12 @@ import { PERMISSION } from '@/permissions'
 import { useSessionStore } from '@/state/session'
 
 /** Must return Route elements directly — RR v6 rejects custom wrapper components as Routes children. */
+function portalRoutePrefix(portal: PortalId) {
+  return `/${portal.replaceAll('_', '-')}`
+}
+
 function placeholderRoutes(portal: PortalId) {
-  const portalPrefix = `/${portal}`
+  const portalPrefix = portalRoutePrefix(portal)
   return flattenNavigation(portalDefinitions[portal].navigation)
     .filter(
       (item) =>
@@ -212,8 +212,26 @@ function placeholderRoutes(portal: PortalId) {
 
 function SoeHomePage() {
   const role = useSessionStore((state) => state.role)
-  if (role === ROLE.SOE_EXECUTIVE) return <Navigate to="/soe/executive" replace />
+  if (role === ROLE.SOE_EXECUTIVE) return <Navigate to="/soe-review/executive" replace />
   return <SoeDashboardPage />
+}
+
+function PrefixRedirect({ from, to }: { from: string; to: string }) {
+  const location = useLocation()
+  const rest = location.pathname === from ? '' : location.pathname.slice(from.length)
+  return <Navigate to={`${to}${rest}${location.search}${location.hash}`} replace />
+}
+
+function LegacySoeRedirect() {
+  const role = useSessionStore((state) => state.role)
+  const target =
+    role === ROLE.SOE_CERTIFIER ||
+    role === ROLE.SOE_EXECUTIVE ||
+    role === ROLE.CEO ||
+    role === ROLE.CFO
+      ? '/soe-review'
+      : '/soe-entry'
+  return <PrefixRedirect from="/soe" to={target} />
 }
 
 export function AppRouter() {
@@ -225,7 +243,7 @@ export function AppRouter() {
           <Route path="/login" element={<LoginPage />} />
 
           <Route element={<RequireAuthentication />}>
-            <Route path="/soe" element={<RequirePortal portal="soe" />}>
+            <Route path="/soe-entry" element={<RequirePortal portal="soe_entry" />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<SoeHomePage />} />
               <Route
@@ -236,10 +254,19 @@ export function AppRouter() {
                   </RequirePermission>
                 }
               />
-              <Route path="reporting" element={<ReportingWorkspacePage />} />
-              <Route path="clarifications" element={<ClarificationInboxPage />} />
-              <Route path="validation" element={<ValidationCentrePage />} />
-              <Route path="readiness" element={<SubmissionReadinessPage />} />
+              <Route path="submissions" element={<SoeSubmissionsApprovalsPage />} />
+              <Route
+                path="ai-import"
+                element={
+                  <RequirePermission permission={PERMISSION.AI_IMPORT_USE}>
+                    <IntelligentDataImportPage portal="soe_entry" />
+                  </RequirePermission>
+                }
+              />
+              <Route path="reporting" element={<Navigate to="/soe-entry/submissions" replace />} />
+              <Route path="clarifications" element={<Navigate to="/soe-entry/submissions?tab=clarifications" replace />} />
+              <Route path="validation" element={<Navigate to="/soe-entry/submissions?tab=issues" replace />} />
+              <Route path="readiness" element={<Navigate to="/soe-entry/submissions?tab=submit" replace />} />
               <Route path="search" element={<PortalSearchPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route
@@ -426,10 +453,54 @@ export function AppRouter() {
               <Route path="demo-controls" element={<DemoControlsPage />} />
               <Route path="stakeholder-validation" element={<StakeholderValidationPage />} />
               <Route path="foundation" element={<FoundationLabPage />} />
-              {placeholderRoutes(PORTAL.SOE)}
+              {placeholderRoutes(PORTAL.SOE_ENTRY)}
             </Route>
 
-            <Route path="/moip" element={<RequirePortal portal="moip" />}>
+            <Route path="/soe-review" element={<RequirePortal portal="soe_review" />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<SoeDashboardPage audience="review" />} />
+              <Route path="submissions" element={<SoeReviewSubmissionsPage />} />
+              <Route path="submissions/:submissionId" element={<SoeReviewModulePage />} />
+              <Route
+                path="executive"
+                element={<Navigate to="/soe-review/submissions" replace />}
+              />
+              <Route path="clarifications" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route path="validation" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route path="readiness" element={<SubmissionReadinessPage />} />
+              <Route path="documents" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route
+                path="documents/submission-history"
+                element={<Navigate to="/soe-review/submissions" replace />}
+              />
+              <Route
+                path="documents/enterprise-timeline"
+                element={<Navigate to="/soe-review/submissions" replace />}
+              />
+              <Route path="documents/lineage" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route
+                path="documents/field-changes"
+                element={<Navigate to="/soe-review/submissions" replace />}
+              />
+              <Route
+                path="documents/:id"
+                element={<Navigate to="/soe-review/submissions" replace />}
+              />
+              <Route path="finance/review" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route path="finance/certify" element={<FinanceCertifyPage />} />
+              <Route path="finance/clarification" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route path="finance/history" element={<Navigate to="/soe-review/submissions" replace />} />
+              <Route
+                path="reports"
+                element={<Navigate to="/soe-review/submissions" replace />}
+              />
+              <Route path="logs" element={<SoeLogsPage />} />
+              <Route path="alerts" element={<SoeAlertsPage />} />
+              <Route path="alerts/:alertId" element={<AlertDetailWorkspace portal="soe" />} />
+              {placeholderRoutes(PORTAL.SOE_REVIEW)}
+            </Route>
+
+            <Route path="/moip-review" element={<RequirePortal portal="moip_review" />}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<MoipDashboardPage />} />
               <Route
@@ -503,12 +574,36 @@ export function AppRouter() {
                 }
               />
               <Route path="submissions" element={<MoipSubmissionQueuePage />} />
+              <Route
+                path="ai-import"
+                element={
+                  <RequirePermission permission={PERMISSION.AI_IMPORT_USE}>
+                    <IntelligentDataImportPage portal="moip_review" />
+                  </RequirePermission>
+                }
+              />
               <Route path="submissions/:submissionId" element={<MoipFinanceReviewPage />} />
               <Route
                 path="modules/:moduleId"
                 element={
                   <RequirePermission permission={PERMISSION.PORTFOLIO_READ}>
                     <MoipPortfolioModulePage />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="accountability/litigation"
+                element={
+                  <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+                    <LitigationRegistryWorkspace portal="moip" />
+                  </RequirePermission>
+                }
+              />
+              <Route
+                path="accountability/litigation/:id"
+                element={
+                  <RequirePermission permission={PERMISSION.ACCOUNTABILITY_READ}>
+                    <LitigationDetailWorkspace portal="moip" />
                   </RequirePermission>
                 }
               />
@@ -554,56 +649,41 @@ export function AppRouter() {
               />
               <Route
                 path="clarifications"
-                element={
-                  <RequirePermission permission={PERMISSION.CLARIFICATION_CREATE}>
-                    <MoipClarificationQueuePage />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/moip-review/submissions" replace />}
               />
               <Route
                 path="approvals"
-                element={
-                  <RequirePermission permission={PERMISSION.SUBMISSION_APPROVE}>
-                    <MoipApprovalsPage />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/moip-review/submissions" replace />}
               />
               <Route path="logs" element={<MoipLogsEarlyWarningPage />} />
               <Route path="tasks" element={<Navigate to="/moip/logs" replace />} />
               <Route path="tasks/:taskId" element={<Navigate to="/moip/logs" replace />} />
+              <Route path="alerts" element={<MoipLogsEarlyWarningPage />} />
               <Route path="alerts/:alertId" element={<AlertDetailWorkspace portal="moip" />} />
               <Route path="escalations/:id" element={<EscalationDetailWorkspace portal="moip" />} />
               <Route
                 path="data-quality"
+                element={<Navigate to="/moip-review/submissions" replace />}
+              />
+              <Route
+                path="performance-comparison"
                 element={
-                  <RequirePermission permission={PERMISSION.PORTFOLIO_READ}>
-                    <MoipDataQualityPage />
+                  <RequirePermission permission={PERMISSION.PERFORMANCE_COMPARISON_READ}>
+                    <MoipPerformanceComparisonPage />
                   </RequirePermission>
                 }
               />
               <Route
                 path="finance"
-                element={
-                  <RequirePermission permission={PERMISSION.FINANCE_READ}>
-                    <MoipFinanceIntelligencePage />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/moip-review/submissions" replace />}
               />
               <Route
                 path="industrial"
-                element={
-                  <RequirePermission permission={PERMISSION.FINANCE_READ}>
-                    <IndustrialWorkspacePage portal="moip" />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/moip-review/submissions" replace />}
               />
               <Route
                 path="intelligence"
-                element={
-                  <RequirePermission permission={PERMISSION.PORTFOLIO_READ}>
-                    <MoipIntelligencePage />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/moip-review/search" replace />}
               />
               <Route
                 path="search"
@@ -615,11 +695,7 @@ export function AppRouter() {
               />
               <Route
                 path="reports"
-                element={
-                  <RequirePermission permission={PERMISSION.PORTFOLIO_READ}>
-                    <MoipReportsPage />
-                  </RequirePermission>
-                }
+                element={<Navigate to="/moip-review/search" replace />}
               />
               <Route
                 path="audit-compliance"
@@ -653,7 +729,7 @@ export function AppRouter() {
                   </RequirePermission>
                 }
               />
-              {placeholderRoutes(PORTAL.MOIP)}
+              {placeholderRoutes(PORTAL.MOIP_REVIEW)}
             </Route>
 
             <Route path="/secretary" element={<RequirePortal portal="secretary" />}>
@@ -910,12 +986,12 @@ export function AppRouter() {
             </Route>
 
             {APP_CONFIG.ENABLE_PMO_PORTAL ? (
-              <Route path="/pmo" element={<RequirePortal portal="pmo" />}>
+              <Route path="/moip-executive" element={<RequirePortal portal="moip_executive" />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<PmoDashboardPage />} />
-                <Route path="capital" element={<Navigate to="/pmo/dashboard#fiscal" replace />} />
-                <Route path="fiscal-burden" element={<Navigate to="/pmo/dashboard#fiscal" replace />} />
-                <Route path="land-bank" element={<Navigate to="/pmo/dashboard#assets" replace />} />
+                <Route path="capital" element={<Navigate to="/moip-executive/dashboard#fiscal" replace />} />
+                <Route path="fiscal-burden" element={<Navigate to="/moip-executive/dashboard#fiscal" replace />} />
+                <Route path="land-bank" element={<Navigate to="/moip-executive/dashboard#assets" replace />} />
                 <Route
                   path="map"
                   element={
@@ -924,11 +1000,11 @@ export function AppRouter() {
                     </RequirePermission>
                   }
                 />
-                <Route path="industrial" element={<Navigate to="/pmo/dashboard#industry" replace />} />
-                <Route path="employment-exports" element={<Navigate to="/pmo/dashboard#industry" replace />} />
-                <Route path="privatization" element={<Navigate to="/pmo/dashboard#transformation" replace />} />
-                <Route path="indicators" element={<Navigate to="/pmo/dashboard#overview" replace />} />
-                <Route path="intelligence" element={<Navigate to="/pmo/dashboard#overview" replace />} />
+                <Route path="industrial" element={<Navigate to="/moip-executive/dashboard#industry" replace />} />
+                <Route path="employment-exports" element={<Navigate to="/moip-executive/dashboard#industry" replace />} />
+                <Route path="privatization" element={<Navigate to="/moip-executive/dashboard#transformation" replace />} />
+                <Route path="indicators" element={<Navigate to="/moip-executive/dashboard#overview" replace />} />
+                <Route path="intelligence" element={<Navigate to="/moip-executive/dashboard#overview" replace />} />
                 <Route
                   path="search"
                   element={
@@ -945,10 +1021,10 @@ export function AppRouter() {
                     </RequirePermission>
                   }
                 />
-                {placeholderRoutes(PORTAL.PMO)}
+                {placeholderRoutes(PORTAL.MOIP_EXECUTIVE)}
               </Route>
             ) : (
-              <Route path="/pmo/*" element={<ModulePlaceholderPage title="PMO portal disabled" />} />
+              <Route path="/moip-executive/*" element={<ModulePlaceholderPage title="MOIP Executive portal disabled" />} />
             )}
 
             {APP_CONFIG.ENABLE_ASSURANCE_PORTAL ? (
@@ -974,6 +1050,16 @@ export function AppRouter() {
                 {placeholderRoutes(PORTAL.ASSURANCE)}
               </Route>
             ) : null}
+
+            <Route path="/soe/*" element={<LegacySoeRedirect />} />
+            <Route
+              path="/moip/*"
+              element={<PrefixRedirect from="/moip" to="/moip-review" />}
+            />
+            <Route
+              path="/pmo/*"
+              element={<PrefixRedirect from="/pmo" to="/moip-executive" />}
+            />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

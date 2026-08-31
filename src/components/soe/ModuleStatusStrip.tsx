@@ -12,7 +12,7 @@ import { useSessionStore } from '@/state/session'
 
 export function ModuleStatusStrip({
   moduleId,
-  workspaceLink = '/soe/reporting',
+  workspaceLink = '/soe/submissions',
   workspaceLabel = 'Reporting',
 }: {
   moduleId: ModuleId

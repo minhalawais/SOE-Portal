@@ -1,4 +1,5 @@
 import { MODULE, ROLE, type ModuleId, type RoleId } from '@/constants'
+import type { ReportingCadence } from '@/types/domain'
 
 export interface ReportingModuleDef {
   id: ModuleId
@@ -6,6 +7,9 @@ export interface ReportingModuleDef {
   route: string
   ownerRole: RoleId
   supportsImport?: boolean
+  cadence: ReportingCadence
+  liveRegister?: boolean
+  snapshotLabel?: string
 }
 
 /** Phase 6 reporting workspace catalogue — ownership follows practical rollout personas. */
@@ -15,6 +19,7 @@ export const REPORTING_MODULES: ReportingModuleDef[] = [
     label: 'Enterprise Profile',
     route: '/soe/enterprise/profile',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.ASSETS,
@@ -22,6 +27,7 @@ export const REPORTING_MODULES: ReportingModuleDef[] = [
     route: '/soe/assets/land',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
     supportsImport: true,
+    cadence: 'annual',
   },
   {
     id: MODULE.WORKFORCE,
@@ -29,72 +35,88 @@ export const REPORTING_MODULES: ReportingModuleDef[] = [
     route: '/soe/people/workforce',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
     supportsImport: true,
+    cadence: 'continuous',
+    liveRegister: true,
+    snapshotLabel: 'FY-end workforce snapshot',
   },
   {
     id: MODULE.BOARD,
     label: 'Board Governance',
     route: '/soe/people/board',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.EXECUTIVES,
     label: 'Executive Management',
     route: '/soe/people/executives',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.FINANCE,
     label: 'Financials',
     route: '/soe/finance',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.LOANS,
     label: 'Loans & Grants',
     route: '/soe/finance/loans',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.PROCUREMENT,
     label: 'Procurement',
     route: '/soe/accountability/procurement',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.AUDIT,
     label: 'Audit',
     route: '/soe/accountability/audit',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.LITIGATION,
     label: 'Litigation',
     route: '/soe/accountability/litigation',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'event_based',
+    liveRegister: true,
+    snapshotLabel: 'FY-end litigation schedule',
   },
   {
     id: MODULE.COMPLIANCE,
     label: 'Compliance',
     route: '/soe/accountability/compliance',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.INDUSTRIAL,
     label: 'Industrial Performance',
     route: '/soe/industrial',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.PRIVATIZATION,
     label: 'Privatization',
     route: '/soe/privatization',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
   {
     id: MODULE.DOCUMENTS,
     label: 'Documents',
     route: '/soe/documents',
     ownerRole: ROLE.SOE_FOCAL_PERSON,
+    cadence: 'annual',
   },
 ]
 

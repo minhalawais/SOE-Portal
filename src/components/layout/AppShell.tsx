@@ -22,7 +22,9 @@ export function AppShell({ children }: PropsWithChildren) {
   const role = useSessionStore((s) => s.role)
   const setSidebarCollapsed = useSessionStore((s) => s.setSidebarCollapsed)
   const definition = getPortalDefinitionForRole(portal, role)
-  const isPmDashboard = location.pathname === '/pmo/dashboard'
+  const isPmDashboard =
+    location.pathname === '/moip-executive/dashboard' ||
+    location.pathname === '/pmo/dashboard'
 
   useEffect(() => {
     if (isPmDashboard) setSidebarCollapsed(true)

@@ -26,7 +26,7 @@ describe('LoginPage', () => {
     expect(screen.getByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
   })
 
-  it('opens the PM Dashboard even when login was triggered from an SOE route', async () => {
+  it('keeps the inferred role after single sign-in instead of forcing an executive session', async () => {
     vi.useFakeTimers()
     render(
       <MemoryRouter initialEntries={[{ pathname: '/login', state: { from: '/soe/dashboard' } }]}>
@@ -39,7 +39,7 @@ describe('LoginPage', () => {
     fireEvent.change(screen.getByLabelText('Verification code'), { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify and continue' }))
     await act(async () => { vi.advanceTimersByTime(500) })
-    expect(useSessionStore.getState().role).toBe(ROLE.EXECUTIVE_VIEWER)
+    expect(useSessionStore.getState().role).toBe(ROLE.SOE_FOCAL_PERSON)
     vi.useRealTimers()
   })
 })

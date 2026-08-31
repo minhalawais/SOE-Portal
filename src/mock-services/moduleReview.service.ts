@@ -1,5 +1,6 @@
 import {
   MODULE,
+  ROLE,
   ROLE_LABEL,
   SUBMISSION_STATUS,
   type ModuleId,
@@ -111,6 +112,18 @@ const submittedStatuses = new Set<SubmissionStatus>([
   SUBMISSION_STATUS.LOCKED,
 ])
 
+const soeReviewStatuses = new Set<SubmissionStatus>([
+  SUBMISSION_STATUS.READY_FOR_CERTIFICATION,
+  SUBMISSION_STATUS.CERTIFIED,
+  SUBMISSION_STATUS.CLARIFICATION_REQUESTED,
+  SUBMISSION_STATUS.RETURNED,
+  SUBMISSION_STATUS.SUBMITTED,
+  SUBMISSION_STATUS.UNDER_REVIEW,
+  SUBMISSION_STATUS.RESUBMITTED,
+  SUBMISSION_STATUS.APPROVED,
+  SUBMISSION_STATUS.LOCKED,
+])
+
 const approvedStatuses = new Set<SubmissionStatus>([
   SUBMISSION_STATUS.APPROVED,
   SUBMISSION_STATUS.LOCKED,
@@ -120,6 +133,20 @@ const snapshots = new Map<string, ReviewRecord[]>()
 
 function assertPermission(role: RoleId, permission: (typeof PERMISSION)[keyof typeof PERMISSION]) {
   if (!hasPermission(role, permission)) throw new AppError('Permission denied', 'PERMISSION')
+}
+
+function canActAsSoeReviewer(role: RoleId) {
+  return (
+    role === ROLE.SOE_FOCAL_PERSON ||
+    role === ROLE.SOE_CERTIFIER ||
+    role === ROLE.CEO ||
+    role === ROLE.CFO ||
+    role === ROLE.SYSTEM_ADMIN
+  )
+}
+
+function canViewSoeReview(role: RoleId) {
+  return canActAsSoeReviewer(role) || role === ROLE.SOE_EXECUTIVE
 }
 
 function humanize(key: string) {
@@ -355,47 +382,64 @@ function updateStatus(submission: Submission, status: SubmissionStatus) {
   if (status === SUBMISSION_STATUS.LOCKED) submission.version = '1.0'
 }
 
+function buildSnapshot(submission: Submission): ModuleReviewSnapshot {
+  const organization = db.organizations.find((org) => org.id === submission.organizationId)
+  if (!organization) throw new AppError('Organization not found', 'NOT_FOUND')
+  const records = capture(submission)
+  const evidence = evidenceFor(submission)
+  const periodLabel =
+    db.reportingPeriods.find((p) => p.id === submission.reportingPeriodId)?.label ??
+    submission.reportingPeriodId
+  const history = [
+    ...db.submissionHistory
+      .filter((event) => event.submissionId === submission.id)
+      .map((event) => ({
+        id: event.id,
+        occurredAt: event.occurredAt,
+        title: event.action.replaceAll('_', ' '),
+        actor: event.actorRole,
+        comment: event.comment,
+      })),
+    ...db.timeline
+      .filter((event) => event.linkedRecordId === submission.id)
+      .map((event) => ({
+        id: event.id,
+        occurredAt: event.occurredAt,
+        title: event.title,
+        actor: event.actorRole,
+        comment: event.comment,
+      })),
+  ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+
+  return {
+    submission,
+    organization,
+    moduleLabel:
+      REPORTING_MODULES.find((m) => m.id === submission.module)?.label ?? submission.module,
+    periodLabel,
+    records,
+    evidence,
+    validation: validationFor(submission, records, evidence),
+    history,
+  }
+}
+
 export const mockModuleReviewService = {
   async getReview(submissionId: string): Promise<ModuleReviewSnapshot> {
     const submission = submissionById(submissionId)
     if (!submittedStatuses.has(submission.status)) {
       throw new AppError('This module has not been submitted to MoIP for review.', 'VALIDATION')
     }
-    const organization = db.organizations.find((org) => org.id === submission.organizationId)
-    if (!organization) throw new AppError('Organization not found', 'NOT_FOUND')
-    const records = capture(submission)
-    const evidence = evidenceFor(submission)
-    const periodLabel = db.reportingPeriods.find((p) => p.id === submission.reportingPeriodId)?.label ?? submission.reportingPeriodId
-    const history = [
-      ...db.submissionHistory
-        .filter((event) => event.submissionId === submission.id)
-        .map((event) => ({
-          id: event.id,
-          occurredAt: event.occurredAt,
-          title: event.action.replaceAll('_', ' '),
-          actor: event.actorRole,
-          comment: event.comment,
-        })),
-      ...db.timeline
-        .filter((event) => event.linkedRecordId === submission.id)
-        .map((event) => ({
-          id: event.id,
-          occurredAt: event.occurredAt,
-          title: event.title,
-          actor: event.actorRole,
-          comment: event.comment,
-        })),
-    ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-    return simulateLatency({
-      submission,
-      organization,
-      moduleLabel: REPORTING_MODULES.find((m) => m.id === submission.module)?.label ?? submission.module,
-      periodLabel,
-      records,
-      evidence,
-      validation: validationFor(submission, records, evidence),
-      history,
-    })
+    return simulateLatency(buildSnapshot(submission))
+  },
+
+  async getSoeReview(submissionId: string, role: RoleId): Promise<ModuleReviewSnapshot> {
+    if (!canViewSoeReview(role)) throw new AppError('Permission denied', 'PERMISSION')
+    const submission = submissionById(submissionId)
+    if (!soeReviewStatuses.has(submission.status)) {
+      throw new AppError('This module is not currently with the SOE reviewer.', 'VALIDATION')
+    }
+    return simulateLatency(buildSnapshot(submission))
   },
 
   async getPackage(organizationId: string, reportingPeriodId: string): Promise<ReviewPackage> {
@@ -540,6 +584,64 @@ export const mockModuleReviewService = {
     }
     updateStatus(submission, SUBMISSION_STATUS.LOCKED)
     writeHistory(submission, role, 'approved_and_locked', statement || `Approved by ${ROLE_LABEL[role]}`)
+    return simulateMutation(submission)
+  },
+
+  async requestSoeClarification(submissionId: string, role: RoleId, field: string, question: string) {
+    if (!canActAsSoeReviewer(role)) throw new AppError('Permission denied', 'PERMISSION')
+    const submission = submissionById(submissionId)
+    if (submission.status !== SUBMISSION_STATUS.READY_FOR_CERTIFICATION) {
+      throw new AppError('Only modules awaiting SOE reviewer action can be clarified.', 'VALIDATION')
+    }
+    const clarification: Clarification = {
+      id: `clar-soe-${submissionId}-${Date.now()}`,
+      submissionId,
+      organizationId: submission.organizationId,
+      module: submission.module,
+      question,
+      affectedField: field,
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      issuedByRole: role,
+    }
+    db.clarifications.unshift(clarification)
+    updateStatus(submission, SUBMISSION_STATUS.CLARIFICATION_REQUESTED)
+    writeHistory(submission, role, 'soe_clarification_requested', `${field}: ${question}`)
+    return simulateMutation(clarification)
+  },
+
+  async returnSoeSubmission(submissionId: string, role: RoleId, reason: string) {
+    if (!canActAsSoeReviewer(role)) throw new AppError('Permission denied', 'PERMISSION')
+    const submission = submissionById(submissionId)
+    if (
+      submission.status !== SUBMISSION_STATUS.READY_FOR_CERTIFICATION &&
+      submission.status !== SUBMISSION_STATUS.CLARIFICATION_REQUESTED
+    ) {
+      throw new AppError('This module is not eligible for SOE return.', 'VALIDATION')
+    }
+    updateStatus(submission, SUBMISSION_STATUS.RETURNED)
+    writeHistory(submission, role, 'soe_returned_to_contributor', reason)
+    return simulateMutation(submission)
+  },
+
+  async approveSoeSubmission(submissionId: string, role: RoleId, statement: string) {
+    if (!canActAsSoeReviewer(role)) throw new AppError('Permission denied', 'PERMISSION')
+    const submission = submissionById(submissionId)
+    if (submission.status !== SUBMISSION_STATUS.READY_FOR_CERTIFICATION) {
+      throw new AppError('The module must be awaiting SOE reviewer action before approval.', 'VALIDATION')
+    }
+    const records = capture(submission)
+    const validation = validationFor(submission, records, evidenceFor(submission))
+    if (validation.blocking > 0) {
+      throw new AppError('Resolve blocking findings before reviewer approval.', 'VALIDATION')
+    }
+    updateStatus(submission, SUBMISSION_STATUS.CERTIFIED)
+    writeHistory(
+      submission,
+      role,
+      'soe_certified_for_submission',
+      statement || `Certified by ${ROLE_LABEL[role]}`,
+    )
     return simulateMutation(submission)
   },
 }
