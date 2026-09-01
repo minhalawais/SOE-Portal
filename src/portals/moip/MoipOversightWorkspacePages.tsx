@@ -66,6 +66,17 @@ function moduleLabel(moduleId: string) {
 
 const DASHBOARD_COLORS = { blue: '#1f5f8b', teal: '#138a7a', amber: '#d17a08', red: '#bf3f34', navy: '#17324d', muted: '#8da2b8', grid: '#e6ebef' }
 
+const MOIP_WORKFLOW_CHART_EXCLUDE = new Set<string>([
+  SUBMISSION_STATUS.CERTIFIED,
+  SUBMISSION_STATUS.RESUBMITTED,
+])
+
+function workflowBarColor(status: string) {
+  if (status === SUBMISSION_STATUS.CLARIFICATION_REQUESTED) return DASHBOARD_COLORS.amber
+  if (status === SUBMISSION_STATUS.APPROVED || status === SUBMISSION_STATUS.LOCKED) return DASHBOARD_COLORS.teal
+  return DASHBOARD_COLORS.blue
+}
+
 const MOIP_DASHBOARD_STATUS_LABEL: Record<string, string> = {
   [SUBMISSION_STATUS.DRAFT]: 'SOE data entry not started',
   [SUBMISSION_STATUS.IN_PROGRESS]: 'SOE data entry in progress',
@@ -130,10 +141,12 @@ export function MoipOversightDashboardPage() {
 
   const d = dashboard.data
   const w = workload.data
-  const reviewWorkflow = d.workflow.map((item) => ({
-    ...item,
-    label: MOIP_DASHBOARD_STATUS_LABEL[item.status] ?? item.label,
-  }))
+  const reviewWorkflow = d.workflow
+    .filter((item) => !MOIP_WORKFLOW_CHART_EXCLUDE.has(item.status))
+    .map((item) => ({
+      ...item,
+      label: MOIP_DASHBOARD_STATUS_LABEL[item.status] ?? item.label,
+    }))
   const userRisk = userPosture.data ? { total: userPosture.data.length, mfaMissing: userPosture.data.filter((item) => !item.mfaEnabled && item.status === 'active').length, locked: userPosture.data.filter((item) => item.status === 'locked' || item.status === 'suspended').length, invitations: userPosture.data.filter((item) => item.invitationStatus === 'pending').length } : null
 
   return (
@@ -181,7 +194,45 @@ export function MoipOversightDashboardPage() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-        <Card><DashboardSectionTitle title="MOIP module review workflow" action={<Link className={linkClass} to="/moip/submissions">Open review queue</Link>} /><div className="h-[260px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={reviewWorkflow} margin={{ top: 8, right: 10, left: -16, bottom: 30 }}><CartesianGrid stroke={DASHBOARD_COLORS.grid} vertical={false} /><XAxis dataKey="label" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} /><YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ borderRadius: 4, borderColor: DASHBOARD_COLORS.grid, fontSize: 11 }} /><Bar dataKey="count" name="Modules" radius={[3, 3, 0, 0]}>{reviewWorkflow.map((item) => <Cell key={item.status} fill={item.status === 'clarification_requested' ? DASHBOARD_COLORS.amber : item.status === 'approved' || item.status === 'locked' ? DASHBOARD_COLORS.teal : DASHBOARD_COLORS.blue} />)}</Bar></BarChart></ResponsiveContainer></div></Card>
+        <Card>
+          <DashboardSectionTitle title="MOIP module review workflow" action={<Link className={linkClass} to="/moip/submissions">Open review queue</Link>} />
+          <div style={{ height: Math.max(260, reviewWorkflow.length * 34 + 24) }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={reviewWorkflow}
+                layout="vertical"
+                margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
+              >
+                <CartesianGrid stroke={DASHBOARD_COLORS.grid} horizontal={false} />
+                <XAxis
+                  type="number"
+                  allowDecimals={false}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  width={200}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  formatter={(value) => [value, 'Modules']}
+                  labelFormatter={(label) => String(label)}
+                  contentStyle={{ borderRadius: 4, borderColor: DASHBOARD_COLORS.grid, fontSize: 11 }}
+                />
+                <Bar dataKey="count" name="Modules" radius={[0, 3, 3, 0]}>
+                  {reviewWorkflow.map((item) => (
+                    <Cell key={item.status} fill={workflowBarColor(item.status)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
         <Card><DashboardSectionTitle title="Your MOIP review workload and data quality" action={<Link className={linkClass} to="/moip/tasks">Tasks</Link>} /><div className="grid grid-cols-2 gap-x-5 gap-y-4">{w ? <><div><p className="text-xs text-soe-slate">Modules assigned to you</p><p className="text-xl font-bold text-soe-navy">{w.assignedReviews}</p></div><div><p className="text-xs text-soe-slate">Reviews due soon</p><p className="text-xl font-bold text-soe-navy">{w.dueSoon}</p></div><div><p className="text-xs text-soe-slate">Overdue reviewer actions</p><p className="text-xl font-bold text-soe-critical">{w.overdue}</p></div><div><p className="text-xs text-soe-slate">Awaiting MOIP decision</p><p className="text-xl font-bold text-soe-navy">{w.approvalsPending}</p></div></> : null}<div><p className="text-xs text-soe-slate">Blocking validation findings</p><p className="text-xl font-bold text-soe-critical">{d.quality.blocking}</p></div><div><p className="text-xs text-soe-slate">Missing required evidence</p><p className="text-xl font-bold text-soe-warning">{d.quality.evidenceGaps}</p></div></div><div className="mt-5 border-t border-soe-border pt-4"><div className="flex justify-between text-xs"><span>Submitted data completeness</span><strong>{d.summary.averageCompleteness}%</strong></div><div className="mt-2 h-2 bg-soe-canvas"><div className="h-full bg-soe-teal" style={{ width: `${d.summary.averageCompleteness}%` }} /></div></div></Card>
       </div>
 
