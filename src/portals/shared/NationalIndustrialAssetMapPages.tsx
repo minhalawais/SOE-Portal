@@ -556,7 +556,7 @@ export function NationalIndustrialAssetMapWorkspace({
           {!listOnly ? (
             <Card
               title="Map"
-              subtitle="Carto light basemap · polygons illustrative · not cadastral"
+              subtitle="Light basemap · polygons illustrative · not cadastral"
               actions={<GisMapLegend />}
               padding={false}
             >

@@ -8,7 +8,8 @@ import {
   Warehouse,
   X,
 } from 'lucide-react'
-import { MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, Polygon, Tooltip, useMap } from 'react-leaflet'
+import { LightBasemapLayers } from '@/components/gis/basemap'
 import type { GisAssetItem } from '@/mock-services/gis.service'
 import type { OrganizationLocation } from '@/types/domain'
 import { cn, formatCurrencyPkr } from '@/utils'
@@ -312,10 +313,7 @@ export function SoeFootprintMap({
         scrollWheelZoom
         zoomControl
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        />
+        <LightBasemapLayers />
         <FitFootprint units={units} />
         <RefitButton units={units} />
         {units.map((unit) => (

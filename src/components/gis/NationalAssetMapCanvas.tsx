@@ -9,7 +9,6 @@ import {
   CircleMarker,
   MapContainer,
   Polygon,
-  TileLayer,
   Tooltip,
   useMap,
 } from 'react-leaflet'
@@ -17,6 +16,7 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { GisAssetItem, GisMarkerRole } from '@/mock-services/gis.service'
 import { GIS_NATIONAL_VIEW } from '@/mock-services/gis.service'
 import { EmptyState } from '@/design-system/components/Feedback'
+import { LightBasemapLayers } from '@/components/gis/basemap'
 import { GIS_ROLE_COLOR } from '@/components/gis/GisMapLegend'
 import { cn, formatCurrencyPkr } from '@/utils'
 
@@ -644,10 +644,7 @@ export function NationalAssetMapCanvas({
         className="h-full w-full"
         scrollWheelZoom
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        />
+        <LightBasemapLayers />
         <FitOrFly
           items={mapped}
           selectedId={selectedId}
