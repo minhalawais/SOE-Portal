@@ -233,11 +233,11 @@ export function ExecutiveLitigationExposureSection({
         </div>
         <div className="rounded-card border border-soe-border bg-white p-4 shadow-[var(--shadow-sm)]">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase text-soe-slate">Material changes (30d)</p>
+            <p className="text-[11px] font-semibold uppercase text-soe-slate">Cases updated (30 days)</p>
             <FileWarning size={16} className="text-soe-warning" aria-hidden />
           </div>
           <p className="mt-2 text-2xl font-semibold text-soe-navy tabular-nums">{litigationLive.materialChanges30d}</p>
-          <p className="mt-1 text-xs text-soe-slate">Cases updated recently</p>
+          <p className="mt-1 text-xs text-soe-slate">Last changed on the register</p>
         </div>
         <div className="rounded-card border border-soe-border bg-white p-4 shadow-[var(--shadow-sm)]">
           <div className="flex items-start justify-between gap-2">
