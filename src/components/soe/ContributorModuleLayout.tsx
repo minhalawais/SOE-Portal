@@ -29,6 +29,7 @@ export function ContributorModuleLayout({
   saveDisabled = false,
   showFormActions = true,
   showRegistryDivider = true,
+  aside,
 }: PropsWithChildren<{
   moduleId: ModuleId
   title: string
@@ -51,6 +52,7 @@ export function ContributorModuleLayout({
   saveDisabled?: boolean
   showFormActions?: boolean
   showRegistryDivider?: boolean
+  aside?: ReactNode
 }>) {
   const hasActions = showFormActions && entry && (onSave || onCancel || cancelTo)
 
@@ -88,7 +90,16 @@ export function ContributorModuleLayout({
       {alerts ? <div className="mb-4 space-y-2">{alerts}</div> : null}
 
       {entry ? (
-        <EntryFormActionGroup actions={actionButtons}>{entry}</EntryFormActionGroup>
+        aside ? (
+          <div className="mb-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,22rem)]">
+            <EntryFormActionGroup className="mb-0" actions={actionButtons}>
+              {entry}
+            </EntryFormActionGroup>
+            {aside}
+          </div>
+        ) : (
+          <EntryFormActionGroup actions={actionButtons}>{entry}</EntryFormActionGroup>
+        )
       ) : null}
 
       {registry ? (

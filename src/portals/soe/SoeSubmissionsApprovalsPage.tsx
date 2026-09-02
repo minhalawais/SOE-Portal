@@ -170,7 +170,7 @@ export function SoeSubmissionsApprovalsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Submissions & Approvals"
+        title="Submissions & Returns"
         subtitle={`${data.organization.abbreviation} · ${data.period.label} · completion, validation, clarifications and MoIP submission`}
       />
 

@@ -17,7 +17,6 @@ describe('portal navigation config', () => {
     expect(nav.map((item) => item.label)).toEqual([
       'National Dashboard',
       'Search & Intelligence',
-      'Strategic Reports',
     ])
 
     const labels = JSON.stringify(nav)
@@ -33,7 +32,7 @@ describe('portal navigation config', () => {
 
     expect(portalDefinitions.soe_entry.name).toBe('SOE Data Entry Portal')
     expect(portalDefinitions.soe_entry.homeRoute).toBe('/soe-entry/dashboard')
-    expect(labels).toContain('Submissions & Approvals')
+    expect(labels).toContain('Submissions & Returns')
     expect(labels).toContain('AI Data Import')
     expect(labels).not.toContain('Reporting Workspace')
     expect(labels).toContain('Enterprise')

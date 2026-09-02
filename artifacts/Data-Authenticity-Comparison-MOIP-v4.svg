@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="44%" r="76%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.58" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#eef4ff"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#15334f" flood-opacity="0.16"/>
+    </filter>
+    <filter id="pillShadow" x="-20%" y="-30%" width="140%" height="170%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#142f49" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; letter-spacing: 0; }
+      .title { font-size: 46px; font-weight: 700; fill: #111820; }
+      .pill { font-size: 23px; font-weight: 700; }
+      .row-title { font-size: 19px; font-weight: 700; fill: #ffffff; }
+      .row-copy { font-size: 15px; font-weight: 400; fill: #eef5ff; }
+      .icon { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <path d="M0 0H1600V26C1520 10 1460 44 1388 27C1295 4 1227 45 1135 24C1045 4 983 42 890 25C797 8 732 44 639 24C549 5 477 43 388 24C292 5 233 42 140 24C84 13 43 22 0 35Z" fill="#ffffff" opacity="0.66"/>
+
+  <text x="800" y="104" text-anchor="middle" class="title">Data Authenticity: What We Can and Cannot Prove</text>
+
+  <!-- Mirrored reference-style panels -->
+  <path d="M211 178H770Q795 178 795 204V819H210Q186 819 178 794L107 526Q100 500 107 474L178 204Q185 178 211 178Z" fill="#4059d0"/>
+  <path d="M830 178H1389Q1415 178 1422 204L1493 474Q1500 500 1493 526L1422 794Q1414 819 1390 819H805V204Q805 178 830 178Z" fill="#4294d3"/>
+
+  <!-- Header pills -->
+  <rect x="234" y="227" width="360" height="60" rx="30" fill="#ffffff" filter="url(#pillShadow)"/>
+  <text x="270" y="266" class="pill" fill="#4059d0">CAN AUTHENTICATE</text>
+  <rect x="1006" y="227" width="360" height="60" rx="30" fill="#ffffff" filter="url(#pillShadow)"/>
+  <text x="1330" y="266" text-anchor="end" class="pill" fill="#4294d3">CANNOT PROVE ALONE</text>
+
+  <!-- Left row 1 -->
+  <circle cx="269" cy="392" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4059d0">
+    <circle cx="269" cy="384" r="7"/><path d="M255 405c2-9 7-13 14-13s12 4 14 13"/>
+    <path d="M282 377l6 2v6c0 6-3 10-6 12-4-2-7-6-7-12v-6z"/><path d="m279 386 3 3 5-6"/>
+  </g>
+  <text x="327" y="385" class="row-title">Authorized source</text>
+  <text x="327" y="410" class="row-copy">Named SOE user, MFA / SSO</text>
+  <text x="327" y="430" class="row-copy">and an approved role</text>
+
+  <!-- Left row 2 -->
+  <circle cx="269" cy="500" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4059d0">
+    <circle cx="269" cy="500" r="16"/><path d="M269 490v11l8 5"/><path d="M256 486h-8v-8"/><path d="M249 486a22 22 0 1 1-1 25"/>
+  </g>
+  <text x="327" y="493" class="row-title">Submission provenance</text>
+  <text x="327" y="518" class="row-copy">Who submitted, when and</text>
+  <text x="327" y="538" class="row-copy">from which verified session</text>
+
+  <!-- Left row 3 -->
+  <circle cx="269" cy="608" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4059d0">
+    <path d="M256 588h18l9 9v28h-27z"/><path d="M274 588v10h9"/>
+    <path d="M262 608h14M262 615h10"/><circle cx="279" cy="618" r="7"/><path d="m276 618 2 2 4-5"/>
+  </g>
+  <text x="327" y="601" class="row-title">Record integrity</text>
+  <text x="327" y="626" class="row-copy">Versions, document hashes</text>
+  <text x="327" y="646" class="row-copy">and a complete audit history</text>
+
+  <!-- Left row 4 -->
+  <circle cx="269" cy="716" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4059d0">
+    <path d="M255 694h23v30h-23z"/><path d="M261 702h11M261 709h8"/>
+    <circle cx="279" cy="716" r="9"/><path d="m275 716 3 3 6-7"/>
+  </g>
+  <text x="327" y="709" class="row-title">Internal accountability</text>
+  <text x="327" y="734" class="row-copy">Maker-checker approval and</text>
+  <text x="327" y="754" class="row-copy">digital attestation</text>
+
+  <!-- Right row 1 -->
+  <circle cx="1331" cy="392" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4294d3">
+    <path d="M1315 408v-28h30v28z"/><path d="M1321 402v-8M1329 402v-15M1337 402v-20"/>
+    <circle cx="1341" cy="383" r="8"/><path d="M1339 380a3 3 0 1 1 4 3c-2 1-2 2-2 3M1341 390h.1"/>
+  </g>
+  <text x="1273" y="385" text-anchor="end" class="row-title">Factual accuracy</text>
+  <text x="1273" y="410" text-anchor="end" class="row-copy">Whether figures reflect actual</text>
+  <text x="1273" y="430" text-anchor="end" class="row-copy">operations and conditions</text>
+
+  <!-- Right row 2 -->
+  <circle cx="1331" cy="500" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4294d3">
+    <path d="M1316 483h22v34h-22z"/><path d="M1322 491h10M1322 498h10M1322 505h7"/>
+    <circle cx="1340" cy="510" r="9"/><path d="M1336 510h8"/>
+  </g>
+  <text x="1273" y="493" text-anchor="end" class="row-title">Completeness</text>
+  <text x="1273" y="518" text-anchor="end" class="row-copy">Whether assets, liabilities or</text>
+  <text x="1273" y="538" text-anchor="end" class="row-copy">material events were omitted</text>
+
+  <!-- Right row 3 -->
+  <circle cx="1331" cy="608" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4294d3">
+    <path d="M1314 586h22l8 8v28h-30z"/><path d="M1336 586v9h8"/>
+    <circle cx="1337" cy="614" r="8"/><path d="m1343 620 7 7"/>
+  </g>
+  <text x="1273" y="601" text-anchor="end" class="row-title">Evidence genuineness</text>
+  <text x="1273" y="626" text-anchor="end" class="row-copy">Whether uploaded documents</text>
+  <text x="1273" y="646" text-anchor="end" class="row-copy">are authentic and unaltered</text>
+
+  <!-- Right row 4 -->
+  <circle cx="1331" cy="716" r="33" fill="#ffffff"/>
+  <g class="icon" stroke="#4294d3">
+    <circle cx="1324" cy="706" r="7"/><path d="M1311 726c1-9 6-13 13-13 6 0 11 4 13 13"/>
+    <path d="m1340 699 11 20h-22z"/><path d="M1340 707v5M1340 716h.1"/>
+  </g>
+  <text x="1273" y="709" text-anchor="end" class="row-title">Human or offline misuse</text>
+  <text x="1273" y="734" text-anchor="end" class="row-copy">Sharing, coercion, collusion</text>
+  <text x="1273" y="754" text-anchor="end" class="row-copy">or deliberate backdating</text>
+
+  <!-- Central segmented ring -->
+  <g filter="url(#softShadow)">
+    <circle cx="800" cy="510" r="151" fill="none" stroke="#ffffff" stroke-width="64"/>
+    <g stroke-width="14" stroke-linecap="butt">
+      <path d="M800 327v52" stroke="#dbe7f0"/>
+      <path d="M800 641v52" stroke="#dbe7f0"/>
+      <path d="M617 510h52" stroke="#4059d0"/>
+      <path d="M931 510h52" stroke="#4294d3"/>
+      <path d="M670 380l37 37" stroke="#4059d0"/>
+      <path d="M893 603l37 37" stroke="#4294d3"/>
+      <path d="M670 640l37-37" stroke="#4059d0"/>
+      <path d="M893 417l37-37" stroke="#4294d3"/>
+    </g>
+    <circle cx="800" cy="510" r="123" fill="#ffffff"/>
+  </g>
+  <text x="800" y="523" text-anchor="middle" font-size="38" font-weight="700" fill="#14171b">VS</text>
+</svg>

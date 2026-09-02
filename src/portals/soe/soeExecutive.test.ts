@@ -21,7 +21,6 @@ describe('SOE Executive intelligence', () => {
     expect(definition.navigation.map((item) => item.label)).toEqual([
       'Executive Dashboard',
       'Alerts & Decisions',
-      'Executive Reports',
       'Search & Intelligence',
     ])
   })

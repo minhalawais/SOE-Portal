@@ -563,7 +563,7 @@ function enterpriseFocalUserId(organizationId: string) {
   return `usr-${organizationId.replace(/^org-/, '')}-focal`
 }
 
-function buildOrganizations(): Organization[] {
+function buildPortfolioOrganizations(): Organization[] {
   return ORG_SPECS.map((s) => {
     const metadata = enterpriseMetadataById[s.id] ?? {
       entityType: s.legalStatus === LEGAL_STATUS.HOLDING_COMPANY
@@ -614,6 +614,124 @@ function buildOrganizations(): Organization[] {
       isDummyDemonstrationData: true as const,
     }
   })
+}
+
+function buildControlledEnterprises(): Organization[] {
+  const rows: Array<{
+    id: string
+    name: string
+    abbreviation: string
+    entityType: Organization['entityType']
+    ownershipPercent: number
+    controlType: Organization['controlType']
+    consolidationTreatment: Organization['consolidationTreatment']
+    status: Organization['status']
+    legalStatus: Organization['legalStatus']
+    city: string
+    province: string
+    incorporation: string
+  }> = [
+    {
+      id: 'ent-ptml',
+      name: 'Precision Tools Manufacturing (Pvt.) Limited',
+      abbreviation: 'PTML',
+      entityType: ENTERPRISE_ENTITY_TYPE.SUBSIDIARY,
+      ownershipPercent: 100,
+      controlType: ENTERPRISE_CONTROL_TYPE.DIRECT_CONTROL,
+      consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.CONSOLIDATED,
+      status: SOE_STATUS.ACTIVE,
+      legalStatus: LEGAL_STATUS.SUBSIDIARY,
+      city: 'Gujranwala',
+      province: 'Punjab',
+      incorporation: '2014-03-18',
+    },
+    {
+      id: 'ent-aisi',
+      name: 'Apex Industrial Skills (Pvt.) Limited',
+      abbreviation: 'AISI',
+      entityType: ENTERPRISE_ENTITY_TYPE.ASSOCIATE,
+      ownershipPercent: 30,
+      controlType: ENTERPRISE_CONTROL_TYPE.SIGNIFICANT_INFLUENCE,
+      consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.EQUITY_ACCOUNTED,
+      status: SOE_STATUS.DORMANT,
+      legalStatus: LEGAL_STATUS.COMPANIES_ACT_COMPANY,
+      city: 'Karachi',
+      province: 'Sindh',
+      incorporation: '2017-11-02',
+    },
+    {
+      id: 'ent-nlec',
+      name: 'Northern Light Engineering Company (Pvt.) Limited',
+      abbreviation: 'NLEC',
+      entityType: ENTERPRISE_ENTITY_TYPE.JOINT_VENTURE,
+      ownershipPercent: 40,
+      controlType: ENTERPRISE_CONTROL_TYPE.JOINT_CONTROL,
+      consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.EQUITY_ACCOUNTED,
+      status: SOE_STATUS.ACTIVE,
+      legalStatus: LEGAL_STATUS.JOINT_VENTURE,
+      city: 'Peshawar',
+      province: 'Khyber Pakhtunkhwa',
+      incorporation: '2019-06-24',
+    },
+    {
+      id: 'ent-sipc',
+      name: 'Sialkot Industrial Parts Company (Pvt.) Limited',
+      abbreviation: 'SIPC',
+      entityType: ENTERPRISE_ENTITY_TYPE.SUBSIDIARY,
+      ownershipPercent: 80,
+      controlType: ENTERPRISE_CONTROL_TYPE.DIRECT_CONTROL,
+      consolidationTreatment: ENTERPRISE_CONSOLIDATION_TREATMENT.CONSOLIDATED,
+      status: SOE_STATUS.ACTIVE,
+      legalStatus: LEGAL_STATUS.SUBSIDIARY,
+      city: 'Sialkot',
+      province: 'Punjab',
+      incorporation: '2021-01-15',
+    },
+  ]
+
+  return rows.map((row) => ({
+    id: row.id,
+    enterpriseEntityId: row.id,
+    entityType: row.entityType,
+    parentEntityId: 'org-tusdec',
+    rootEnterpriseEntityId: 'org-tusdec',
+    ownershipPercent: row.ownershipPercent,
+    controlType: row.controlType,
+    consolidationTreatment: row.consolidationTreatment,
+    reportingObligation: ENTERPRISE_REPORTING_OBLIGATION.CONTROLLED_ENTITY_REPORTING,
+    focalUserId: enterpriseFocalUserId(row.id),
+    name: row.name,
+    abbreviation: row.abbreviation,
+    legalStatus: row.legalStatus,
+    sector: 'Light engineering',
+    subSector: 'Industrial tooling and skills',
+    natureOfBusiness: 'Controlled industrial enterprise of TUSDEC',
+    status: row.status,
+    parentMinistry: 'Ministry of Industries and Production',
+    attachedDepartment: 'Industrial Development Wing',
+    administrativeMinistry: 'Ministry of Industries and Production',
+    operatingMinistry: 'Ministry of Industries and Production',
+    companyRegistrationNo: `CRN-${row.abbreviation}-${hash(row.id) % 90000 + 10000}`,
+    ntn: `${hash(row.id) % 9000000 + 1000000}-7`,
+    secpRegistrationNo: `000${hash(row.id) % 9000000 + 1000000}`,
+    strn: `STRN-${hash(row.id) % 900000 + 100000}`,
+    dateOfIncorporation: row.incorporation,
+    website: `https://www.${row.abbreviation.toLowerCase()}.com.pk`,
+    corporateEmail: `info@${row.abbreviation.toLowerCase()}.com.pk`,
+    headOfficeAddress: `${row.abbreviation} Head Office, ${row.city}, ${row.province}`,
+    governmentOwnershipPct: 0,
+    authorizedCapitalPkr: 250_000_000,
+    paidUpCapitalPkr: 180_000_000,
+    issuedCapitalPkr: 180_000_000,
+    ultimateBeneficialOwner: 'TUSDEC',
+    scenarioId: SCENARIO.COMPLIANT,
+    scenarioTag: SCENARIO.COMPLIANT,
+    isDummyDemonstrationData: true as const,
+  }))
+}
+
+function buildOrganizations(): Organization[] {
+  return [...buildPortfolioOrganizations(), ...buildControlledEnterprises()]
 }
 
 function buildOwnershipLines(): OwnershipLine[] {
@@ -730,6 +848,30 @@ function buildRelationships(): OrganizationRelationship[] {
       ownershipPercentage: 35,
       status: RELATIONSHIP_STATUS.ACTIVE,
     },
+    {
+      id: 'rel-tusdec-ptml',
+      parentOrganizationId: 'org-tusdec',
+      relatedOrganizationId: 'ent-ptml',
+      relationshipType: RELATIONSHIP_TYPE.SUBSIDIARY,
+      ownershipPercentage: 100,
+      status: RELATIONSHIP_STATUS.ACTIVE,
+    },
+    {
+      id: 'rel-tusdec-aisi',
+      parentOrganizationId: 'org-tusdec',
+      relatedOrganizationId: 'ent-aisi',
+      relationshipType: RELATIONSHIP_TYPE.ASSOCIATE,
+      ownershipPercentage: 30,
+      status: RELATIONSHIP_STATUS.ACTIVE,
+    },
+    {
+      id: 'rel-tusdec-nlec',
+      parentOrganizationId: 'org-tusdec',
+      relatedOrganizationId: 'ent-nlec',
+      relationshipType: RELATIONSHIP_TYPE.JOINT_VENTURE,
+      ownershipPercentage: 40,
+      status: RELATIONSHIP_STATUS.ACTIVE,
+    },
   ]
 }
 
@@ -837,6 +979,13 @@ const INDUSTRIAL_SITE_BY_ORG: Partial<Record<string, SeedLocationProfile>> = {
     address: 'Marble City, Risalpur',
     latitude: 34.055,
     longitude: 71.984,
+  },
+  'org-tusdec': {
+    province: 'Punjab',
+    city: 'Lahore',
+    address: 'Sundar Industrial Estate, Lahore',
+    latitude: 31.3068,
+    longitude: 74.1814,
   },
 }
 
@@ -1377,6 +1526,91 @@ function buildAssets(): {
           )
         })
       }
+    }
+  }
+
+  const formPacks: Array<{
+    type: string
+    files: Array<{ category: string; title: string; fileName: string; fileType: string }>
+  }> = [
+    {
+      type: ASSET_TYPE.LAND,
+      files: [
+        { category: 'revenue_record', title: 'Land record (jamabandi / fard)', fileName: 'land-record-jamabandi.pdf', fileType: 'pdf' },
+        { category: 'mutation', title: 'Mutation register extract', fileName: 'land-mutation-register.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Sale deed / conveyance', fileName: 'land-sale-deed.pdf', fileType: 'pdf' },
+        { category: 'revenue_record', title: 'Khasra girdawari', fileName: 'land-khasra-girdawari.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Aks shajra / cadastral map', fileName: 'land-aks-shajra.pdf', fileType: 'pdf' },
+        { category: 'photograph', title: 'Boundary survey photograph', fileName: 'land-boundary-survey.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      type: ASSET_TYPE.BUILDING,
+      files: [
+        { category: 'ownership', title: 'Approved building plan', fileName: 'building-approved-plan.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Completion / occupancy certificate', fileName: 'building-occupancy-certificate.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Structural as-built drawings', fileName: 'building-as-built-drawings.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Property tax assessment', fileName: 'building-property-tax.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Covered-area measurement sheet', fileName: 'building-covered-area.xlsx', fileType: 'spreadsheet' },
+        { category: 'photograph', title: 'Elevation photograph', fileName: 'building-elevation.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      type: ASSET_TYPE.MACHINERY,
+      files: [
+        { category: 'ownership', title: 'Commercial invoice / bill of entry', fileName: 'machinery-commercial-invoice.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Commissioning certificate', fileName: 'machinery-commissioning-certificate.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Technical specification sheet', fileName: 'machinery-tech-spec.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Preventive maintenance log', fileName: 'machinery-pm-log.xlsx', fileType: 'spreadsheet' },
+        { category: 'ownership', title: 'OEM warranty / service contract', fileName: 'machinery-oem-warranty.pdf', fileType: 'pdf' },
+        { category: 'photograph', title: 'Nameplate photograph', fileName: 'machinery-nameplate.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      type: ASSET_TYPE.VEHICLE,
+      files: [
+        { category: 'ownership', title: 'Registration book (Form-II)', fileName: 'vehicle-form-ii-registration.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Certificate of fitness', fileName: 'vehicle-fitness-certificate.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Motor insurance policy', fileName: 'vehicle-motor-insurance.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Token tax receipt', fileName: 'vehicle-token-tax.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Route permit / allocation order', fileName: 'vehicle-allocation-order.pdf', fileType: 'pdf' },
+        { category: 'photograph', title: 'Vehicle photograph', fileName: 'vehicle-photo.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      type: ASSET_TYPE.OTHER_EQUIPMENT,
+      files: [
+        { category: 'ownership', title: 'Goods received note (GRN)', fileName: 'equipment-grn.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Purchase order / invoice', fileName: 'equipment-purchase-order.pdf', fileType: 'pdf' },
+        { category: 'ownership', title: 'Warranty / AMC contract', fileName: 'equipment-amc-contract.pdf', fileType: 'pdf' },
+        { category: 'valuation_report', title: 'Asset tagging register', fileName: 'equipment-tag-register.xlsx', fileType: 'spreadsheet' },
+        { category: 'valuation_report', title: 'Calibration certificate', fileName: 'equipment-calibration.pdf', fileType: 'pdf' },
+        { category: 'photograph', title: 'Asset photograph', fileName: 'equipment-photo.jpg', fileType: 'image' },
+      ],
+    },
+  ]
+
+  for (const org of ORG_SPECS) {
+    for (const pack of formPacks) {
+      pack.files.forEach((file, index) => {
+        documents.push(
+          ensureDocument({
+            id: `adoc-form-${org.id}-${pack.type}-${index}`,
+            organizationId: org.id,
+            title: file.title,
+            category: file.category,
+            fileName: `${org.abbreviation}-${file.fileName}`,
+            fileType: file.fileType,
+            linkedRecordType: 'asset_form',
+            linkedRecordId: `asset-form-${org.id}-${pack.type}`,
+            linkedModule: 'assets',
+            uploadedAt: `2026-0${(index % 6) + 1}-12T09:00:00.000Z`,
+            uploadedBy: 'asset_officer',
+            version: 1,
+            status: 'available',
+          }),
+        )
+      })
     }
   }
 
@@ -3407,7 +3641,12 @@ function buildWorkflow() {
             ? 100
             : 40 + ((oi + mi) * 7) % 55,
         version: status === SUBMISSION_STATUS.LOCKED ? '1.0' : '0.8',
-        updatedAt: '2026-08-01T10:00:00Z',
+        updatedAt:
+          status === SUBMISSION_STATUS.RETURNED
+            ? `2026-08-${String(4 + ((oi + mi) % 20)).padStart(2, '0')}T10:00:00Z`
+            : status === SUBMISSION_STATUS.CLARIFICATION_REQUESTED
+              ? `2026-08-${String(6 + ((oi + mi) % 18)).padStart(2, '0')}T10:00:00Z`
+              : '2026-08-01T10:00:00Z',
       })
 
       if (status === SUBMISSION_STATUS.CLARIFICATION_REQUESTED) {

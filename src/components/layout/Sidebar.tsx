@@ -372,7 +372,7 @@ function NavBranch({ item }: { item: PortalNavigationItem }) {
   const childActive = item.children?.some((child) =>
     isBranchActive(location.pathname, child, item.children!),
   )
-  const [open, setOpen] = useState(Boolean(childActive))
+  const [open, setOpen] = useState(() => Boolean(item.defaultOpen) || Boolean(childActive))
 
   if (item.children?.length) {
     return (

@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <radialGradient id="background" cx="50%" cy="38%" r="82%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.62" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#edf4ff"/>
+    </radialGradient>
+    <linearGradient id="leftPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#445ed8"/>
+      <stop offset="1" stop-color="#344fc5"/>
+    </linearGradient>
+    <linearGradient id="rightPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4aa1dd"/>
+      <stop offset="1" stop-color="#3488c8"/>
+    </linearGradient>
+    <filter id="ringShadow" x="-35%" y="-35%" width="170%" height="180%">
+      <feDropShadow dx="0" dy="16" stdDeviation="17" flood-color="#173653" flood-opacity="0.17"/>
+    </filter>
+    <filter id="smallShadow" x="-30%" y="-40%" width="160%" height="190%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#18364f" flood-opacity="0.14"/>
+    </filter>
+    <clipPath id="fosLogoCrop">
+      <rect x="20" y="8" width="165" height="138" rx="10"/>
+    </clipPath>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; letter-spacing: 0; }
+      .main-title { fill: #101820; font-size: 44px; font-weight: 700; }
+      .panel-title { font-size: 21px; font-weight: 700; }
+      .item-title { fill: #ffffff; font-size: 17.5px; font-weight: 700; }
+      .item-copy { fill: #eef6ff; font-size: 13.5px; font-weight: 400; }
+      .num { font-size: 14px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#background)"/>
+  <path d="M0 0H1600V28C1523 9 1460 43 1380 27C1289 8 1220 43 1133 25C1044 7 976 43 889 25C798 6 735 44 641 24C552 6 478 43 388 24C292 5 230 42 139 24C83 13 43 22 0 35Z" fill="#ffffff" opacity="0.72"/>
+
+  <g clip-path="url(#fosLogoCrop)">
+    <image href="file:///C:/Users/Mg/AppData/Local/Temp/codex-clipboard-175c43a5-8559-41da-9ccd-faee3341c7bd.png" x="0" y="0" width="1600" height="900"/>
+  </g>
+  <image href="../images/MOIP%20Logo.png" x="1415" y="15" width="155" height="118" preserveAspectRatio="xMidYMid meet"/>
+
+  <text x="800" y="78" text-anchor="middle" class="main-title">Assuring the Authenticity of SOE Data</text>
+  <text x="800" y="111" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#5b6d82">Platform controls and areas that still require independent review</text>
+
+  <path d="M210 155H770Q795 155 795 181V840H210Q185 840 178 815L107 532Q101 507 107 482L178 181Q184 155 210 155Z" fill="url(#leftPanel)"/>
+  <path d="M830 155H1390Q1416 155 1422 181L1493 482Q1499 507 1493 532L1422 815Q1415 840 1390 840H805V181Q805 155 830 155Z" fill="url(#rightPanel)"/>
+
+  <rect x="228" y="199" width="390" height="58" rx="29" fill="#ffffff" filter="url(#smallShadow)"/>
+  <text x="423" y="236" text-anchor="middle" class="panel-title" fill="#3d58cf">ACTIONS WE CAN TAKE</text>
+  <rect x="982" y="199" width="390" height="58" rx="29" fill="#ffffff" filter="url(#smallShadow)"/>
+  <text x="1177" y="236" text-anchor="middle" class="panel-title" fill="#3b91d0">WHAT WE CANNOT AUTHENTICATE</text>
+
+  <!-- LEFT 01 -->
+  <circle cx="267" cy="327" r="27" fill="#ffffff"/>
+  <text x="267" y="332" text-anchor="middle" class="num" fill="#405bd3">01</text>
+  <text x="315" y="321" class="item-title">Approved SOE Account</text>
+  <text x="315" y="344" class="item-copy">Only SOE-authorized staff can sign in.</text>
+
+  <!-- LEFT 02 -->
+  <circle cx="267" cy="421" r="27" fill="#ffffff"/>
+  <text x="267" y="426" text-anchor="middle" class="num" fill="#405bd3">02</text>
+  <text x="315" y="415" class="item-title">Two-Step Login</text>
+  <text x="315" y="438" class="item-copy">A second security check confirms the user.</text>
+
+  <!-- LEFT 03 -->
+  <circle cx="267" cy="515" r="27" fill="#ffffff"/>
+  <text x="267" y="520" text-anchor="middle" class="num" fill="#405bd3">03</text>
+  <text x="315" y="509" class="item-title">Registered Device</text>
+  <text x="315" y="532" class="item-copy">Data can be submitted only from approved devices.</text>
+
+  <!-- LEFT 04 -->
+  <circle cx="267" cy="609" r="27" fill="#ffffff"/>
+  <text x="267" y="614" text-anchor="middle" class="num" fill="#405bd3">04</text>
+  <text x="315" y="603" class="item-title">Approved Workplace</text>
+  <text x="315" y="626" class="item-copy">Office network, location, date and time are recorded.</text>
+
+  <!-- LEFT 05 -->
+  <circle cx="267" cy="703" r="27" fill="#ffffff"/>
+  <text x="267" y="708" text-anchor="middle" class="num" fill="#405bd3">05</text>
+  <text x="315" y="697" class="item-title">SOE Reviewer Approval</text>
+  <text x="315" y="720" class="item-copy">A separate authorized reviewer approves each entry.</text>
+
+  <!-- LEFT 06 -->
+  <circle cx="267" cy="797" r="27" fill="#ffffff"/>
+  <text x="267" y="802" text-anchor="middle" class="num" fill="#405bd3">06</text>
+  <text x="315" y="791" class="item-title">Complete Activity Record</text>
+  <text x="315" y="814" class="item-copy">Every entry, change and approval is recorded.</text>
+
+  <!-- RIGHT 01 -->
+  <circle cx="1333" cy="327" r="27" fill="#ffffff"/>
+  <text x="1333" y="332" text-anchor="middle" class="num" fill="#3b91d0">01</text>
+  <text x="1285" y="321" text-anchor="end" class="item-title">Accuracy of Figures</text>
+  <text x="1285" y="344" text-anchor="end" class="item-copy">Figures must be checked against original records.</text>
+
+  <!-- RIGHT 02 -->
+  <circle cx="1333" cy="421" r="27" fill="#ffffff"/>
+  <text x="1333" y="426" text-anchor="middle" class="num" fill="#3b91d0">02</text>
+  <text x="1285" y="415" text-anchor="end" class="item-title">Missing Information</text>
+  <text x="1285" y="438" text-anchor="end" class="item-copy">The system cannot know what was left out.</text>
+
+  <!-- RIGHT 03 -->
+  <circle cx="1333" cy="515" r="27" fill="#ffffff"/>
+  <text x="1333" y="520" text-anchor="middle" class="num" fill="#3b91d0">03</text>
+  <text x="1285" y="509" text-anchor="end" class="item-title">Genuine Documents</text>
+  <text x="1285" y="532" text-anchor="end" class="item-copy">Files may need confirmation from their issuer.</text>
+
+  <!-- RIGHT 04 -->
+  <circle cx="1333" cy="609" r="27" fill="#ffffff"/>
+  <text x="1333" y="614" text-anchor="middle" class="num" fill="#3b91d0">04</text>
+  <text x="1285" y="603" text-anchor="end" class="item-title">Actual Conditions</text>
+  <text x="1285" y="626" text-anchor="end" class="item-copy">Assets and operations may need an onsite check.</text>
+
+  <!-- RIGHT 05 -->
+  <circle cx="1333" cy="703" r="27" fill="#ffffff"/>
+  <text x="1333" y="708" text-anchor="middle" class="num" fill="#3b91d0">05</text>
+  <text x="1285" y="697" text-anchor="end" class="item-title">Honest Use</text>
+  <text x="1285" y="720" text-anchor="end" class="item-copy">Account sharing or false reporting cannot be ruled out.</text>
+
+  <!-- RIGHT 06 -->
+  <circle cx="1333" cy="797" r="27" fill="#ffffff"/>
+  <text x="1333" y="802" text-anchor="middle" class="num" fill="#3b91d0">06</text>
+  <text x="1285" y="791" text-anchor="end" class="item-title">External Confirmation</text>
+  <text x="1285" y="814" text-anchor="end" class="item-copy">Audits and official sources remain necessary.</text>
+
+  <!-- Segmented comparison ring -->
+  <g filter="url(#ringShadow)">
+    <circle cx="800" cy="523" r="143" fill="none" stroke="#ffffff" stroke-width="61"/>
+    <g stroke-width="13">
+      <path d="M800 349v49" stroke="#dce8f1"/>
+      <path d="M800 648v49" stroke="#dce8f1"/>
+      <path d="M626 523h49" stroke="#3b56cc"/>
+      <path d="M925 523h49" stroke="#3b91d0"/>
+      <path d="M677 400l35 35" stroke="#3b56cc"/>
+      <path d="M888 611l35 35" stroke="#3b91d0"/>
+      <path d="M677 646l35-35" stroke="#3b56cc"/>
+      <path d="M888 435l35-35" stroke="#3b91d0"/>
+    </g>
+    <circle cx="800" cy="523" r="117" fill="#ffffff"/>
+  </g>
+  <text x="800" y="536" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700" fill="#111820">VS</text>
+</svg>

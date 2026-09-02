@@ -93,3 +93,47 @@ export function filterUnitPlaces(query: string): UnitPlaceOption[] {
       place.province.toLowerCase().includes(needle),
   ).slice(0, 8)
 }
+
+export function nearestUnitPlace(latitude: number, longitude: number): UnitPlaceOption {
+  return UNIT_PLACE_CATALOG.reduce((closest, place) => {
+    const nextDistance =
+      (place.latitude - latitude) ** 2 + (place.longitude - longitude) ** 2
+    const closestDistance =
+      (closest.latitude - latitude) ** 2 + (closest.longitude - longitude) ** 2
+    return nextDistance < closestDistance ? place : closest
+  })
+}
+
+export type ViewportParcel = {
+  id: string
+  latitude: number
+  longitude: number
+  polygon: Array<[number, number]>
+}
+
+/** Clickable parcels around the current map centre. Visible once the user zooms in. */
+export function buildViewportParcels(
+  latitude: number,
+  longitude: number,
+  kind: OrganizationLocation['kind'],
+  zoom: number,
+): ViewportParcel[] {
+  if (zoom < 11) return []
+  const extent = zoom >= 14 ? 2 : 1
+  const step = kind === 'factory' || kind === 'warehouse' ? 0.02 : 0.008
+  const parcels: ViewportParcel[] = []
+  for (let row = -extent; row <= extent; row += 1) {
+    for (let col = -extent; col <= extent; col += 1) {
+      const lat = latitude + row * step
+      const lng = longitude + col * step * 1.2
+      const id = `parcel-${lat.toFixed(4)}-${lng.toFixed(4)}-${kind}`
+      parcels.push({
+        id,
+        latitude: lat,
+        longitude: lng,
+        polygon: buildParcelPolygon(lat, lng, id, kind),
+      })
+    }
+  }
+  return parcels
+}

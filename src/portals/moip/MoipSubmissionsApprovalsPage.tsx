@@ -46,15 +46,15 @@ function moduleAction(submission?: { id: string; status: SubmissionStatus }) {
     return { label: 'Not submitted', route: '', tone: 'neutral' as const }
   }
   if (submission.status === SUBMISSION_STATUS.APPROVED || submission.status === SUBMISSION_STATUS.LOCKED) {
-    return { label: 'View approved', route: `/moip-review/submissions/${submission.id}`, tone: 'success' as const }
+    return { label: 'Review Submission', route: `/moip-review/submissions/${submission.id}`, tone: 'success' as const }
   }
   if (submission.status === SUBMISSION_STATUS.CLARIFICATION_REQUESTED) {
-    return { label: 'Clarification open', route: `/moip-review/submissions/${submission.id}`, tone: 'warning' as const }
+    return { label: 'Review Submission', route: `/moip-review/submissions/${submission.id}`, tone: 'warning' as const }
   }
   if (submission.status === SUBMISSION_STATUS.RETURNED) {
-    return { label: 'Returned to SOE', route: `/moip-review/submissions/${submission.id}`, tone: 'critical' as const }
+    return { label: 'Review Submission', route: `/moip-review/submissions/${submission.id}`, tone: 'critical' as const }
   }
-  return { label: 'Review module', route: `/moip-review/submissions/${submission.id}`, tone: 'primary' as const }
+  return { label: 'Review Submission', route: `/moip-review/submissions/${submission.id}`, tone: 'primary' as const }
 }
 
 function aggregateTone(status: MoipPortfolioRow['submissionStatus']) {
@@ -375,10 +375,7 @@ export function MoipSubmissionsApprovalsPage() {
                         <td className="px-3 py-3">
                           {action.route ? (
                             <Link
-                              className={cn(
-                                'inline-flex items-center gap-1 rounded-control px-2.5 py-1.5 text-xs font-semibold',
-                                action.tone === 'primary' ? 'bg-soe-blue text-white' : action.tone === 'critical' ? 'bg-[#fff0ef] text-soe-critical' : action.tone === 'warning' ? 'bg-[#fff4dd] text-[#8a5a05]' : action.tone === 'success' ? 'bg-[#e7f5f0] text-[#0d6b57]' : 'bg-soe-canvas text-soe-navy',
-                              )}
+                              className="inline-flex items-center gap-1 rounded-control bg-soe-blue px-2.5 py-1.5 text-xs font-semibold text-white"
                               to={action.route}
                             >
                               {action.label}

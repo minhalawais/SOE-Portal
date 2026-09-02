@@ -110,6 +110,7 @@ export function SoeReviewModulePage() {
   const data = review.data
   const canDecide =
     role !== ROLE.SOE_EXECUTIVE && data.submission.status === SUBMISSION_STATUS.READY_FOR_CERTIFICATION
+  const showDecisionBar = role !== ROLE.SOE_EXECUTIVE
   const findingCount =
     data.validation.blocking + data.validation.warnings + data.validation.evidenceGaps
   const fieldOptions = [
@@ -133,7 +134,7 @@ export function SoeReviewModulePage() {
           : 'Review the submitted data, evidence and findings before taking a decision.'
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-5 pb-4">
       <PageHeader
         title={`${data.moduleLabel} review`}
         subtitle={`${data.organization.abbreviation} · ${data.periodLabel} · submitted version ${data.submission.version}`}
@@ -264,9 +265,9 @@ export function SoeReviewModulePage() {
         )}
       </Card>
 
-      {canDecide ? (
-        <div className="fixed bottom-6 left-1/2 z-[45] w-[min(1080px,calc(100vw-1.5rem))] -translate-x-1/2 px-2">
-          <div className="flex flex-col gap-3 rounded-[16px] border border-soe-border bg-white/96 px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+      {showDecisionBar ? (
+        <div className="sticky bottom-0 z-30 mt-5">
+          <div className="flex flex-col gap-3 border border-soe-border bg-white/96 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.10)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 pr-2">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-soe-slate">
                 Reviewer actions
@@ -279,6 +280,7 @@ export function SoeReviewModulePage() {
               <Button
                 variant="tertiary"
                 className="h-10 rounded-full border border-[#b8cee2] bg-white px-4 font-semibold text-soe-blue hover:border-soe-blue hover:bg-[#f5faff]"
+                disabled={!canDecide}
                 onClick={() => setActionModal('clarify')}
               >
                 <MessageSquareWarning size={16} className="text-soe-blue" />
@@ -287,6 +289,7 @@ export function SoeReviewModulePage() {
               <Button
                 variant="tertiary"
                 className="h-10 rounded-full border border-[#ebc4c4] bg-[#fff5f5] px-4 font-semibold text-soe-critical hover:border-soe-critical hover:bg-[#ffecec]"
+                disabled={!canDecide}
                 onClick={() => setActionModal('return')}
               >
                 <RotateCcw size={16} className="text-soe-critical" />
@@ -295,7 +298,7 @@ export function SoeReviewModulePage() {
               <Button
                 variant="teal"
                 className="h-10 rounded-full px-4 font-semibold shadow-md shadow-[#7cc7bd]/25 disabled:opacity-50"
-                disabled={data.validation.blocking > 0}
+                disabled={!canDecide || data.validation.blocking > 0}
                 onClick={() => setActionModal('approve')}
               >
                 <CheckCircle2 size={16} />

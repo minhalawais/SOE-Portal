@@ -198,6 +198,7 @@ export function MoipModuleReviewPage() {
   const status = data.submission.status
   const canStart = status === SUBMISSION_STATUS.SUBMITTED || status === SUBMISSION_STATUS.RESUBMITTED
   const canDecide = status === SUBMISSION_STATUS.UNDER_REVIEW
+  const showDecisionBar = Boolean(data.submission)
   const fieldOptions = [
     { value: 'general', label: 'General module finding' },
     ...data.records.flatMap((record) => record.fields.map((item) => ({ value: `${record.id}.${item.key}`, label: `${record.title} · ${item.label}` }))).slice(0, 200),
@@ -210,7 +211,7 @@ export function MoipModuleReviewPage() {
   ]
 
   return (
-    <div className="pb-32">
+    <div className="pb-4">
       <PageHeader
         title={`${data.organization.abbreviation} · ${data.moduleLabel}`}
         subtitle={`${data.periodLabel} · submitted version ${data.submission.version} · source values are read-only`}
@@ -297,9 +298,9 @@ export function MoipModuleReviewPage() {
         </div>
       </div>
 
-      {canDecide ? (
-        <div className="fixed bottom-6 left-1/2 z-[45] w-[min(1080px,calc(100vw-1.5rem))] -translate-x-1/2 px-2">
-          <div className="rounded-[16px] border border-soe-border bg-white/96 px-4 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur">
+      {showDecisionBar ? (
+        <div className="sticky bottom-0 z-30 mt-5">
+          <div className="border border-soe-border bg-white/96 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.10)] backdrop-blur">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0 pr-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-soe-slate">
@@ -313,6 +314,7 @@ export function MoipModuleReviewPage() {
                 <Button
                   variant="tertiary"
                   className="h-10 rounded-full border border-[#b8cee2] bg-white px-4 text-soe-blue hover:border-soe-blue hover:bg-[#f5f9fc]"
+                  disabled={!canDecide}
                   onClick={() => setActionModal('clarify')}
                 >
                   <MessageSquareWarning size={16} />
@@ -321,10 +323,11 @@ export function MoipModuleReviewPage() {
                 <Button
                   variant="tertiary"
                   className="h-10 rounded-full border border-[#ebc4c4] bg-[#fff5f5] px-4 text-soe-critical hover:border-[#d99c9c] hover:bg-[#fff0f0]"
+                  disabled={!canDecide}
                   onClick={() => setActionModal('return')}
                 >
                   <RotateCcw size={16} />
-                  Return module
+                  Reject / return
                 </Button>
                 <Button
                   variant="teal"
@@ -332,7 +335,7 @@ export function MoipModuleReviewPage() {
                     'h-10 rounded-full px-4 shadow-[0_10px_22px_rgba(20,128,111,0.16)]',
                     data.validation.blocking > 0 ? '' : 'shadow-[0_10px_24px_rgba(20,128,111,0.2)]',
                   )}
-                  disabled={data.validation.blocking > 0}
+                  disabled={!canDecide || data.validation.blocking > 0}
                   onClick={() => setActionModal('approve')}
                 >
                   <CheckCircle2 size={16} />

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data Authenticity by Design</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #dfe6ee; }
+    body { display: grid; place-items: center; font-family: Arial, Helvetica, sans-serif; color: #17324d; }
+    .slide {
+      width: 1600px;
+      height: 900px;
+      background: #f7f9fc;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 142px 1fr 205px 72px;
+      box-shadow: 0 24px 70px rgba(11, 34, 57, 0.18);
+    }
+    .header {
+      background: #0b2b47;
+      color: white;
+      padding: 28px 54px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 8px solid #158f83;
+    }
+    .eyebrow { font-size: 14px; font-weight: 700; letter-spacing: 1.4px; color: #8de0d5; text-transform: uppercase; margin-bottom: 10px; }
+    h1 { font-size: 42px; line-height: 1; margin: 0 0 11px; letter-spacing: 0; }
+    .subtitle { margin: 0; color: #cbd8e5; font-size: 19px; }
+    .seal {
+      width: 104px;
+      height: 74px;
+      border: 1px solid rgba(255,255,255,.24);
+      background: rgba(255,255,255,.06);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-weight: 700;
+      font-size: 14px;
+      line-height: 1.25;
+      color: #e8f4ff;
+    }
+    .comparison { padding: 28px 54px 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .panel { background: white; border: 1px solid #d9e2ec; border-top-width: 5px; padding: 20px 24px 16px; }
+    .panel.can { border-top-color: #148477; }
+    .panel.limit { border-top-color: #d88916; }
+    .panel-title { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .panel-title .icon { width: 38px; height: 38px; display: grid; place-items: center; font-size: 21px; font-weight: 800; }
+    .can .icon { background: #e4f5f1; color: #0d766d; }
+    .limit .icon { background: #fff2dc; color: #b86d05; }
+    .panel-title h2 { margin: 0; font-size: 21px; letter-spacing: .2px; color: #0b2b47; }
+    .panel-title p { margin: 4px 0 0; font-size: 13px; color: #657a91; }
+    .item { min-height: 57px; display: grid; grid-template-columns: 30px 1fr; gap: 11px; align-items: center; border-top: 1px solid #e6ecf2; }
+    .item:first-of-type { border-top: 0; }
+    .dot { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+    .can .dot { background: #d9f1eb; color: #08776b; }
+    .limit .dot { background: #ffedcd; color: #b76c00; }
+    .item strong { font-size: 15px; color: #183652; }
+    .item span { font-size: 13px; color: #63788e; margin-left: 5px; }
+    .assurance { margin: 0 54px; background: #eaf1fb; border: 1px solid #cad9ee; padding: 17px 20px 18px; }
+    .assurance-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+    .assurance-head h2 { margin: 0; color: #12395e; font-size: 20px; }
+    .assurance-head p { margin: 0; color: #5c7188; font-size: 13px; }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .step { position: relative; background: white; border: 1px solid #cfdaea; min-height: 112px; padding: 15px 14px 12px 52px; }
+    .step:not(:last-child)::after { content: ">"; position: absolute; right: -10px; top: 43px; z-index: 2; width: 19px; height: 24px; color: #2f6fad; background: #eaf1fb; font-size: 22px; font-weight: 700; text-align: center; }
+    .num { position: absolute; left: 14px; top: 15px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #1766a3; color: white; font-size: 14px; font-weight: 800; }
+    .step h3 { margin: 1px 0 7px; font-size: 15px; color: #12395e; }
+    .step p { margin: 0; font-size: 12.5px; line-height: 1.35; color: #60758c; }
+    .takeaway { margin-top: 15px; border-left: 5px solid #148477; background: white; padding: 11px 16px; font-size: 15px; color: #24445f; }
+    .takeaway strong { color: #0d7067; }
+    .footer { margin: 0 54px; border-top: 1px solid #d8e1ea; display: flex; justify-content: space-between; align-items: center; color: #73859a; font-size: 12px; }
+    .footer b { color: #173b5d; }
+    .legend { display: flex; gap: 20px; align-items: center; }
+    .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 7px; }
+    .legend .verified::before { background: #148477; }
+    .legend .requires::before { background: #d88916; }
+    .legend .assured::before { background: #1766a3; }
+  </style>
+</head>
+<body>
+  <main class="slide" data-document-role="page" data-label="Data Authenticity by Design">
+    <header class="header">
+      <div>
+        <div class="eyebrow">Proposed assurance model for SOE reporting</div>
+        <h1>Data Authenticity by Design</h1>
+        <p class="subtitle">What the platform can prove, and what still requires independent verification</p>
+      </div>
+      <div class="seal">MOIP<br />EXECUTIVE<br />BRIEF</div>
+    </header>
+
+    <section class="comparison">
+      <article class="panel can">
+        <div class="panel-title">
+          <div class="icon">&#10003;</div>
+          <div><h2>What the platform can authenticate</h2><p>Strong evidence about origin, authority and handling</p></div>
+        </div>
+        <div class="item"><div class="dot">01</div><div><strong>Authorized identity</strong><span>Named account, official SOE domain, MFA or SSO</span></div></div>
+        <div class="item"><div class="dot">02</div><div><strong>SOE authority</strong><span>Organization-linked role, nominated owner, approved access</span></div></div>
+        <div class="item"><div class="dot">03</div><div><strong>Submission provenance</strong><span>Who submitted, when, and from which session or device</span></div></div>
+        <div class="item"><div class="dot">04</div><div><strong>Record integrity</strong><span>Tamper-evident logs, versions and document hashes</span></div></div>
+        <div class="item"><div class="dot">05</div><div><strong>Internal accountability</strong><span>Maker-checker approval, attestation and sign-off trail</span></div></div>
+      </article>
+
+      <article class="panel limit">
+        <div class="panel-title">
+          <div class="icon">!</div>
+          <div><h2>What technology cannot prove alone</h2><p>Business truth still needs corroboration and assurance</p></div>
+        </div>
+        <div class="item"><div class="dot">01</div><div><strong>Factual truth</strong><span>Whether entered figures match real operations</span></div></div>
+        <div class="item"><div class="dot">02</div><div><strong>Completeness</strong><span>Whether assets, liabilities or events were omitted</span></div></div>
+        <div class="item"><div class="dot">03</div><div><strong>Source genuineness</strong><span>Uploaded files without validation by the issuer</span></div></div>
+        <div class="item"><div class="dot">04</div><div><strong>Credential misuse</strong><span>Account sharing, coercion or use by another person</span></div></div>
+        <div class="item"><div class="dot">05</div><div><strong>Offline conduct</strong><span>Collusion, backdated evidence or unconnected events</span></div></div>
+      </article>
+    </section>
+
+    <section class="assurance">
+      <div class="assurance-head"><h2>Recommended four-layer assurance model</h2><p>Confidence rises as controls move from identity to independent verification</p></div>
+      <div class="steps">
+        <article class="step"><div class="num">1</div><h3>Verify identity</h3><p>MFA/SSO and confirmed ownership of an official SOE account.</p></article>
+        <article class="step"><div class="num">2</div><h3>Control submission</h3><p>Role-based access, maker-checker workflow and accountable sign-off.</p></article>
+        <article class="step"><div class="num">3</div><h3>Validate evidence</h3><p>Mandatory documents and cross-checks with SECP, FBR, PPRA and banks where available.</p></article>
+        <article class="step"><div class="num">4</div><h3>Assure independently</h3><p>Exception review, internal audit and periodic third-party verification.</p></article>
+      </div>
+      <div class="takeaway"><strong>Bottom line:</strong> The platform proves who submitted what and preserves the chain of custody. Independent checks establish whether the underlying facts are true.</div>
+    </section>
+
+    <footer class="footer">
+      <div><b>SOE Governance Platform</b> &nbsp;|&nbsp; Data assurance principle</div>
+      <div class="legend"><span class="verified">Authenticated</span><span class="requires">Requires verification</span><span class="assured">Assurance control</span></div>
+    </footer>
+  </main>
+</body>
+</html>

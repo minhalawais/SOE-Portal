@@ -18,7 +18,7 @@ function renderPage(initialEntry = '/soe-entry/submissions') {
   )
 }
 
-describe('SOE Data Entry submissions and approvals', () => {
+describe('SOE Data Entry submissions and returns', () => {
   beforeEach(() => {
     resetMockDb()
     useSessionStore.setState({ role: ROLE.SOE_FOCAL_PERSON })
@@ -27,7 +27,7 @@ describe('SOE Data Entry submissions and approvals', () => {
   it('renders unified workspace with overview tab by default', async () => {
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Submissions & Approvals' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Submissions & Returns' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Issues/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Clarifications/ })).toBeInTheDocument()
@@ -52,7 +52,7 @@ describe('SOE Data Entry submissions and approvals', () => {
   it('switches to clarifications tab on click', async () => {
     renderPage()
 
-    await screen.findByRole('heading', { name: 'Submissions & Approvals' })
+    await screen.findByRole('heading', { name: 'Submissions & Returns' })
     fireEvent.click(screen.getByRole('button', { name: /^Clarifications/ }))
 
     expect(await screen.findByText('Clarification inbox')).toBeInTheDocument()

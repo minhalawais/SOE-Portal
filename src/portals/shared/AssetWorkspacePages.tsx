@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MapPreview } from '@/components/data-display/MapPreview'
 import { ContributorModuleLayout, ExecutiveModuleSectionNav } from '@/components/soe'
+import { AssetFormDocumentPanel } from '@/components/soe/AssetFormDocumentPanel'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { DataTable } from '@/components/tables/DataTable'
 import { Button } from '@/design-system/components/Button'
@@ -48,6 +49,7 @@ import {
   assetDraftToPayload,
   emptyAssetDraft,
   isAssetDraftValid,
+  resolveFixedAssetType,
 } from '@/portals/shared/assetEntryForm'
 import { hasPermission, PERMISSION } from '@/permissions'
 import { useSessionStore } from '@/state/session'
@@ -576,6 +578,11 @@ export function AssetRegistryWorkspace({
         saveLabel={assetAddLabel(fixedType)}
         cancelLabel="Clear form"
         showFormActions={canCreate}
+        aside={
+          canCreate ? (
+            <AssetFormDocumentPanel assetType={resolveFixedAssetType(fixedType)} />
+          ) : undefined
+        }
         registryTitle="Asset registry"
         filters={filterBar}
         registry={tableBlock}

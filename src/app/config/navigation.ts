@@ -12,6 +12,7 @@ export interface PortalNavigationItem {
   permission?: Permission
   enabled?: boolean
   children?: PortalNavigationItem[]
+  defaultOpen?: boolean
   /** Hide from executive-facing chrome when true (operational tools) */
   operationalOnly?: boolean
 }
@@ -91,7 +92,7 @@ function rebaseNavigation(
 const soeContributorModuleNavigation: PortalNavigationItem[] = [
   {
     id: 'soe-submissions',
-    label: 'Submissions & Approvals',
+    label: 'Submissions & Returns',
     route: '/soe/submissions',
   },
   {
@@ -183,12 +184,6 @@ const soeContributorModuleNavigation: PortalNavigationItem[] = [
         route: '/soe/industrial',
       },
       {
-        id: 'soe-reports',
-        label: 'Reports',
-        route: '/soe/reports',
-        permission: PERMISSION.ORGANIZATION_READ,
-      },
-      {
         id: 'soe-privatization',
         label: 'Privatization & Transformation',
         route: '/soe/privatization',
@@ -255,9 +250,8 @@ const EXECUTIVE_DATA_ENTRY_FLAT_MODULE_IDS = new Set([
 /** PM command dashboard plus SOE contributor and certifier modules (routes remain under /soe/*) */
 const pmDashboardNavigation: PortalNavigationItem[] = (() => {
   const withoutReportsAndTasks = soeContributorModuleNavigation.filter(
-    (item) => item.id !== 'soe-logs-alerts' && item.id !== 'soe-reports',
+    (item) => item.id !== 'soe-logs-alerts',
   )
-  const reports = soeContributorModuleNavigation.find((item) => item.id === 'soe-reports')
   const logsAlerts = soeContributorModuleNavigation.find((item) => item.id === 'soe-logs-alerts')
   const submissionsModule = withoutReportsAndTasks.find((item) => item.id === 'soe-submissions')
 
@@ -290,17 +284,45 @@ const pmDashboardNavigation: PortalNavigationItem[] = (() => {
     dataEntryGroup,
     executiveUserManagementModule,
     ...(logsAlerts ? [logsAlerts] : []),
-    ...(reports ? [reports] : []),
   ]
 })()
 
 const soeEntrySidebarModules = flattenExecutiveSidebarModules(soeContributorModuleNavigation)
 const soeEntryLogsModule = soeEntrySidebarModules.find((item) => item.id === 'soe-logs-alerts')
+const soeEntrySubmissionsModule = soeEntrySidebarModules.find((item) => item.id === 'soe-submissions')
+const SOE_ENTRY_DATA_ENTRY_MODULE_IDS = new Set([
+  'soe-enterprise',
+  'soe-assets',
+  'soe-people',
+  'soe-finance',
+  'soe-accountability',
+  'soe-industrial',
+  'soe-privatization',
+  'soe-documents',
+])
+const soeEntryDataEntryModules = soeEntrySidebarModules.filter((item) =>
+  SOE_ENTRY_DATA_ENTRY_MODULE_IDS.has(item.id),
+)
+const soeEntryOtherModules = soeEntrySidebarModules.filter(
+  (item) =>
+    item.id !== 'soe-submissions' &&
+    item.id !== 'soe-logs-alerts' &&
+    item.id !== 'soe-reports' &&
+    !SOE_ENTRY_DATA_ENTRY_MODULE_IDS.has(item.id),
+)
 
 const soeEntryNavigation = rebaseNavigation(
   [
     { id: 'soe-dashboard', label: 'Dashboard', route: '/soe/dashboard' },
-    ...soeEntrySidebarModules.filter((item) => item.id !== 'soe-logs-alerts'),
+    {
+      id: 'soe-data-entry',
+      label: 'Data Entry',
+      route: soeEntryDataEntryModules[0]?.route ?? '/soe/enterprise/profile',
+      children: soeEntryDataEntryModules,
+      defaultOpen: true,
+    },
+    ...(soeEntrySubmissionsModule ? [soeEntrySubmissionsModule] : []),
+    ...soeEntryOtherModules,
     {
       id: 'soe-ai-import',
       label: 'AI Data Import',
@@ -395,7 +417,6 @@ const moipReviewNavigation = rebaseNavigation(
 const moipExecutiveNavigation: PortalNavigationItem[] = [
   { id: 'moip-exec-dashboard', label: 'National Dashboard', route: '/moip-executive/dashboard' },
   { id: 'moip-exec-search', label: 'Search & Intelligence', route: '/moip-executive/search', permission: PERMISSION.EXECUTIVE_DASHBOARD_READ },
-  { id: 'moip-exec-reports', label: 'Strategic Reports', route: '/moip-executive/reports', permission: PERMISSION.EXECUTIVE_DASHBOARD_READ },
 ]
 
 export const portalDefinitions: Record<PortalId, PortalDefinition> = {
@@ -557,7 +578,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
       { id: 'moip-intelligence', label: 'Risk & Benchmarking', route: '/moip/intelligence', permission: PERMISSION.PORTFOLIO_READ },
       { id: 'moip-asset-map', label: 'National Asset Map', route: '/moip/assets/map', permission: PERMISSION.ASSETS_READ },
       { id: 'moip-search', label: 'Search & Intelligence', route: '/moip/search', permission: PERMISSION.PORTFOLIO_READ },
-      { id: 'moip-reports', label: 'Reports', route: '/moip/reports' },
     ],
   },
 
@@ -583,7 +603,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
       { id: 'sec-governance', label: 'Governance', route: '/secretary/governance' },
       { id: 'sec-audit', label: 'Audit & Legal', route: '/secretary/audit-legal' },
       { id: 'sec-escalations', label: 'Escalations', route: '/secretary/escalations' },
-      { id: 'sec-reports', label: 'Reports', route: '/secretary/reports' },
     ],
   },
 
@@ -611,7 +630,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
           { id: 'exec-sec-governance', label: 'Governance', route: '/secretary/governance' },
           { id: 'exec-sec-audit', label: 'Audit & Legal', route: '/secretary/audit-legal' },
           { id: 'exec-sec-escalations', label: 'Escalations', route: '/secretary/escalations' },
-          { id: 'exec-sec-reports', label: 'Reports', route: '/secretary/reports' },
         ],
       },
       {
@@ -640,7 +658,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
             label: 'Strategic Opportunities',
             route: '/minister/opportunities',
           },
-          { id: 'min-reports', label: 'Executive Reports', route: '/minister/reports' },
         ],
       },
       {
@@ -660,12 +677,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
             id: 'exec-pmo-search',
             label: 'Search & Intelligence',
             route: '/pmo/search',
-            permission: PERMISSION.EXECUTIVE_DASHBOARD_READ,
-          },
-          {
-            id: 'exec-pmo-reports',
-            label: 'Strategic Reports',
-            route: '/pmo/reports',
             permission: PERMISSION.EXECUTIVE_DASHBOARD_READ,
           },
         ],
@@ -705,12 +716,6 @@ export const portalDefinitions: Record<PortalId, PortalDefinition> = {
 const soeExecutiveNavigation: PortalNavigationItem[] = [
   { id: 'soe-executive-dashboard', label: 'Executive Dashboard', route: '/soe/executive' },
   { id: 'soe-executive-alerts', label: 'Alerts & Decisions', route: '/soe/alerts' },
-  {
-    id: 'soe-executive-reports',
-    label: 'Executive Reports',
-    route: '/soe/reports',
-    permission: PERMISSION.ORGANIZATION_READ,
-  },
   { id: 'soe-executive-search', label: 'Search & Intelligence', route: '/soe/search' },
 ]
 

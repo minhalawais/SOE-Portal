@@ -79,10 +79,6 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
     role === ROLE.PMO ||
     portal === 'moip_executive'
 
-  const topBarSubtitle = isExecutiveViewer
-    ? 'Portfolio and SOE oversight workspace'
-    : definition.primaryQuestion
-
   const logsHref = logsRoute(portal)
   const alertsHref = alertsRoute(portal)
   const logsActive =
@@ -141,7 +137,6 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
 
       <div className="hidden min-w-0 flex-col md:flex">
         <p className="truncate text-sm font-semibold text-soe-navy">{definition.name}</p>
-        <p className="truncate text-xs text-soe-slate">{topBarSubtitle}</p>
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-1.5">

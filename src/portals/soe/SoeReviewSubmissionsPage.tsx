@@ -13,44 +13,41 @@ import { cn } from '@/utils'
 function actionFor(row: Awaited<ReturnType<typeof mockSoePortalService.getReportingWorkspace>>['modules'][number]) {
   if (row.submission.status === SUBMISSION_STATUS.READY_FOR_CERTIFICATION) {
     return {
-      label: row.def.id === 'finance' ? 'Certify finance pack' : 'Review submission',
-      route:
-        row.def.id === 'finance'
-          ? '/soe-review/finance/certify'
-          : `/soe-review/submissions/${row.submission.id}`,
+      label: 'Review Submission',
+      route: `/soe-review/submissions/${row.submission.id}`,
       tone: 'primary' as const,
     }
   }
   if (row.submission.status === SUBMISSION_STATUS.CLARIFICATION_REQUESTED) {
     return {
-      label: 'Clarification requested',
+      label: 'Review Submission',
       route: `/soe-review/submissions/${row.submission.id}`,
       tone: 'critical' as const,
     }
   }
   if (row.submission.status === SUBMISSION_STATUS.RETURNED) {
     return {
-      label: 'Returned to SOE team',
+      label: 'Review Submission',
       route: `/soe-review/submissions/${row.submission.id}`,
       tone: 'critical' as const,
     }
   }
   if (row.submission.status === SUBMISSION_STATUS.CERTIFIED) {
     return {
-      label: 'Approved for submission',
+      label: 'Review Submission',
       route: `/soe-review/submissions/${row.submission.id}`,
       tone: 'success' as const,
     }
   }
   if (row.evidenceGapCount > 0 || row.validationIssueCount > 0) {
     return {
-      label: 'Needs correction',
+      label: 'Review Submission',
       route: `/soe-review/submissions/${row.submission.id}`,
       tone: 'warning' as const,
     }
   }
   return {
-    label: 'Review submission',
+    label: 'Review Submission',
     route: `/soe-review/submissions/${row.submission.id}`,
     tone: 'primary' as const,
   }
@@ -155,7 +152,7 @@ export function SoeReviewSubmissionsPage() {
                     <td className={cn('px-3 py-3 text-center font-semibold tabular-nums', row.evidenceGapCount ? 'text-soe-warning' : 'text-soe-slate')}>{row.evidenceGapCount}</td>
                     <td className="px-3 py-3 text-xs text-soe-slate">{new Date(row.submission.updatedAt).toLocaleDateString()}</td>
                     <td className="px-3 py-3">
-                      <Link className={cn('inline-flex items-center gap-1 rounded-control px-2.5 py-1.5 text-xs font-semibold', action.tone === 'primary' ? 'bg-soe-blue text-white' : action.tone === 'critical' ? 'bg-[#fff0ef] text-soe-critical' : action.tone === 'warning' ? 'bg-[#fff4dd] text-[#8a5a05]' : action.tone === 'success' ? 'bg-[#e7f5f0] text-[#0d6b57]' : 'bg-soe-canvas text-soe-navy')} to={action.route}>
+                      <Link className="inline-flex items-center gap-1 rounded-control bg-soe-blue px-2.5 py-1.5 text-xs font-semibold text-white" to={action.route}>
                         {action.label}
                         <ArrowRight size={13} aria-hidden />
                       </Link>

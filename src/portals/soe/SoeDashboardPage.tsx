@@ -5,11 +5,25 @@ import {
   AlertTriangle,
   ArrowRight,
   BadgeCheck,
+  BadgeDollarSign,
+  BriefcaseBusiness,
+  Building2,
   CalendarClock,
+  ClipboardCheck,
+  Factory,
   FileWarning,
+  Files,
   Gauge,
+  HandCoins,
+  Landmark,
   MessageSquareWarning,
+  Scale,
   ShieldCheck,
+  ShoppingCart,
+  UserRoundCog,
+  Users,
+  WalletCards,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   Bar,
@@ -27,8 +41,50 @@ import { Card } from '@/design-system/components/Card'
 import { ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import { mockSoePortalService } from '@/mock-services'
 import { useSessionStore } from '@/state/session'
-import { ROLE, SUBMISSION_STATUS, type SubmissionStatus } from '@/constants'
+import { MODULE, ROLE, SUBMISSION_STATUS, type ModuleId, type SubmissionStatus } from '@/constants'
 import { cn } from '@/utils'
+
+const ENTRY_STATUS_GROUPS = [
+  {
+    id: 'drafting',
+    label: 'Being prepared by SOE',
+    color: '#1d5d8f',
+    statuses: [
+      SUBMISSION_STATUS.DRAFT,
+      SUBMISSION_STATUS.IN_PROGRESS,
+      SUBMISSION_STATUS.READY_FOR_REVIEW,
+      SUBMISSION_STATUS.CERTIFIED,
+    ],
+  },
+  {
+    id: 'soe_reviewer',
+    label: 'Awaiting SOE Reviewer Response',
+    color: '#16877a',
+    statuses: [SUBMISSION_STATUS.READY_FOR_CERTIFICATION],
+  },
+  {
+    id: 'moip_review',
+    label: 'Submitted to MoIP',
+    color: '#7c3aed',
+    statuses: [
+      SUBMISSION_STATUS.SUBMITTED,
+      SUBMISSION_STATUS.UNDER_REVIEW,
+      SUBMISSION_STATUS.RESUBMITTED,
+    ],
+  },
+  {
+    id: 'soe_action_required',
+    label: 'SOE response or correction required',
+    color: '#b84242',
+    statuses: [SUBMISSION_STATUS.RETURNED, SUBMISSION_STATUS.CLARIFICATION_REQUESTED],
+  },
+  {
+    id: 'moip_approved',
+    label: 'Approved by MoIP',
+    color: '#475569',
+    statuses: [SUBMISSION_STATUS.APPROVED, SUBMISSION_STATUS.LOCKED],
+  },
+] as const
 
 const STATUS_GROUPS = [
   {
@@ -164,6 +220,79 @@ function PulseTile({
   )
 }
 
+const MODULE_CARD_STYLES: Partial<Record<ModuleId, { icon: LucideIcon; accent: string; iconBg: string }>> = {
+  [MODULE.ENTERPRISE]: { icon: Building2, accent: '#1d5d8f', iconBg: 'bg-[#eef6fc] text-soe-blue' },
+  [MODULE.ASSETS]: { icon: BriefcaseBusiness, accent: '#0f766e', iconBg: 'bg-[#eef8f6] text-teal-700' },
+  [MODULE.WORKFORCE]: { icon: Users, accent: '#475569', iconBg: 'bg-slate-100 text-slate-700' },
+  [MODULE.BOARD]: { icon: Landmark, accent: '#b45309', iconBg: 'bg-[#fff7e6] text-amber-700' },
+  [MODULE.EXECUTIVES]: { icon: UserRoundCog, accent: '#475569', iconBg: 'bg-slate-100 text-slate-700' },
+  [MODULE.FINANCE]: { icon: WalletCards, accent: '#047857', iconBg: 'bg-[#effaf4] text-emerald-700' },
+  [MODULE.LOANS]: { icon: HandCoins, accent: '#1d5d8f', iconBg: 'bg-[#eef6fc] text-soe-blue' },
+  [MODULE.PROCUREMENT]: { icon: ShoppingCart, accent: '#c2410c', iconBg: 'bg-[#fff4ed] text-orange-700' },
+  [MODULE.AUDIT]: { icon: ClipboardCheck, accent: '#475569', iconBg: 'bg-slate-100 text-slate-700' },
+  [MODULE.LITIGATION]: { icon: Scale, accent: '#991b1b', iconBg: 'bg-[#fff1f1] text-red-700' },
+  [MODULE.COMPLIANCE]: { icon: ShieldCheck, accent: '#15803d', iconBg: 'bg-[#f0f8f2] text-green-700' },
+  [MODULE.INDUSTRIAL]: { icon: Factory, accent: '#0e7490', iconBg: 'bg-[#ecfbff] text-cyan-700' },
+  [MODULE.PRIVATIZATION]: { icon: BadgeDollarSign, accent: '#a16207', iconBg: 'bg-[#fff9e8] text-yellow-700' },
+  [MODULE.DOCUMENTS]: { icon: Files, accent: '#475569', iconBg: 'bg-slate-100 text-slate-700' },
+}
+
+const MODULE_REPORTING_PERIOD: Partial<Record<ModuleId, 'Annually' | 'Monthly' | 'Quarterly' | 'Open'>> = {
+  [MODULE.ENTERPRISE]: 'Annually',
+  [MODULE.ASSETS]: 'Annually',
+  [MODULE.WORKFORCE]: 'Monthly',
+  [MODULE.BOARD]: 'Monthly',
+  [MODULE.EXECUTIVES]: 'Monthly',
+  [MODULE.FINANCE]: 'Quarterly',
+  [MODULE.LOANS]: 'Quarterly',
+  [MODULE.PROCUREMENT]: 'Quarterly',
+  [MODULE.AUDIT]: 'Annually',
+  [MODULE.LITIGATION]: 'Open',
+  [MODULE.COMPLIANCE]: 'Annually',
+  [MODULE.INDUSTRIAL]: 'Quarterly',
+  [MODULE.PRIVATIZATION]: 'Quarterly',
+  [MODULE.DOCUMENTS]: 'Open',
+}
+
+function ModuleCompletionCard({
+  label,
+  completion,
+  moduleId,
+  route,
+}: {
+  label: string
+  completion: number
+  moduleId: ModuleId
+  route: string
+}) {
+  const style = MODULE_CARD_STYLES[moduleId] ?? MODULE_CARD_STYLES[MODULE.DOCUMENTS]!
+  const Icon = style.icon
+  const reportingPeriodLabel = MODULE_REPORTING_PERIOD[moduleId] ?? 'Annually'
+
+  return (
+    <Link
+      to={route}
+      className="group flex min-h-[132px] min-w-0 flex-col items-center justify-between overflow-hidden rounded-[8px] border border-soe-border bg-white px-3 py-3 text-center shadow-[0_4px_14px_rgba(15,23,42,0.055)] transition-colors hover:border-[#8bb8dd] hover:bg-[#fbfdff]"
+    >
+      <span className="flex flex-col items-center gap-2">
+        <span className={cn('flex h-9 w-9 items-center justify-center rounded-[8px] ring-1 ring-black/5', style.iconBg)}>
+          <Icon size={19} strokeWidth={1.9} aria-hidden="true" />
+        </span>
+        <span className="flex min-h-10 items-center text-balance text-[13px] font-semibold leading-[18px] text-soe-navy">
+          {label}
+        </span>
+      </span>
+      <span className="w-full">
+        <span className="block text-[24px] font-semibold leading-none text-soe-navy tabular-nums">{completion}%</span>
+        <span className="mt-1 block text-[11px] font-medium text-soe-slate">{reportingPeriodLabel}</span>
+        <span className="mt-2 block h-1 overflow-hidden rounded-full bg-[#e8eef4]">
+          <span className="block h-full rounded-full" style={{ width: `${completion}%`, backgroundColor: style.accent }} />
+        </span>
+      </span>
+    </Link>
+  )
+}
+
 function MiniStat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div className="border-l-2 border-soe-border pl-3">
@@ -199,7 +328,6 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
 
   const d = query.data
   const isReviewerDashboard = audience === 'review'
-  const isSenior = role === ROLE.SOE_CERTIFIER || role === ROLE.CEO || role === ROLE.CFO
   const isFocal = role === ROLE.SOE_FOCAL_PERSON || role === ROLE.SOE_DATA_CONTRIBUTOR
   const totalModules = d.modulesComplete + d.modulesIncomplete
   const readyForCertification = d.modules.filter((m) => m.submission.status === SUBMISSION_STATUS.READY_FOR_CERTIFICATION).length
@@ -228,18 +356,21 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
   const submissionsRoute = isReviewerDashboard
     ? '/soe-review/submissions'
     : '/soe-entry/submissions'
-  const statusMix = STATUS_GROUPS.map((group) => ({
+  const statusGroups = isReviewerDashboard ? STATUS_GROUPS : ENTRY_STATUS_GROUPS
+  const statusMix = statusGroups.map((group) => ({
       id: group.id,
       label: isReviewerDashboard ? reviewerGroupLabels[group.id] : group.label,
       color: group.color,
       count: d.modules.filter((m) => group.statuses.includes(m.submission.status as never)).length,
-      detail: group.statuses
-        .map((status) => {
-          const count = d.modules.filter((m) => m.submission.status === status).length
-          return count ? `${ENTRY_STATUS_LABEL[status]} ${count}` : ''
-        })
-        .filter(Boolean)
-        .join(' · '),
+      detail: isReviewerDashboard
+        ? group.statuses
+            .map((status) => {
+              const count = d.modules.filter((m) => m.submission.status === status).length
+              return count ? `${ENTRY_STATUS_LABEL[status]} ${count}` : ''
+            })
+            .filter(Boolean)
+            .join(' · ')
+        : '',
     }))
   const chartStatusMix = statusMix.filter((item) => item.count > 0)
   const moduleBars = d.modules
@@ -251,6 +382,31 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
     }))
     .sort((a, b) => a.completion - b.completion)
     .slice(0, 8)
+  const returnedModuleCards = d.modules
+    .filter((module) =>
+      [SUBMISSION_STATUS.RETURNED, SUBMISSION_STATUS.CLARIFICATION_REQUESTED].includes(
+        module.submission.status as never,
+      ),
+    )
+    .sort((a, b) => {
+      if (a.submission.status !== b.submission.status) {
+        return a.submission.status === SUBMISSION_STATUS.RETURNED ? -1 : 1
+      }
+      return b.submission.updatedAt.localeCompare(a.submission.updatedAt)
+    })
+    .map((module) => ({
+      id: module.def.id,
+      label: module.def.label,
+      count: d.modules.filter(
+        (item) =>
+          item.def.id === module.def.id &&
+          [SUBMISSION_STATUS.RETURNED, SUBMISSION_STATUS.CLARIFICATION_REQUESTED].includes(
+            item.submission.status as never,
+          ),
+      ).length,
+      returnedAt: module.submission.updatedAt,
+    }))
+    .slice(0, 3)
   const urgentActions: DashboardAction[] = d.pendingActions.map((action) => ({
     ...action,
     route: isReviewerDashboard ? submissionsRoute : action.route,
@@ -382,45 +538,81 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <PulseTile label={isReviewerDashboard ? 'Modules ready for review' : 'Data entry completed'} value={`${d.modulesComplete}/${totalModules}`} detail={isReviewerDashboard ? 'Modules with required data completed' : 'Modules with all required fields completed'} icon={BadgeCheck} tone={d.modulesIncomplete ? 'warning' : 'success'} to={submissionsRoute} />
-        <PulseTile label={isReviewerDashboard ? 'Certification blockers' : 'Submission blockers'} value={String(d.blockingCount)} detail={isReviewerDashboard ? 'Must be resolved before certification' : 'Must be resolved before submission'} icon={AlertTriangle} tone={d.blockingCount ? 'critical' : 'success'} to={isReviewerDashboard ? submissionsRoute : '/soe-entry/submissions?tab=issues'} />
-        <PulseTile label="Missing required evidence" value={String(d.evidenceGapCount)} detail="Supporting documents not attached" icon={FileWarning} tone={d.evidenceGapCount ? 'warning' : 'success'} to={isReviewerDashboard ? submissionsRoute : '/soe-entry/documents'} />
-        <PulseTile label={isReviewerDashboard ? 'Open reviewer questions' : 'Reviewer questions'} value={String(d.openClarifications)} detail={isReviewerDashboard ? 'Awaiting response from the SOE data-entry team' : 'Questions awaiting SOE response'} icon={MessageSquareWarning} tone={d.openClarifications ? 'critical' : 'success'} to={isReviewerDashboard ? submissionsRoute : '/soe-entry/submissions?tab=clarifications'} />
-        <PulseTile label={isReviewerDashboard ? 'Awaiting your decision' : 'Awaiting SOE certification'} value={String(readyForCertification)} detail={isReviewerDashboard ? 'Modules requiring certification, return or clarification' : 'Modules awaiting SOE reviewer decision'} icon={ShieldCheck} tone={readyForCertification ? 'warning' : 'neutral'} to={submissionsRoute} />
-        <PulseTile label="Days until MOIP deadline" value={daysRemaining == null ? '-' : String(daysRemaining)} detail="Time remaining for annual submission" icon={CalendarClock} tone={daysRemaining != null && daysRemaining < 15 ? 'critical' : daysRemaining != null && daysRemaining < 45 ? 'warning' : 'neutral'} to={submissionsRoute} />
-      </section>
+      {isReviewerDashboard ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <PulseTile label="Modules ready for review" value={`${d.modulesComplete}/${totalModules}`} detail="Modules with required data completed" icon={BadgeCheck} tone={d.modulesIncomplete ? 'warning' : 'success'} to={submissionsRoute} />
+          <PulseTile label="Certification blockers" value={String(d.blockingCount)} detail="Must be resolved before certification" icon={AlertTriangle} tone={d.blockingCount ? 'critical' : 'success'} to={submissionsRoute} />
+          <PulseTile label="Missing required evidence" value={String(d.evidenceGapCount)} detail="Supporting documents not attached" icon={FileWarning} tone={d.evidenceGapCount ? 'warning' : 'success'} to={submissionsRoute} />
+          <PulseTile label="Open reviewer questions" value={String(d.openClarifications)} detail="Awaiting response from the SOE data-entry team" icon={MessageSquareWarning} tone={d.openClarifications ? 'critical' : 'success'} to={submissionsRoute} />
+          <PulseTile label="Awaiting your decision" value={String(readyForCertification)} detail="Modules requiring certification, return or clarification" icon={ShieldCheck} tone={readyForCertification ? 'warning' : 'neutral'} to={submissionsRoute} />
+          <PulseTile label="Days until MOIP deadline" value={daysRemaining == null ? '-' : String(daysRemaining)} detail="Time remaining for annual submission" icon={CalendarClock} tone={daysRemaining != null && daysRemaining < 15 ? 'critical' : daysRemaining != null && daysRemaining < 45 ? 'warning' : 'neutral'} to={submissionsRoute} />
+        </section>
+      ) : (
+        <section aria-label="Data entry module completion">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
+            {d.modules.map((module) => (
+              <ModuleCompletionCard
+                key={module.def.id}
+                label={module.def.label}
+                completion={module.submission.completeness}
+                moduleId={module.def.id}
+                route={module.def.route}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-        <Card title={isReviewerDashboard ? 'Modules requiring reviewer action' : isSenior ? 'Certification and required actions' : 'Actions requiring SOE attention'} subtitle={isReviewerDashboard ? 'Review decisions required before submission to MOIP' : 'Required work to progress the package to MOIP'}>
-          {displayActions.length === 0 ? (
-            <p className="text-sm text-soe-slate">No open actions for this role.</p>
-          ) : (
-            <div className="divide-y divide-soe-border">
-              {displayActions.slice(0, 6).map((a, index) => (
-                <Link key={a.id} to={a.route} className="group grid gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[34px_1fr_auto] sm:items-center">
-                  <span className={cn('flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold', ACTION_TONE[a.priority] ?? ACTION_TONE.normal)}>
-                    {index + 1}
-                  </span>
-                  <span>
-                    <span className="block text-sm font-medium text-soe-ink">{a.title}</span>
-                    <span className="mt-1 block text-[11px] font-semibold uppercase text-soe-slate">{a.priority} priority</span>
-                    {a.detail ? <span className="mt-1 block text-xs text-soe-slate">{a.detail}</span> : null}
-                  </span>
-                  <ArrowRight size={16} className="hidden text-soe-slate group-hover:text-soe-blue sm:block" />
-                </Link>
-              ))}
-            </div>
-          )}
-        </Card>
+      <section
+        className={cn(
+          'grid items-stretch gap-4',
+          isReviewerDashboard
+            ? 'xl:grid-cols-[1.15fr_.85fr]'
+            : 'md:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)_minmax(0,.85fr)]',
+        )}
+      >
+        {isReviewerDashboard ? (
+          <Card title="Modules requiring reviewer action" subtitle="Review decisions required before submission to MOIP">
+            {displayActions.length === 0 ? (
+              <p className="text-sm text-soe-slate">No open actions for this role.</p>
+            ) : (
+              <div className="divide-y divide-soe-border">
+                {displayActions.slice(0, 6).map((a, index) => (
+                  <Link key={a.id} to={a.route} className="group grid gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[34px_1fr_auto] sm:items-center">
+                    <span className={cn('flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold', ACTION_TONE[a.priority] ?? ACTION_TONE.normal)}>
+                      {index + 1}
+                    </span>
+                    <span>
+                      <span className="block text-sm font-medium text-soe-ink">{a.title}</span>
+                      <span className="mt-1 block text-[11px] font-semibold uppercase text-soe-slate">{a.priority} priority</span>
+                      {a.detail ? <span className="mt-1 block text-xs text-soe-slate">{a.detail}</span> : null}
+                    </span>
+                    <ArrowRight size={16} className="hidden text-soe-slate group-hover:text-soe-blue sm:block" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Card>
+        ) : null}
 
-        <Card title={isReviewerDashboard ? 'Module certification and submission stages' : 'Module submission and review stages'} subtitle="Current workflow position of every reporting module" className="min-h-[298px]">
-          <div className="flex min-h-[190px] flex-col items-center justify-center gap-5 sm:flex-row">
-            <div className="h-[150px] w-[150px] shrink-0">
+        <Card
+          title={isReviewerDashboard ? 'Module certification and submission stages' : 'Module submission and review stages'}
+          subtitle="Current workflow position of every reporting module"
+          className={cn('flex h-full flex-col', !isReviewerDashboard && 'md:col-span-2 lg:col-span-1')}
+        >
+          <div className={cn('flex min-h-0 flex-1 flex-col items-center justify-center gap-5', isReviewerDashboard ? 'sm:flex-row' : 'lg:flex-row')}>
+            <div className={cn('shrink-0', isReviewerDashboard ? 'h-[150px] w-[150px]' : 'h-[188px] w-[188px]')}>
               {canRenderResponsiveCharts ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={chartStatusMix} dataKey="count" nameKey="label" innerRadius={44} outerRadius={68} paddingAngle={2}>
+                    <Pie
+                      data={chartStatusMix}
+                      dataKey="count"
+                      nameKey="label"
+                      innerRadius={isReviewerDashboard ? 44 : 56}
+                      outerRadius={isReviewerDashboard ? 68 : 86}
+                      paddingAngle={2}
+                    >
                       {chartStatusMix.map((item) => <Cell key={item.id} fill={item.color} />)}
                     </Pie>
                     <Tooltip formatter={(value) => [`${value} modules`, 'Count']} contentStyle={{ borderRadius: 6, borderColor: '#dde3e8', fontSize: 11 }} />
@@ -430,32 +622,89 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
                 <ChartFallback>{totalModules} modules</ChartFallback>
               )}
             </div>
-            <div className="w-full max-w-[320px] space-y-2">
+            <div className="w-full max-w-[320px] space-y-1.5">
               {statusMix.map((item) => (
                 <div key={item.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-[6px] px-2 py-1.5 text-xs hover:bg-soe-canvas">
                   <span className="min-w-0 text-soe-slate">
                     <span className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                       <span className="truncate font-medium text-soe-navy">{item.label}</span>
                     </span>
-                    <span className="mt-0.5 block truncate pl-4 text-[11px] text-soe-slate">
-                      {item.detail || 'No modules in this stage'}
-                    </span>
+                    {item.count === 0 || item.detail ? (
+                      <span className="mt-0.5 block truncate pl-4 text-[11px] text-soe-slate">
+                        {item.detail || 'No modules in this stage'}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="font-semibold text-soe-navy tabular-nums">{item.count}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-soe-border pt-4">
+          <div className="mt-auto grid grid-cols-3 gap-4 border-t border-soe-border pt-4">
             <MiniStat label="Validation warnings" value={String(d.warningCount)} tone={d.warningCount ? 'text-soe-warning' : ''} />
             <MiniStat label={isReviewerDashboard ? 'Correction / response required' : 'SOE action required'} value={String(returnedOrClarification)} tone={returnedOrClarification ? 'text-soe-critical' : ''} />
             <MiniStat label={isReviewerDashboard ? 'Awaiting your decision' : 'Awaiting certification'} value={String(readyForCertification)} tone={readyForCertification ? 'text-soe-success' : ''} />
           </div>
         </Card>
+
+        {!isReviewerDashboard ? (
+          <>
+            <Card title="Upcoming deadlines" subtitle="Near-term governance and reporting dates" className="flex h-full flex-col">
+              <div className="flex flex-1 flex-col space-y-2">
+                {d.deadlines.map((dl) => {
+                  const remaining = daysUntil(dl.dueDate)
+                  return (
+                    <Link key={dl.id} to={dl.route} className="group block rounded-[6px] border border-soe-border p-3 hover:border-soe-blue">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-soe-navy">{dl.title}</p>
+                          <p className="mt-1 text-xs text-soe-slate">{formatDate(dl.dueDate)}</p>
+                        </div>
+                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', remaining != null && remaining < 0 ? 'bg-red-50 text-soe-critical' : remaining != null && remaining < 30 ? 'bg-amber-50 text-soe-warning' : 'bg-slate-100 text-soe-slate')}>
+                          {remaining == null ? 'Scheduled' : remaining < 0 ? `${Math.abs(remaining)}d overdue` : `${remaining}d`}
+                        </span>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </Card>
+
+            <Card title="Returns" className="flex h-full flex-col">
+              <div className="flex flex-1 flex-col space-y-2">
+                {returnedModuleCards.length ? (
+                  returnedModuleCards.map((module) => (
+                    <Link
+                      key={module.id}
+                      to="/soe-entry/submissions?tab=issues"
+                      className="group block rounded-[6px] border border-soe-border p-3 hover:border-soe-blue"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-soe-navy">
+                            {module.label}
+                          </p>
+                          <p className="mt-1 text-xs text-soe-slate">{formatDate(module.returnedAt)}</p>
+                        </div>
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-soe-critical">
+                          {module.count}
+                        </span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-[6px] border border-soe-border p-3">
+                    <p className="text-sm font-medium text-soe-navy">No returns pending</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </>
+        ) : null}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+      <section className={cn('grid gap-4', isReviewerDashboard && 'xl:grid-cols-[1fr_360px]')}>
         <Card
           title={isReviewerDashboard ? 'Modules least ready for certification' : isFocal ? 'Modules with lowest data completion' : 'Assigned module data completion'}
           subtitle={isReviewerDashboard ? 'Lowest data completeness shown first' : 'Modules requiring the most data-entry work'}
@@ -481,6 +730,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
           </div>
         </Card>
 
+        {isReviewerDashboard ? (
         <Card title="Upcoming deadlines" subtitle="Near-term governance and reporting dates">
           <div className="space-y-3">
             {d.deadlines.map((dl) => {
@@ -501,6 +751,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
             })}
           </div>
         </Card>
+        ) : null}
       </section>
 
     </div>

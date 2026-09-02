@@ -612,7 +612,7 @@ export function EnterpriseStructureWorkspace({
 
   const orgListQuery = useQuery({
     queryKey: ['organizations', 'structure-index'],
-    queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 100 }),
+    queryFn: () => mockOrganizationService.getOrganizations({ pageSize: 250 }),
   })
   const [relDraft, setRelDraft] = useState<OrganizationRelationship[]>([])
   useEffect(() => {
@@ -638,6 +638,16 @@ export function EnterpriseStructureWorkspace({
     const map = new Map((orgListQuery.data?.items ?? []).map((o) => [o.id, o]))
     return map
   }, [orgListQuery.data])
+
+  const relatedEnterpriseOptions = useMemo(() => {
+    const items = orgListQuery.data?.items ?? []
+    return items.filter(
+      (org) =>
+        org.id !== organizationId &&
+        (org.parentEntityId === organizationId ||
+          relDraft.some((rel) => rel.relatedOrganizationId === org.id)),
+    )
+  }, [orgListQuery.data, organizationId, relDraft])
 
   const relationships = useMemo(() => {
     let items = relDraft.filter((r) => r.parentOrganizationId === organizationId)
@@ -825,7 +835,9 @@ export function EnterpriseStructureWorkspace({
               size="sm"
               variant="secondary"
               onClick={() => {
-                const related = orgListQuery.data?.items.find((o) => o.id !== organizationId)
+                const related = relatedEnterpriseOptions.find(
+                  (org) => !relDraft.some((rel) => rel.relatedOrganizationId === org.id),
+                )
                 if (!related) return
                 setRelDraft([
                   ...relDraft,
@@ -858,7 +870,10 @@ export function EnterpriseStructureWorkspace({
                       setRelDraft(next)
                     }}
                   >
-                    {(orgListQuery.data?.items ?? []).filter((o) => o.id !== organizationId).map((o) => (
+                    {(relatedEnterpriseOptions.length
+                      ? relatedEnterpriseOptions
+                      : (orgListQuery.data?.items ?? []).filter((o) => o.id !== organizationId)
+                    ).map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.abbreviation} - {o.name}
                       </option>
