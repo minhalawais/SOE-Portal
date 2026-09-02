@@ -48,7 +48,7 @@ describe('PMO National SOE Command Dashboard', () => {
     expect(screen.getByRole('heading', { name: 'Leading Profitable SOEs' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Industrial and Economic Contribution' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Sector trade: domestic sales, export and imports' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Compliance and Document Assurance' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Compliance and Documentation Due Diligence' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'National litigation exposure' })).toBeInTheDocument()
     expect(screen.queryByText('Overall Yes rate')).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Yes total' })).not.toBeInTheDocument()

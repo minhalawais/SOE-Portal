@@ -1,10 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  AlertTriangle,
   ArrowRight,
-  BadgeCheck,
-  CalendarClock,
   CheckCircle2,
   MessageSquareWarning,
   RotateCcw,

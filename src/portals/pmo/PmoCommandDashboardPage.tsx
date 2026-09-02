@@ -2405,13 +2405,15 @@ export function PmoCommandDashboardPage() {
       [...names].sort((a, b) => a.localeCompare(b)),
     )
   }
-  const sectorContributionData: SectorTradeChartRow[] = d.industrial.bySector.map((row) => ({
-    sector: row.sector,
-    soeNames: sectorSoeNames.get(row.sector) ?? [],
-    domesticSales: row.domesticSales,
-    exports: row.exports,
-    imports: row.imports,
-  }))
+  const sectorContributionData: SectorTradeChartRow[] = d.industrial.bySector
+    .filter((row) => row.domesticSales + row.exports + row.imports > 0)
+    .map((row) => ({
+      sector: row.sector,
+      soeNames: sectorSoeNames.get(row.sector) ?? [],
+      domesticSales: row.domesticSales,
+      exports: row.exports,
+      imports: row.imports,
+    }))
   const sectorContributionMax = Math.max(
     0,
     ...sectorContributionData.flatMap((row) => [row.domesticSales, row.exports, row.imports]),
@@ -2812,8 +2814,8 @@ export function PmoCommandDashboardPage() {
               <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={sectorContributionData}
-                    barCategoryGap="14%"
-                    barGap={2}
+                    barCategoryGap="18%"
+                    barGap={4}
                     margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
                   >
                     <CartesianGrid stroke="#dde3e8" strokeDasharray="3 3" vertical={false} />
@@ -2837,9 +2839,9 @@ export function PmoCommandDashboardPage() {
                       content={<SectorTradeTooltip />}
                     />
                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                    <Bar dataKey="domesticSales" name="Domestic sales" fill="#1d5d8f" maxBarSize={22} radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="exports" name="Export" fill="#16877a" maxBarSize={22} radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="imports" name="Imports" fill="#c58a19" maxBarSize={22} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="domesticSales" name="Domestic sales" fill="#1d5d8f" maxBarSize={26} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="exports" name="Export" fill="#16877a" maxBarSize={26} radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="imports" name="Imports" fill="#c58a19" maxBarSize={26} radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -2864,10 +2866,10 @@ export function PmoCommandDashboardPage() {
             <RankedBars items={profitableSoes} />
             </Panel>
           </div>
-          <section className="mt-6 space-y-3" aria-label="Compliance and Document Assurance">
+          <section className="mt-6 space-y-3" aria-label="Compliance and Documentation Due Diligence">
             <SectionHeader
               id="assurance"
-              title="Compliance and Document Assurance"
+              title="Compliance and Documentation Due Diligence"
               meta="Compliance answers and document evidence across SOEs"
             />
             <Panel

@@ -34,7 +34,6 @@ import {
   MinisterAlertsPage,
   MoipLogsEarlyWarningPage,
   SoeAlertsPage,
-  SoeNotificationsPage,
   TaskDetailWorkspace,
 } from '@/portals/shared/TasksEarlyWarningWorkspacePages'
 import { SoeLogsPage } from '@/portals/shared/LogsWorkspacePages'

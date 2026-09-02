@@ -256,6 +256,19 @@ function money(seed: string, base: number, spread = 0.35): number {
   return Math.round(base * f)
 }
 
+/** Distinct domestic / export / import mix so sector trade charts do not look identical. */
+const SECTOR_TRADE_BASE: Record<string, { domestic: number; exports: number; imports: number }> = {
+  Fertilizer: { domestic: 1_240_000_000, exports: 210_000_000, imports: 85_000_000 },
+  'Fertilizer Marketing': { domestic: 760_000_000, exports: 35_000_000, imports: 420_000_000 },
+  'Skills / Industry': { domestic: 88_000_000, exports: 14_000_000, imports: 52_000_000 },
+  Manufacturing: { domestic: 1_620_000_000, exports: 540_000_000, imports: 980_000_000 },
+  'Mining / Stone': { domestic: 185_000_000, exports: 710_000_000, imports: 62_000_000 },
+  Retail: { domestic: 2_150_000_000, exports: 12_000_000, imports: 1_280_000_000 },
+  'Industrial Development': { domestic: 310_000_000, exports: 28_000_000, imports: 145_000_000 },
+  Engineering: { domestic: 455_000_000, exports: 390_000_000, imports: 265_000_000 },
+  'Technical Assistance': { domestic: 58_000_000, exports: 8_000_000, imports: 22_000_000 },
+}
+
 const ORG_SPECS: Array<{
   id: string
   name: string
@@ -2154,11 +2167,16 @@ function buildIndustrial(): IndustrialPerformance[] {
       if (org.scenarioId === SCENARIO.LOSS_MAKING) utilBase = 0.42 - yearIndex * 0.04
       const utilization = Math.max(0.12, Math.min(0.95, utilBase))
       const actual = Math.round(installed * utilization)
-      const exportBase = money(`${org.id}-${period.id}-exp`, 400_000_000)
+      const trade = SECTOR_TRADE_BASE[org.sector] ?? {
+        domestic: 220_000_000,
+        exports: 90_000_000,
+        imports: 70_000_000,
+      }
+      const exportBase = money(`${org.id}-${period.id}-exp`, trade.exports, 0.12)
       const exports =
         org.scenarioId === SCENARIO.UNDERUTILIZED || org.scenarioId === SCENARIO.LOSS_MAKING
-          ? Math.max(50_000_000, exportBase - yearIndex * 80_000_000)
-          : exportBase + yearIndex * 40_000_000
+          ? Math.max(Math.round(trade.exports * 0.25), exportBase - yearIndex * Math.round(trade.exports * 0.18))
+          : exportBase + yearIndex * Math.round(trade.exports * 0.08)
       const energy =
         org.scenarioId === SCENARIO.LOSS_MAKING
           ? 22_000 + (hash(`${org.id}-en`) % 4_000)
@@ -2171,8 +2189,8 @@ function buildIndustrial(): IndustrialPerformance[] {
         actualProduction: actual,
         capacityUtilization: Math.round(utilization * 1000) / 10,
         exports,
-        imports: money(`${org.id}-${period.id}-imp`, 250_000_000),
-        domesticSales: money(`${org.id}-${period.id}-dom`, 900_000_000),
+        imports: money(`${org.id}-${period.id}-imp`, trade.imports, 0.12),
+        domesticSales: money(`${org.id}-${period.id}-dom`, trade.domestic, 0.12),
         employment: 800 + (hash(`${org.id}-emp`) % 1200),
         energyConsumption: energy,
         energyUnit: 'MWh',
