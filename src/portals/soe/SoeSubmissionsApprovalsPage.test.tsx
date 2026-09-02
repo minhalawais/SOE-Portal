@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { APP_CONFIG } from '@/app/config/app.config'
@@ -73,7 +73,7 @@ describe('SOE Data Entry submissions and returns', () => {
     expect(dialog).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /Enterprise Profile review/i })).toBeInTheDocument()
     expect(await screen.findByText('Submitted data')).toBeInTheDocument()
-    expect(screen.getByText('Documents')).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Documents', level: 3 })).toBeInTheDocument()
     expect(screen.getAllByText('Validation findings').length).toBeGreaterThan(0)
     expect(screen.getByText('Review history')).toBeInTheDocument()
   })
