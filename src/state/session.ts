@@ -38,6 +38,24 @@ const initialRole = normalizeRole(
 )
 persistence.set(persistenceKeys.role, initialRole)
 
+const CLOSED_REPORTING_PERIODS = new Set([
+  'period-fy2024',
+  'period-fy2025',
+  'period-fy2026',
+])
+
+function resolveReportingPeriodId(stored: string) {
+  if (!stored || CLOSED_REPORTING_PERIODS.has(stored)) {
+    return APP_CONFIG.DEFAULT_REPORTING_PERIOD_ID
+  }
+  return stored
+}
+
+const initialReportingPeriodId = resolveReportingPeriodId(
+  persistence.get(persistenceKeys.reportingPeriodId, APP_CONFIG.DEFAULT_REPORTING_PERIOD_ID),
+)
+persistence.set(persistenceKeys.reportingPeriodId, initialReportingPeriodId)
+
 export const useSessionStore = create<SessionState>((set) => ({
   isAuthenticated: import.meta.env.MODE === 'test'
     ? true
@@ -52,10 +70,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     persistenceKeys.organizationId,
     APP_CONFIG.DEFAULT_ORGANIZATION_ID,
   ),
-  reportingPeriodId: persistence.get(
-    persistenceKeys.reportingPeriodId,
-    APP_CONFIG.DEFAULT_REPORTING_PERIOD_ID,
-  ),
+  reportingPeriodId: initialReportingPeriodId,
   sidebarCollapsed: persistence.get(persistenceKeys.sidebarCollapsed, false),
   setRole: (role) => {
     const next = normalizeRole(role)
