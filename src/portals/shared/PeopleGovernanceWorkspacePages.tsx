@@ -3,7 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams, Navigate } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { ContributorModuleLayout, ContributorRegistryLayout, EntryFormSection, EntryFormShell, ExecutivePeopleSectionNav, RegistryTabBar, useScrollToEntryOnSelect } from '@/components/soe'
+import { ContributorModuleLayout, ContributorRegistryLayout, EntryFormSection, EntryFormShell, ExecutivePeopleSectionNav, ImportSimulationPanel, RegistryTabBar, useScrollToEntryOnSelect } from '@/components/soe'
 import { DataTable } from '@/components/tables/DataTable'
 import { SelectField, CurrencyField, TextField } from '@/design-system/components/Fields'
 import { Button } from '@/design-system/components/Button'
@@ -1714,6 +1714,13 @@ export function WorkforceWorkspace({ portal }: { portal: PortalMode }) {
       <ContributorModuleLayout
         moduleId={MODULE.WORKFORCE}
         title={workforceTitle}
+        documents={{
+          packId: `workforce-${tab}`,
+          subtitle: 'Workforce evidence pack',
+          linkedModule: MODULE.WORKFORCE,
+          bulkUpload: true,
+        }}
+        footer={<ImportSimulationPanel organizationId={organizationId} moduleId={MODULE.WORKFORCE} />}
         sectionNav={
           <ExecutivePeopleSectionNav
             workforceTabs={
@@ -2048,6 +2055,13 @@ export function BoardWorkspace({ portal }: { portal: PortalMode }) {
       <ContributorModuleLayout
         moduleId={MODULE.BOARD}
         title="Board governance"
+        documents={{
+          packId: 'board-members',
+          subtitle: 'Board evidence pack',
+          linkedModule: MODULE.BOARD,
+          bulkUpload: true,
+        }}
+        footer={<ImportSimulationPanel organizationId={organizationId} moduleId={MODULE.BOARD} />}
         sectionNav={<ExecutivePeopleSectionNav />}
         entry={memberEntry.entry}
         onSave={memberEntry.onSave}
@@ -2189,6 +2203,11 @@ export function ExecutivesWorkspace({ portal }: { portal: PortalMode }) {
       <ContributorModuleLayout
         moduleId={MODULE.EXECUTIVES}
         title="Executive management"
+        documents={{
+          packId: 'executives',
+          subtitle: 'Executive evidence pack',
+          linkedModule: MODULE.EXECUTIVES,
+        }}
         sectionNav={<ExecutivePeopleSectionNav />}
         entry={executiveEntry.entry}
         onSave={executiveEntry.onSave}
@@ -2332,6 +2351,11 @@ export function GovernanceCalendarWorkspace({ portal }: { portal: PortalMode }) 
       <ContributorModuleLayout
         moduleId={MODULE.BOARD}
         title="Governance calendar"
+        documents={{
+          packId: 'governance-calendar',
+          subtitle: 'Calendar evidence pack',
+          linkedModule: MODULE.BOARD,
+        }}
         sectionNav={<ExecutivePeopleSectionNav />}
         entry={calendarEntry.entry}
         onSave={calendarEntry.onSave}

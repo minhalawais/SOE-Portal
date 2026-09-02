@@ -33,7 +33,7 @@ describe('portal navigation config', () => {
     expect(portalDefinitions.soe_entry.name).toBe('SOE Data Entry Portal')
     expect(portalDefinitions.soe_entry.homeRoute).toBe('/soe-entry/dashboard')
     expect(labels).toContain('Submissions & Returns')
-    expect(labels).toContain('AI Data Import')
+    expect(labels).toContain('AI Data Hub')
     expect(labels).not.toContain('Reporting Workspace')
     expect(labels).toContain('Enterprise')
     expect(labels).toContain('Assets & Property')
@@ -43,7 +43,14 @@ describe('portal navigation config', () => {
     expect(labels).toContain('Industrial Performance')
     expect(labels).toContain('Privatization & Transformation')
     expect(labels).not.toContain('/soe-entry/finance/form')
-    expect(nav.slice(-2).map((item) => item.label)).toEqual(['AI Data Import', 'Logs & Alerts'])
+    expect(nav.map((item) => item.label).slice(0, 3)).toEqual([
+      'Dashboard',
+      'Data Entry',
+      'AI Data Hub',
+    ])
+    expect(nav.at(-1)?.label).toBe('Early Warning System')
+    expect(nav.find((item) => item.id === 'soe-early-warning')?.children).toBeUndefined()
+    expect(labels).not.toContain('Logs & Alerts')
 
     for (const id of [
       'soe-submissions',
@@ -125,7 +132,7 @@ describe('portal navigation config', () => {
       'SOE Management',
       'SOE Performance Comparison',
       'Search & Intelligence',
-      'AI Data Import',
+      'AI Data Hub',
       'Logs & Alerts',
     ])
     expect(soeManagement?.children?.map((item) => item.label)).toEqual([

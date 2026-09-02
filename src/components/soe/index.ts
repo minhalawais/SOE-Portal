@@ -16,6 +16,8 @@ export {
   useShowExecutiveModuleSectionNav,
 } from './ExecutiveModuleSectionNav'
 export { ContributorModuleLayout } from './ContributorModuleLayout'
+export { EvidenceRepositoryPanel } from './EvidenceRepositoryPanel'
+export { FormDocumentPanel, formDocumentRecordId, type FormDocumentsConfig } from './FormDocumentPanel'
 export { ContributorRegistryLayout } from './ContributorRegistryLayout'
 export { ImportSimulationPanel } from './ImportSimulationPanel'
 export { ModuleStatusStrip } from './ModuleStatusStrip'

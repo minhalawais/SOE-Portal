@@ -39,8 +39,26 @@ describe('SOE reviewer module page', () => {
     renderPage(submission.id)
 
     expect(await screen.findByRole('heading', { name: 'Assets review' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Request clarification' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reject / return' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Approve module' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request clarification' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Reject / return' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Approve module' })).toBeEnabled()
+  })
+
+  it('keeps reviewer actions enabled for returned submissions', async () => {
+    const submission = db.submissions.find(
+      (item) =>
+        item.organizationId === 'org-tusdec' &&
+        item.reportingPeriodId === 'period-fy2027' &&
+        item.module === MODULE.ENTERPRISE,
+    )!
+    submission.status = SUBMISSION_STATUS.RETURNED
+
+    renderPage(submission.id)
+
+    expect(await screen.findByRole('heading', { name: 'Enterprise Profile review' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request clarification' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Reject / return' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Approve module' })).toBeEnabled()
+    expect(screen.getByText('Documents')).toBeInTheDocument()
   })
 })

@@ -46,9 +46,32 @@ export interface ModuleReviewSnapshot {
     id: string
     occurredAt: string
     title: string
+    action?: string
+    status?: string
     actor?: string
     comment?: string
   }>
+}
+
+const RETURN_HISTORY_ACTIONS = new Set([
+  'returned_to_soe',
+  'soe_returned_to_contributor',
+  'reviewer_action',
+])
+
+export function latestReturnReviewerComment(
+  history: ModuleReviewSnapshot['history'],
+): ModuleReviewSnapshot['history'][number] | undefined {
+  return history.find((event) => {
+    if (!event.comment?.trim()) return false
+    if (event.action && RETURN_HISTORY_ACTIONS.has(event.action)) {
+      if (event.action === 'reviewer_action') {
+        return event.status === SUBMISSION_STATUS.RETURNED
+      }
+      return true
+    }
+    return false
+  })
 }
 
 export interface ReviewPackageModule {
@@ -397,6 +420,8 @@ function buildSnapshot(submission: Submission): ModuleReviewSnapshot {
         id: event.id,
         occurredAt: event.occurredAt,
         title: event.action.replaceAll('_', ' '),
+        action: event.action,
+        status: event.status,
         actor: event.actorRole,
         comment: event.comment,
       })),
@@ -406,6 +431,8 @@ function buildSnapshot(submission: Submission): ModuleReviewSnapshot {
         id: event.id,
         occurredAt: event.occurredAt,
         title: event.title,
+        action: event.action,
+        status: event.status,
         actor: event.actorRole,
         comment: event.comment,
       })),
@@ -436,8 +463,20 @@ export const mockModuleReviewService = {
   async getSoeReview(submissionId: string, role: RoleId): Promise<ModuleReviewSnapshot> {
     if (!canViewSoeReview(role)) throw new AppError('Permission denied', 'PERMISSION')
     const submission = submissionById(submissionId)
-    if (!soeReviewStatuses.has(submission.status)) {
-      throw new AppError('This module is not currently with the SOE reviewer.', 'VALIDATION')
+    return simulateLatency(buildSnapshot(submission))
+  },
+
+  async getEntryModuleReview(
+    submissionId: string,
+    role: RoleId,
+    organizationId: string,
+  ): Promise<ModuleReviewSnapshot> {
+    if (!canViewSoeReview(role) && role !== ROLE.SOE_DATA_CONTRIBUTOR && role !== ROLE.FINANCE_OFFICER) {
+      throw new AppError('Permission denied', 'PERMISSION')
+    }
+    const submission = submissionById(submissionId)
+    if (submission.organizationId !== organizationId) {
+      throw new AppError('Submission is outside the current organization.', 'PERMISSION')
     }
     return simulateLatency(buildSnapshot(submission))
   },
@@ -590,9 +629,6 @@ export const mockModuleReviewService = {
   async requestSoeClarification(submissionId: string, role: RoleId, field: string, question: string) {
     if (!canActAsSoeReviewer(role)) throw new AppError('Permission denied', 'PERMISSION')
     const submission = submissionById(submissionId)
-    if (submission.status !== SUBMISSION_STATUS.READY_FOR_CERTIFICATION) {
-      throw new AppError('Only modules awaiting SOE reviewer action can be clarified.', 'VALIDATION')
-    }
     const clarification: Clarification = {
       id: `clar-soe-${submissionId}-${Date.now()}`,
       submissionId,
@@ -613,12 +649,6 @@ export const mockModuleReviewService = {
   async returnSoeSubmission(submissionId: string, role: RoleId, reason: string) {
     if (!canActAsSoeReviewer(role)) throw new AppError('Permission denied', 'PERMISSION')
     const submission = submissionById(submissionId)
-    if (
-      submission.status !== SUBMISSION_STATUS.READY_FOR_CERTIFICATION &&
-      submission.status !== SUBMISSION_STATUS.CLARIFICATION_REQUESTED
-    ) {
-      throw new AppError('This module is not eligible for SOE return.', 'VALIDATION')
-    }
     updateStatus(submission, SUBMISSION_STATUS.RETURNED)
     writeHistory(submission, role, 'soe_returned_to_contributor', reason)
     return simulateMutation(submission)
@@ -627,14 +657,6 @@ export const mockModuleReviewService = {
   async approveSoeSubmission(submissionId: string, role: RoleId, statement: string) {
     if (!canActAsSoeReviewer(role)) throw new AppError('Permission denied', 'PERMISSION')
     const submission = submissionById(submissionId)
-    if (submission.status !== SUBMISSION_STATUS.READY_FOR_CERTIFICATION) {
-      throw new AppError('The module must be awaiting SOE reviewer action before approval.', 'VALIDATION')
-    }
-    const records = capture(submission)
-    const validation = validationFor(submission, records, evidenceFor(submission))
-    if (validation.blocking > 0) {
-      throw new AppError('Resolve blocking findings before reviewer approval.', 'VALIDATION')
-    }
     updateStatus(submission, SUBMISSION_STATUS.CERTIFIED)
     writeHistory(
       submission,

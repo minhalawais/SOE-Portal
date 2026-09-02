@@ -86,55 +86,6 @@ const ENTRY_STATUS_GROUPS = [
   },
 ] as const
 
-const STATUS_GROUPS = [
-  {
-    id: 'drafting',
-    label: 'Being prepared by SOE',
-    color: '#1d5d8f',
-    statuses: [SUBMISSION_STATUS.DRAFT, SUBMISSION_STATUS.IN_PROGRESS],
-  },
-  {
-    id: 'focal_review',
-    label: 'Ready for focal-person review',
-    color: '#2878a5',
-    statuses: [SUBMISSION_STATUS.READY_FOR_REVIEW],
-  },
-  {
-    id: 'soe_certification',
-    label: 'Awaiting SOE reviewer certification',
-    color: '#16877a',
-    statuses: [SUBMISSION_STATUS.READY_FOR_CERTIFICATION],
-  },
-  {
-    id: 'ready_for_moip',
-    label: 'Certified, ready to submit to MOIP',
-    color: '#2f9d70',
-    statuses: [SUBMISSION_STATUS.CERTIFIED],
-  },
-  {
-    id: 'moip_review',
-    label: 'Submitted to MOIP / under MOIP review',
-    color: '#7c3aed',
-    statuses: [
-      SUBMISSION_STATUS.SUBMITTED,
-      SUBMISSION_STATUS.UNDER_REVIEW,
-      SUBMISSION_STATUS.RESUBMITTED,
-    ],
-  },
-  {
-    id: 'soe_action_required',
-    label: 'SOE response or correction required',
-    color: '#b84242',
-    statuses: [SUBMISSION_STATUS.RETURNED, SUBMISSION_STATUS.CLARIFICATION_REQUESTED],
-  },
-  {
-    id: 'moip_approved',
-    label: 'Approved and locked by MOIP',
-    color: '#475569',
-    statuses: [SUBMISSION_STATUS.APPROVED, SUBMISSION_STATUS.LOCKED],
-  },
-] as const
-
 const ENTRY_STATUS_LABEL: Record<SubmissionStatus, string> = {
   [SUBMISSION_STATUS.DRAFT]: 'Data entry not started',
   [SUBMISSION_STATUS.IN_PROGRESS]: 'Data entry in progress',
@@ -310,7 +261,7 @@ function ChartFallback({ children }: { children: ReactNode }) {
   )
 }
 
-export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 'review' }) {
+export function SoeDashboardPage() {
   const organizationId = useSessionStore((s) => s.organizationId)
   const reportingPeriodId = useSessionStore((s) => s.reportingPeriodId)
   const role = useSessionStore((s) => s.role)
@@ -327,7 +278,6 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
   }
 
   const d = query.data
-  const isReviewerDashboard = audience === 'review'
   const isFocal = role === ROLE.SOE_FOCAL_PERSON || role === ROLE.SOE_DATA_CONTRIBUTOR
   const totalModules = d.modulesComplete + d.modulesIncomplete
   const readyForCertification = d.modules.filter((m) => m.submission.status === SUBMISSION_STATUS.READY_FOR_CERTIFICATION).length
@@ -344,34 +294,14 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
     [SUBMISSION_STATUS.RETURNED, SUBMISSION_STATUS.CLARIFICATION_REQUESTED].includes(m.submission.status as never),
   ).length
   const daysRemaining = daysUntil(d.deadline)
-  const reviewerGroupLabels: Record<string, string> = {
-    drafting: 'Still with the SOE data-entry team',
-    focal_review: 'Awaiting focal-person review',
-    soe_certification: 'Awaiting your certification decision',
-    ready_for_moip: 'Certified for submission to MOIP',
-    moip_review: 'Submitted to MOIP / under MOIP review',
-    soe_action_required: 'Correction or clarification response required',
-    moip_approved: 'Approved and locked by MOIP',
-  }
-  const submissionsRoute = isReviewerDashboard
-    ? '/soe-review/submissions'
-    : '/soe-entry/submissions'
-  const statusGroups = isReviewerDashboard ? STATUS_GROUPS : ENTRY_STATUS_GROUPS
-  const statusMix = statusGroups.map((group) => ({
-      id: group.id,
-      label: isReviewerDashboard ? reviewerGroupLabels[group.id] : group.label,
-      color: group.color,
-      count: d.modules.filter((m) => group.statuses.includes(m.submission.status as never)).length,
-      detail: isReviewerDashboard
-        ? group.statuses
-            .map((status) => {
-              const count = d.modules.filter((m) => m.submission.status === status).length
-              return count ? `${ENTRY_STATUS_LABEL[status]} ${count}` : ''
-            })
-            .filter(Boolean)
-            .join(' · ')
-        : '',
-    }))
+  const submissionsRoute = '/soe-entry/submissions'
+  const statusMix = ENTRY_STATUS_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    color: group.color,
+    count: d.modules.filter((m) => group.statuses.includes(m.submission.status as never)).length,
+    detail: '',
+  }))
   const chartStatusMix = statusMix.filter((item) => item.count > 0)
   const moduleBars = d.modules
     .map((m) => ({
@@ -409,16 +339,6 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
     .slice(0, 3)
   const urgentActions: DashboardAction[] = d.pendingActions.map((action) => ({
     ...action,
-    route: isReviewerDashboard ? submissionsRoute : action.route,
-    title: isReviewerDashboard
-      ? action.title
-          .replace('Start module:', 'Awaiting SOE data entry:')
-          .replace('Continue draft:', 'Awaiting SOE data completion:')
-          .replace('Continue / resolve issues:', 'Awaiting SOE corrections:')
-          .replace('Correct returned items:', 'Awaiting SOE correction:')
-          .replace('Respond to clarification:', 'Awaiting SOE clarification response:')
-          .replace('Certify:', 'Review and decide:')
-      : action.title,
   })).sort((a, b) => {
     const rank = { critical: 0, high: 1, normal: 2 }
     return (rank[a.priority as keyof typeof rank] ?? 3) - (rank[b.priority as keyof typeof rank] ?? 3)
@@ -430,9 +350,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
       ? [{
           id: 'derived-clarifications',
           title: `Respond to ${d.openClarifications} open MoIP clarification${d.openClarifications > 1 ? 's' : ''}`,
-          route: isReviewerDashboard
-            ? '/soe-review/submissions'
-            : '/soe-entry/submissions?tab=clarifications',
+          route: '/soe-entry/submissions?tab=clarifications',
           priority: 'critical',
           detail: 'Reviewer questions must be answered before the package can progress.',
         }]
@@ -441,9 +359,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
       ? [{
           id: 'derived-overdue-deadline',
           title: `Review overdue submission deadline (${Math.abs(daysRemaining)} days)`,
-          route: isReviewerDashboard
-            ? '/soe-review/submissions'
-            : '/soe-entry/submissions?tab=submit',
+          route: '/soe-entry/submissions?tab=submit',
           priority: 'critical',
           detail: `${d.period.label} deadline was ${formatDate(d.deadline)}.`,
         }]
@@ -454,9 +370,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
           title: `${readyForCertification} module${readyForCertification > 1 ? 's' : ''} awaiting certification`,
           route: submissionsRoute,
           priority: 'high',
-          detail: isReviewerDashboard
-            ? 'Review the submitted data and evidence, then certify, return or request clarification.'
-            : 'Track SOE reviewer certification from Submissions & Approvals.',
+          detail: 'Track SOE reviewer certification from Submissions & Returns.',
         }]
       : []),
     ...(d.evidenceGapCount
@@ -479,9 +393,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
       : [{
           id: 'derived-readiness-review',
           title: 'View MOIP-approved package and supporting evidence',
-          route: isReviewerDashboard
-            ? '/soe-review/submissions'
-            : '/soe-entry/submissions?tab=submit',
+          route: '/soe-entry/submissions?tab=submit',
           priority: 'normal',
           detail: 'All modules are complete; keep evidence, clarifications and deadline posture visible.',
         }]),
@@ -505,9 +417,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
               <div className="min-w-0">
                 <h2 className="text-[22px] font-semibold leading-tight text-white">{d.organization.name}</h2>
                 <p className="mt-2 max-w-3xl text-sm leading-5 text-white/68">
-                  {isReviewerDashboard
-                    ? 'Review submitted module data and evidence, record clear decisions, and certify eligible modules for submission to MOIP.'
-                    : 'Complete required data, correct returned modules, attach missing evidence and prepare the reporting package for submission to MOIP.'}
+                  Complete required data, correct returned modules, attach missing evidence and prepare the reporting package for submission to MOIP.
                 </p>
               </div>
             </div>
@@ -516,9 +426,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase text-white/55">
-                  {isReviewerDashboard
-                    ? 'Annual package certification readiness'
-                    : 'Annual reporting package readiness'}
+                  Annual reporting package readiness
                 </p>
                 <p className="mt-2 text-4xl font-semibold leading-none text-white tabular-nums">{d.overallCompletion}%</p>
               </div>
@@ -530,7 +438,7 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
               <div className={cn('h-full rounded-full', readinessTone === 'critical' ? 'bg-red-300' : readinessTone === 'warning' ? 'bg-amber-300' : 'bg-emerald-300')} style={{ width: `${d.overallCompletion}%` }} />
             </div>
             <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-              <div><p className="text-white/45">{isReviewerDashboard ? 'Ready for review' : 'Data entry completed'}</p><p className="mt-1 font-semibold text-white">{d.modulesComplete}/{totalModules}</p></div>
+              <div><p className="text-white/45">Data entry completed</p><p className="mt-1 font-semibold text-white">{d.modulesComplete}/{totalModules}</p></div>
               <div><p className="text-white/45">Sent to MOIP</p><p className="mt-1 font-semibold text-white">{submittedOrBeyond}</p></div>
               <div><p className="text-white/45">MOIP deadline</p><p className="mt-1 font-semibold text-white">{formatDate(d.deadline)}</p></div>
             </div>
@@ -538,70 +446,28 @@ export function SoeDashboardPage({ audience = 'entry' }: { audience?: 'entry' | 
         </div>
       </section>
 
-      {isReviewerDashboard ? (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <PulseTile label="Modules ready for review" value={`${d.modulesComplete}/${totalModules}`} detail="Modules with required data completed" icon={BadgeCheck} tone={d.modulesIncomplete ? 'warning' : 'success'} to={submissionsRoute} />
-          <PulseTile label="Certification blockers" value={String(d.blockingCount)} detail="Must be resolved before certification" icon={AlertTriangle} tone={d.blockingCount ? 'critical' : 'success'} to={submissionsRoute} />
-          <PulseTile label="Missing required evidence" value={String(d.evidenceGapCount)} detail="Supporting documents not attached" icon={FileWarning} tone={d.evidenceGapCount ? 'warning' : 'success'} to={submissionsRoute} />
-          <PulseTile label="Open reviewer questions" value={String(d.openClarifications)} detail="Awaiting response from the SOE data-entry team" icon={MessageSquareWarning} tone={d.openClarifications ? 'critical' : 'success'} to={submissionsRoute} />
-          <PulseTile label="Awaiting your decision" value={String(readyForCertification)} detail="Modules requiring certification, return or clarification" icon={ShieldCheck} tone={readyForCertification ? 'warning' : 'neutral'} to={submissionsRoute} />
-          <PulseTile label="Days until MOIP deadline" value={daysRemaining == null ? '-' : String(daysRemaining)} detail="Time remaining for annual submission" icon={CalendarClock} tone={daysRemaining != null && daysRemaining < 15 ? 'critical' : daysRemaining != null && daysRemaining < 45 ? 'warning' : 'neutral'} to={submissionsRoute} />
-        </section>
-      ) : (
-        <section aria-label="Data entry module completion">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
-            {d.modules.map((module) => (
-              <ModuleCompletionCard
-                key={module.def.id}
-                label={module.def.label}
-                completion={module.submission.completeness}
-                moduleId={module.def.id}
-                route={module.def.route}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      <section aria-label="Data entry module completion">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
+          {d.modules.map((module) => (
+            <ModuleCompletionCard
+              key={module.def.id}
+              label={module.def.label}
+              completion={module.submission.completeness}
+              moduleId={module.def.id}
+              route={module.def.route}
+            />
+          ))}
+        </div>
+      </section>
 
-      <section
-        className={cn(
-          'grid items-stretch gap-4',
-          isReviewerDashboard
-            ? 'xl:grid-cols-[1.15fr_.85fr]'
-            : 'md:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)_minmax(0,.85fr)]',
-        )}
-      >
-        {isReviewerDashboard ? (
-          <Card title="Modules requiring reviewer action" subtitle="Review decisions required before submission to MOIP">
-            {displayActions.length === 0 ? (
-              <p className="text-sm text-soe-slate">No open actions for this role.</p>
-            ) : (
-              <div className="divide-y divide-soe-border">
-                {displayActions.slice(0, 6).map((a, index) => (
-                  <Link key={a.id} to={a.route} className="group grid gap-3 py-3 first:pt-0 last:pb-0 sm:grid-cols-[34px_1fr_auto] sm:items-center">
-                    <span className={cn('flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold', ACTION_TONE[a.priority] ?? ACTION_TONE.normal)}>
-                      {index + 1}
-                    </span>
-                    <span>
-                      <span className="block text-sm font-medium text-soe-ink">{a.title}</span>
-                      <span className="mt-1 block text-[11px] font-semibold uppercase text-soe-slate">{a.priority} priority</span>
-                      {a.detail ? <span className="mt-1 block text-xs text-soe-slate">{a.detail}</span> : null}
-                    </span>
-                    <ArrowRight size={16} className="hidden text-soe-slate group-hover:text-soe-blue sm:block" />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </Card>
-        ) : null}
-
+      <section className="grid items-stretch gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)_minmax(0,.85fr)]">
         <Card
-          title={isReviewerDashboard ? 'Module certification and submission stages' : 'Module submission and review stages'}
+          title="Module submission and review stages"
           subtitle="Current workflow position of every reporting module"
-          className={cn('flex h-full flex-col', !isReviewerDashboard && 'md:col-span-2 lg:col-span-1')}
+          className="flex h-full flex-col md:col-span-2 lg:col-span-1"
         >
-          <div className={cn('flex min-h-0 flex-1 flex-col items-center justify-center gap-5', isReviewerDashboard ? 'sm:flex-row' : 'lg:flex-row')}>
-            <div className={cn('shrink-0', isReviewerDashboard ? 'h-[150px] w-[150px]' : 'h-[188px] w-[188px]')}>
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 lg:flex-row">
+            <div className="h-[188px] w-[188px] shrink-0">
               {canRenderResponsiveCharts ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>

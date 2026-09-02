@@ -405,6 +405,11 @@ function FinanceBudgetContent() {
     <ContributorModuleLayout
       moduleId={MODULE.FINANCE}
       title="Annual budget"
+      documents={{
+        packId: 'finance-budget',
+        subtitle: 'Budget evidence pack',
+        linkedModule: MODULE.FINANCE,
+      }}
       entry={budgetEntry.entry}
       onSave={budgetEntry.onSave}
       onCancel={budgetEntry.onCancel}
@@ -836,6 +841,11 @@ export function LoansRegistryWorkspace({ portal = 'soe' }: { portal?: PortalMode
         <ContributorModuleLayout
           moduleId={MODULE.LOANS}
           title="Loans & grants"
+          documents={{
+            packId: registryTab === 'grants' ? 'grants' : 'loans',
+            subtitle: registryTab === 'grants' ? 'Grant evidence pack' : 'Loan evidence pack',
+            linkedModule: MODULE.LOANS,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-finance" />}
           entry={activeEntry.entry}
           onSave={activeEntry.onSave}
@@ -1206,6 +1216,11 @@ export function IndustrialWorkspacePage({ portal = 'soe' }: { portal?: PortalMod
         <ContributorModuleLayout
           moduleId={MODULE.INDUSTRIAL}
           title="Industrial performance"
+          documents={{
+            packId: 'industrial',
+            subtitle: 'Industrial evidence pack',
+            linkedModule: MODULE.INDUSTRIAL,
+          }}
           onSave={canEdit ? () => save.mutate() : undefined}
           saveDisabled={!draft || save.isPending}
           saving={save.isPending}

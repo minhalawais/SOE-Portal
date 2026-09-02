@@ -562,6 +562,11 @@ export function ProcurementRegistryWorkspace({ portal = 'soe' }: { portal?: Port
         <ContributorModuleLayout
           moduleId={MODULE.PROCUREMENT}
           title="Procurement register"
+          documents={{
+            packId: procTab === 'plans' ? 'procurement-plans' : 'procurement-contracts',
+            subtitle: procTab === 'plans' ? 'Plan evidence pack' : 'Procurement evidence pack',
+            linkedModule: MODULE.PROCUREMENT,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
           entry={procTab === 'contracts' ? procurementEntry.entry : planEntry.entry}
           onSave={procTab === 'contracts' ? procurementEntry.onSave : planEntry.onSave}
@@ -965,6 +970,11 @@ export function AuditRegisterWorkspace({ portal = 'soe' }: { portal?: PortalMode
         <ContributorModuleLayout
           moduleId={MODULE.AUDIT}
           title="Audit register"
+          documents={{
+            packId: 'audit-register',
+            subtitle: 'Audit register evidence pack',
+            linkedModule: MODULE.AUDIT,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
           entry={auditEntry.entry}
           onSave={auditEntry.onSave}
@@ -1100,6 +1110,11 @@ export function AuditParaRegistryWorkspace({ portal = 'soe' }: { portal?: Portal
         <ContributorModuleLayout
           moduleId={MODULE.AUDIT}
           title="Audit paras"
+          documents={{
+            packId: 'audit-paras',
+            subtitle: 'Audit para evidence pack',
+            linkedModule: MODULE.AUDIT,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
           entry={paraEntry.entry}
           onSave={paraEntry.onSave}
@@ -1385,6 +1400,11 @@ export function PacObservationsWorkspace({ portal = 'soe' }: { portal?: PortalMo
         <ContributorModuleLayout
           moduleId={MODULE.AUDIT}
           title="PAC observations"
+          documents={{
+            packId: 'pac',
+            subtitle: 'PAC evidence pack',
+            linkedModule: MODULE.AUDIT,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
           entry={pacEntry.entry}
           onSave={pacEntry.onSave}
@@ -1660,6 +1680,11 @@ export function LitigationRegistryWorkspace({ portal = 'soe' }: { portal?: Porta
         <ContributorModuleLayout
           moduleId={MODULE.LITIGATION}
           title="Litigation register"
+          documents={{
+            packId: 'litigation',
+            subtitle: 'Litigation evidence pack',
+            linkedModule: MODULE.LITIGATION,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
           entry={litigationEntry.entry}
           onSave={litigationEntry.onSave}
@@ -2089,6 +2114,11 @@ export function ComplianceMatrixWorkspace({ portal = 'soe' }: { portal?: PortalM
         <ContributorModuleLayout
           moduleId={MODULE.COMPLIANCE}
           title="Compliance matrix"
+          documents={{
+            packId: 'compliance',
+            subtitle: 'Compliance evidence pack',
+            linkedModule: MODULE.COMPLIANCE,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-accountability" />}
           entry={complianceEntry.entry}
           onSave={complianceEntry.onSave}
@@ -2204,6 +2234,11 @@ export function PrivatizationPipelineWorkspace({ portal = 'soe' }: { portal?: Po
         <ContributorModuleLayout
           moduleId={MODULE.PRIVATIZATION}
           title="Privatization pipeline"
+          documents={{
+            packId: 'privatization',
+            subtitle: 'Privatization evidence pack',
+            linkedModule: MODULE.PRIVATIZATION,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-privatization" />}
           entry={createCaseEntry.entry}
           onSave={createCaseEntry.onSave}
@@ -2565,6 +2600,11 @@ export function TransformationTrackerWorkspace({ portal = 'soe' }: { portal?: Po
         <ContributorModuleLayout
           moduleId={MODULE.PRIVATIZATION}
           title="Transformation tracker"
+          documents={{
+            packId: 'transformation',
+            subtitle: 'Transformation evidence pack',
+            linkedModule: MODULE.PRIVATIZATION,
+          }}
           sectionNav={<ExecutiveModuleSectionNav moduleId="soe-privatization" />}
           entry={transformationEntry.entry}
           onSave={transformationEntry.onSave}

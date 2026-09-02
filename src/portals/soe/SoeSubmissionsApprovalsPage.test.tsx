@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { APP_CONFIG } from '@/app/config/app.config'
 import { resetMockDb } from '@/mock-data/db'
 import { ROLE } from '@/constants'
 import { useSessionStore } from '@/state/session'
@@ -21,7 +22,11 @@ function renderPage(initialEntry = '/soe-entry/submissions') {
 describe('SOE Data Entry submissions and returns', () => {
   beforeEach(() => {
     resetMockDb()
-    useSessionStore.setState({ role: ROLE.SOE_FOCAL_PERSON })
+    useSessionStore.setState({
+      role: ROLE.SOE_FOCAL_PERSON,
+      organizationId: APP_CONFIG.DEFAULT_ORGANIZATION_ID,
+      enterpriseEntityId: APP_CONFIG.DEFAULT_ORGANIZATION_ID,
+    })
   })
 
   it('renders unified workspace with overview tab by default', async () => {
@@ -56,5 +61,35 @@ describe('SOE Data Entry submissions and returns', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Clarifications/ }))
 
     expect(await screen.findByText('Clarification inbox')).toBeInTheDocument()
+  })
+
+  it('opens submission review drawer when a module row is clicked', async () => {
+    renderPage()
+
+    const row = await screen.findByRole('button', { name: /Review Enterprise Profile submission/i })
+    fireEvent.click(row)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Enterprise Profile review/i })).toBeInTheDocument()
+    expect(await screen.findByText('Submitted data')).toBeInTheDocument()
+    expect(screen.getByText('Documents')).toBeInTheDocument()
+    expect(screen.getAllByText('Validation findings').length).toBeGreaterThan(0)
+    expect(screen.getByText('Review history')).toBeInTheDocument()
+  })
+
+  it('shows reviewer comments for returned submissions in the review drawer', async () => {
+    useSessionStore.setState({ organizationId: 'org-tusdec', enterpriseEntityId: 'org-tusdec' })
+    renderPage()
+
+    const row = await screen.findByRole('button', { name: /Review Industrial Performance submission/i })
+    fireEvent.click(row)
+
+    expect(await screen.findByText('Reviewer comments')).toBeInTheDocument()
+    expect(
+      screen.getByText('Capacity utilization evidence incomplete', {
+        selector: 'p.mt-1\\.5.text-sm.leading-5.text-soe-ink',
+      }),
+    ).toBeInTheDocument()
   })
 })

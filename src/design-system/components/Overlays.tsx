@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PropsWithChildren, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { Button, IconButton } from '@/design-system/components/Button'
@@ -111,9 +111,28 @@ export function Drawer({
   title,
   children,
   onClose,
-}: PropsWithChildren<{ open: boolean; title: string; onClose: () => void }>) {
+  size = 'md',
+}: PropsWithChildren<{
+  open: boolean
+  title: string
+  onClose: () => void
+  size?: 'md' | 'lg' | 'xl'
+}>) {
   const panelRef = useRef<HTMLElement>(null)
+  const [rendered, setRendered] = useState(open)
+  const [entered, setEntered] = useState(false)
   useFocusTrap(open, panelRef, onClose)
+
+  useEffect(() => {
+    if (open) {
+      setRendered(true)
+      const frame = requestAnimationFrame(() => setEntered(true))
+      return () => cancelAnimationFrame(frame)
+    }
+    setEntered(false)
+    const timeout = window.setTimeout(() => setRendered(false), 220)
+    return () => window.clearTimeout(timeout)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -124,13 +143,19 @@ export function Drawer({
     }
   }, [open])
 
-  if (!open) return null
+  if (!rendered) return null
+
+  const widthClass =
+    size === 'xl' ? 'max-w-4xl' : size === 'lg' ? 'max-w-2xl' : 'max-w-md'
 
   return createPortal(
     <div className="fixed inset-0 z-[50]">
       <button
         type="button"
-        className="absolute inset-0 bg-soe-navy/35"
+        className={cn(
+          'absolute inset-0 bg-soe-navy/35 transition-opacity duration-200',
+          entered ? 'opacity-100' : 'opacity-0',
+        )}
         aria-label="Close drawer"
         onClick={onClose}
         tabIndex={-1}
@@ -140,7 +165,11 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="soe-drawer-title"
-        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-soe-border bg-white shadow-[var(--shadow-modal)]"
+        className={cn(
+          'absolute right-0 top-0 flex h-full w-full flex-col border-l border-soe-border bg-white shadow-[var(--shadow-modal)] transition-transform duration-200 ease-out',
+          widthClass,
+          entered ? 'translate-x-0' : 'translate-x-full',
+        )}
       >
         <div className="flex items-center justify-between border-b border-soe-border px-4 py-3">
           <h2 id="soe-drawer-title" className="text-base font-semibold text-soe-navy">

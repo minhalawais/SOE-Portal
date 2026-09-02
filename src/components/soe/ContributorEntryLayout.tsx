@@ -5,6 +5,7 @@
 import type { PropsWithChildren, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { EntryFormActionGroup } from '@/components/soe/EntryFormShell'
+import { FormDocumentPanel, type FormDocumentsConfig } from '@/components/soe/FormDocumentPanel'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/design-system/components/Button'
 import type { ModuleId } from '@/constants'
@@ -24,6 +25,7 @@ export function ContributorEntryLayout({
   saving = false,
   saveDisabled = false,
   showFormActions = true,
+  documents,
 }: PropsWithChildren<{
   moduleId: ModuleId
   title: string
@@ -38,6 +40,7 @@ export function ContributorEntryLayout({
   saving?: boolean
   saveDisabled?: boolean
   showFormActions?: boolean
+  documents?: FormDocumentsConfig
 }>) {
   const hasActions = showFormActions && (onSave || onCancel || cancelTo)
 
@@ -73,9 +76,18 @@ export function ContributorEntryLayout({
       <PageHeader title={title} actions={actions} />
       {sectionNav}
       {alerts ? <div className="mb-4 space-y-2">{alerts}</div> : null}
-      <EntryFormActionGroup actions={actionButtons}>
-        <div className="grid gap-3">{children}</div>
-      </EntryFormActionGroup>
+      {documents ? (
+        <div className="mb-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,22rem)]">
+          <EntryFormActionGroup className="mb-0" actions={actionButtons}>
+            <div className="grid gap-3">{children}</div>
+          </EntryFormActionGroup>
+          <FormDocumentPanel {...documents} />
+        </div>
+      ) : (
+        <EntryFormActionGroup actions={actionButtons}>
+          <div className="grid gap-3">{children}</div>
+        </EntryFormActionGroup>
+      )}
     </div>
   )
 }

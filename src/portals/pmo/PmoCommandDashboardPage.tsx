@@ -47,6 +47,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+import { ALL_SOE_FOOTPRINTS, SoeFootprintMap } from '@/components/gis/SoeFootprintMap'
 import { RequirePermission } from '@/app/router/guards'
 import { ErrorState, LoadingBlock } from '@/design-system/components/Feedback'
 import {
@@ -2333,9 +2334,14 @@ export function PmoCommandDashboardPage() {
 
   useEffect(() => {
     if (!derived?.health.length) return
-    if (!selectedSoeId || !derived.health.some((row) => row.organizationId === selectedSoeId)) {
-      setSelectedSoeId(derived.health[0]!.organizationId)
+    if (
+      selectedSoeId &&
+      (selectedSoeId === ALL_SOE_FOOTPRINTS ||
+        derived.health.some((row) => row.organizationId === selectedSoeId))
+    ) {
+      return
     }
+    setSelectedSoeId(ALL_SOE_FOOTPRINTS)
   }, [derived, selectedSoeId])
 
 
@@ -2754,8 +2760,23 @@ export function PmoCommandDashboardPage() {
           }
         />
 
-
-
+        <Panel
+          className="mt-3"
+          title="SOE Land and Asset Footprint"
+          action={
+            <Link className="text-[11px] font-medium text-soe-blue" to="/moip-executive/map">
+              Open full map
+            </Link>
+          }
+        >
+          <SoeFootprintMap
+            soes={derived.health}
+            locations={derived.locations}
+            assets={derived.gisAssets}
+            selectedSoeId={selectedSoeId ?? ALL_SOE_FOOTPRINTS}
+            onSelectSoe={setSelectedSoeId}
+          />
+        </Panel>
 
           <div className="mt-6 space-y-3">
           <SectionHeader id="industry" title="Industrial and Economic Contribution" meta="Capacity, trade, domestic sales and employment" />

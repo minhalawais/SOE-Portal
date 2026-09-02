@@ -50,6 +50,7 @@ export const implementedRoutes = new Set([
   '/soe-entry/accountability/compliance',
   '/soe-entry/industrial',
   '/soe-entry/privatization',
+  '/soe-entry/early-warning',
   '/soe-entry/logs',
   '/soe-entry/notifications',
   '/soe-entry/alerts',

@@ -6,6 +6,7 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EntryFormActionGroup } from '@/components/soe/EntryFormShell'
+import { FormDocumentPanel, type FormDocumentsConfig } from '@/components/soe/FormDocumentPanel'
 import { Button } from '@/design-system/components/Button'
 import type { ModuleId } from '@/constants'
 
@@ -30,6 +31,7 @@ export function ContributorModuleLayout({
   showFormActions = true,
   showRegistryDivider = true,
   aside,
+  documents,
 }: PropsWithChildren<{
   moduleId: ModuleId
   title: string
@@ -53,8 +55,10 @@ export function ContributorModuleLayout({
   showFormActions?: boolean
   showRegistryDivider?: boolean
   aside?: ReactNode
+  documents?: FormDocumentsConfig
 }>) {
   const hasActions = showFormActions && entry && (onSave || onCancel || cancelTo)
+  const documentAside = aside ?? (documents ? <FormDocumentPanel {...documents} /> : null)
 
   const actionButtons = hasActions ? (
     <>
@@ -90,12 +94,12 @@ export function ContributorModuleLayout({
       {alerts ? <div className="mb-4 space-y-2">{alerts}</div> : null}
 
       {entry ? (
-        aside ? (
+        documentAside ? (
           <div className="mb-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,22rem)]">
             <EntryFormActionGroup className="mb-0" actions={actionButtons}>
               {entry}
             </EntryFormActionGroup>
-            {aside}
+            {documentAside}
           </div>
         ) : (
           <EntryFormActionGroup actions={actionButtons}>{entry}</EntryFormActionGroup>

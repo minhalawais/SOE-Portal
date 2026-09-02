@@ -29,7 +29,7 @@ export { mockSoeExecutiveService } from './soeExecutive.service'
 export { mockExecutiveDashboardService } from './executiveDashboard.service'
 export { mockMoipPortalService } from './moipPortal.service'
 export { mockPerformanceComparisonService } from './performanceComparison.service'
-export { mockModuleReviewService } from './moduleReview.service'
+export { latestReturnReviewerComment, mockModuleReviewService } from './moduleReview.service'
 export { mockAdministrationService } from './administration.service'
 export {
   mockIntelligentImportService,

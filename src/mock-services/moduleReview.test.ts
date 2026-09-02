@@ -116,6 +116,23 @@ describe('SOE internal module review', () => {
     )
     expect(returned.status).toBe(SUBMISSION_STATUS.RETURNED)
   })
+
+  it('allows SOE reviewer actions from any submission status in demo mode', async () => {
+    const submission = db.submissions.find(
+      (item) =>
+        item.organizationId === 'org-tusdec' &&
+        item.reportingPeriodId === 'period-fy2027' &&
+        item.module === MODULE.ENTERPRISE,
+    )!
+    submission.status = SUBMISSION_STATUS.RETURNED
+
+    const approved = await mockModuleReviewService.approveSoeSubmission(
+      submission.id,
+      ROLE.SOE_CERTIFIER,
+      'Approved despite returned status for demo.',
+    )
+    expect(approved.status).toBe(SUBMISSION_STATUS.CERTIFIED)
+  })
 })
 
 describe('MoIP administration', () => {

@@ -9,9 +9,11 @@ import {
 } from '@/app/router/guards'
 import { LoginPage } from '@/portals/auth/LoginPage'
 import { SoeDashboardPage } from '@/portals/soe/SoeDashboardPage'
+import { SoeReviewerDashboardPage } from '@/portals/soe/SoeReviewerDashboardPage'
 import { SoeExecutiveDashboardPage } from '@/portals/soe/SoeExecutiveDashboardPage'
 import { OrganizationsPage } from '@/portals/soe/OrganizationsPage'
 import { SoeSubmissionsApprovalsPage } from '@/portals/soe/SoeSubmissionsApprovalsPage'
+import { SoeEarlyWarningSystemPage } from '@/portals/soe/SoeEarlyWarningSystemPage'
 import { SoeReviewModulePage } from '@/portals/soe/SoeReviewModulePage'
 import { SoeReviewSubmissionsPage } from '@/portals/soe/SoeReviewSubmissionsPage'
 import { SubmissionReadinessPage } from '@/portals/soe/SubmissionReadinessPage'
@@ -442,12 +444,13 @@ export function AppRouter() {
                   </RequirePermission>
                 }
               />
-              <Route path="logs" element={<SoeLogsPage />} />
-              <Route path="tasks" element={<Navigate to="/soe/logs" replace />} />
-              <Route path="tasks/:taskId" element={<Navigate to="/soe/logs" replace />} />
-              <Route path="notifications" element={<SoeNotificationsPage />} />
-              <Route path="alerts" element={<SoeAlertsPage />} />
-              <Route path="alerts/:alertId" element={<AlertDetailWorkspace portal="soe" />} />
+              <Route path="early-warning" element={<SoeEarlyWarningSystemPage />} />
+              <Route path="logs" element={<Navigate to="/soe-entry/early-warning" replace />} />
+              <Route path="tasks" element={<Navigate to="/soe-entry/early-warning" replace />} />
+              <Route path="tasks/:taskId" element={<Navigate to="/soe-entry/early-warning" replace />} />
+              <Route path="notifications" element={<Navigate to="/soe-entry/early-warning" replace />} />
+              <Route path="alerts" element={<Navigate to="/soe-entry/early-warning" replace />} />
+              <Route path="alerts/:alertId" element={<Navigate to="/soe-entry/early-warning" replace />} />
               <Route path="map" element={<MapFoundationPage />} />
               <Route path="design-system" element={<DesignSystemPage />} />
               <Route path="demo-controls" element={<DemoControlsPage />} />
@@ -458,7 +461,7 @@ export function AppRouter() {
 
             <Route path="/soe-review" element={<RequirePortal portal="soe_review" />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<SoeDashboardPage audience="review" />} />
+              <Route path="dashboard" element={<SoeReviewerDashboardPage />} />
               <Route path="submissions" element={<SoeReviewSubmissionsPage />} />
               <Route path="submissions/:submissionId" element={<SoeReviewModulePage />} />
               <Route

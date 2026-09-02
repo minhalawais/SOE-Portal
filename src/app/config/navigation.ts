@@ -288,7 +288,6 @@ const pmDashboardNavigation: PortalNavigationItem[] = (() => {
 })()
 
 const soeEntrySidebarModules = flattenExecutiveSidebarModules(soeContributorModuleNavigation)
-const soeEntryLogsModule = soeEntrySidebarModules.find((item) => item.id === 'soe-logs-alerts')
 const soeEntrySubmissionsModule = soeEntrySidebarModules.find((item) => item.id === 'soe-submissions')
 const SOE_ENTRY_DATA_ENTRY_MODULE_IDS = new Set([
   'soe-enterprise',
@@ -321,15 +320,19 @@ const soeEntryNavigation = rebaseNavigation(
       children: soeEntryDataEntryModules,
       defaultOpen: true,
     },
-    ...(soeEntrySubmissionsModule ? [soeEntrySubmissionsModule] : []),
-    ...soeEntryOtherModules,
     {
       id: 'soe-ai-import',
-      label: 'AI Data Import',
+      label: 'AI Data Hub',
       route: '/soe/ai-import',
       permission: PERMISSION.AI_IMPORT_USE,
     },
-    ...(soeEntryLogsModule ? [soeEntryLogsModule] : []),
+    ...(soeEntrySubmissionsModule ? [soeEntrySubmissionsModule] : []),
+    ...soeEntryOtherModules,
+    {
+      id: 'soe-early-warning',
+      label: 'Early Warning System',
+      route: '/soe/early-warning',
+    },
   ],
   '/soe',
   '/soe-entry',
@@ -396,7 +399,7 @@ const moipReviewNavigation = rebaseNavigation(
     { id: 'moip-search', label: 'Search & Intelligence', route: '/moip/search', permission: PERMISSION.PORTFOLIO_READ },
     {
       id: 'moip-ai-import',
-      label: 'AI Data Import',
+      label: 'AI Data Hub',
       route: '/moip/ai-import',
       permission: PERMISSION.AI_IMPORT_USE,
     },

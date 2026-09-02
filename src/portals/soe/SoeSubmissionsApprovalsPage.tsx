@@ -19,7 +19,7 @@ import {
   LoadingBlock,
 } from '@/design-system/components/Feedback'
 import { FormActions } from '@/design-system/components/FormActions'
-import { ConfirmDialog } from '@/design-system/components/Overlays'
+import { ConfirmDialog, Drawer } from '@/design-system/components/Overlays'
 import { StatusBadge } from '@/design-system/components/StatusBadge'
 import { mockSoePortalService } from '@/mock-services'
 import { hasPermission, PERMISSION } from '@/permissions'
@@ -28,6 +28,7 @@ import { useUiStore } from '@/state/ui'
 import { ROLE_LABEL, SUBMISSION_STATUS_LABEL } from '@/constants'
 import { REPORTING_MODULES } from '@/workflow/moduleCatalog'
 import { AppError, cn } from '@/utils'
+import { SoeEntrySubmissionReviewPanel } from '@/portals/soe/SoeEntrySubmissionReviewPanel'
 
 type TabId = 'overview' | 'issues' | 'clarifications' | 'submit'
 
@@ -95,6 +96,7 @@ export function SoeSubmissionsApprovalsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = parseTab(searchParams.get('tab'))
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null)
   const canSubmit = hasPermission(role, PERMISSION.SUBMISSION_SUBMIT)
 
   const [moduleId, setModuleId] = useState('')
@@ -152,6 +154,7 @@ export function SoeSubmissionsApprovalsPage() {
 
   const data = workspace.data
   const { summary, modules, issues, clarifications, readiness } = data
+  const selectedModule = modules.find((row) => row.submission.id === selectedSubmissionId) ?? null
 
   const filteredIssues = issues.filter((issue) => {
     if (moduleId && issue.moduleId !== moduleId) return false
@@ -249,7 +252,20 @@ export function SoeSubmissionsApprovalsPage() {
               </thead>
               <tbody>
                 {modules.map((row) => (
-                  <tr key={row.submission.id} className="border-b border-soe-border last:border-b-0 hover:bg-[#f8fafc]">
+                  <tr
+                    key={row.submission.id}
+                    className="cursor-pointer border-b border-soe-border last:border-b-0 hover:bg-[#f8fafc]"
+                    onClick={() => setSelectedSubmissionId(row.submission.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setSelectedSubmissionId(row.submission.id)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Review ${row.def.label} submission`}
+                  >
                     <td className="px-3 py-3">
                       <p className="font-semibold text-soe-navy">{row.def.label}</p>
                       <p className="mt-0.5 text-[11px] text-soe-slate">v{row.submission.version}</p>
@@ -294,7 +310,11 @@ export function SoeSubmissionsApprovalsPage() {
                       {new Date(row.submission.updatedAt).toLocaleDateString()}
                     </td>
                     <td className="px-3 py-3">
-                      <Link className="text-sm font-medium text-soe-blue hover:underline" to={row.def.route}>
+                      <Link
+                        className="text-sm font-medium text-soe-blue hover:underline"
+                        to={row.def.route}
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         {row.nextAction}
                       </Link>
                     </td>
@@ -305,6 +325,21 @@ export function SoeSubmissionsApprovalsPage() {
           </div>
         </Card>
       ) : null}
+
+      <Drawer
+        open={Boolean(selectedModule)}
+        title={selectedModule ? `${selectedModule.def.label} review` : 'Module review'}
+        size="xl"
+        onClose={() => setSelectedSubmissionId(null)}
+      >
+        {selectedModule ? (
+          <SoeEntrySubmissionReviewPanel
+            submissionId={selectedModule.submission.id}
+            moduleRoute={selectedModule.def.route}
+            nextAction={selectedModule.nextAction}
+          />
+        ) : null}
+      </Drawer>
 
       {tab === 'issues' ? (
         <>

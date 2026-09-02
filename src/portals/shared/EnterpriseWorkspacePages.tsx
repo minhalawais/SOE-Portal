@@ -83,6 +83,7 @@ function EnterpriseEntryShell({
   saving,
   readOnly,
   saveLabel = 'Save draft',
+  documents,
   children,
 }: {
   portal: 'soe' | 'moip'
@@ -93,6 +94,7 @@ function EnterpriseEntryShell({
   saving?: boolean
   readOnly: boolean
   saveLabel?: string
+  documents?: { packId: string; subtitle: string }
   children: ReactNode
 }) {
   if (portal === 'soe') {
@@ -105,6 +107,11 @@ function EnterpriseEntryShell({
         saving={saving}
         saveLabel={saveLabel}
         showFormActions={!readOnly}
+        documents={
+          documents
+            ? { ...documents, linkedModule: MODULE.ENTERPRISE }
+            : undefined
+        }
       >
         {children}
       </ContributorEntryLayout>
@@ -219,6 +226,7 @@ export function EnterpriseProfileWorkspace({
       onSave={() => save.mutate()}
       saving={save.isPending}
       readOnly={readOnly}
+      documents={{ packId: 'enterprise-profile', subtitle: 'Profile evidence pack' }}
     >
       <EnterpriseHeader organization={draft} reportingPeriodLabel={periodLabel} />
 
@@ -432,6 +440,7 @@ export function EnterpriseOwnershipWorkspace({
       saving={save.isPending}
       readOnly={readOnly}
       saveLabel="Save ownership"
+      documents={{ packId: 'enterprise-ownership', subtitle: 'Ownership evidence pack' }}
     >
       <EnterpriseHeader organization={org} reportingPeriodLabel={periodLabel} />
 
@@ -722,6 +731,7 @@ export function EnterpriseStructureWorkspace({
       sectionNav={sectionNav}
       onSave={() => save.mutate()}
       saving={save.isPending}
+      documents={{ packId: 'enterprise-structure', subtitle: 'Structure evidence pack' }}
       readOnly={mode === 'readonly'}
       saveLabel="Save structure"
     >
@@ -1331,6 +1341,11 @@ export function EnterpriseLocationsWorkspace({
     <ContributorModuleLayout
       moduleId={MODULE.ENTERPRISE}
       title="Locations"
+      documents={{
+        packId: 'enterprise-locations',
+        subtitle: 'Location evidence pack',
+        linkedModule: MODULE.ENTERPRISE,
+      }}
       sectionNav={sectionNav}
       alerts={<EnterpriseHeader organization={orgQuery.data} reportingPeriodLabel={periodLabel} />}
       entry={entry}

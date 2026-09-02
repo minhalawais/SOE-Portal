@@ -601,6 +601,11 @@ export function FinanceModuleContent({ showChrome = true }: { showChrome?: boole
       <ContributorModuleLayout
         moduleId={MODULE.FINANCE}
         title="Financial reporting"
+        documents={{
+          packId: 'finance-reporting',
+          subtitle: 'Finance evidence pack',
+          linkedModule: MODULE.FINANCE,
+        }}
         sectionNav={<ExecutiveModuleSectionNav moduleId="soe-finance" />}
         actions={
           <Link className="text-sm text-soe-blue underline" to="/soe/finance/history">

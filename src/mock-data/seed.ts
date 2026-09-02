@@ -2346,6 +2346,244 @@ function ensureDocument(
   }
 }
 
+function buildContributorFormDocuments(): DocumentMeta[] {
+  const packs: Array<{
+    packId: string
+    module: string
+    files: Array<{ title: string; fileName: string; fileType: string }>
+  }> = [
+    {
+      packId: 'enterprise-profile',
+      module: 'enterprise',
+      files: [
+        { title: 'SECP incorporation certificate', fileName: 'secp-incorporation.pdf', fileType: 'pdf' },
+        { title: 'Memorandum of association', fileName: 'memorandum.pdf', fileType: 'pdf' },
+        { title: 'Head office photograph', fileName: 'head-office.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      packId: 'enterprise-ownership',
+      module: 'enterprise',
+      files: [
+        { title: 'Share register extract', fileName: 'share-register.pdf', fileType: 'pdf' },
+        { title: 'Cabinet ownership decision', fileName: 'cabinet-ownership.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'enterprise-structure',
+      module: 'enterprise',
+      files: [
+        { title: 'Approved organogram', fileName: 'organogram.pdf', fileType: 'pdf' },
+        { title: 'Subsidiary list', fileName: 'subsidiary-list.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+    {
+      packId: 'enterprise-locations',
+      module: 'enterprise',
+      files: [
+        { title: 'Site possession letter', fileName: 'site-possession.pdf', fileType: 'pdf' },
+        { title: 'Unit location photograph', fileName: 'unit-location.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      packId: 'workforce-employees',
+      module: 'workforce',
+      files: [
+        { title: 'Appointment letter sample', fileName: 'appointment-letter.pdf', fileType: 'pdf' },
+        { title: 'CNIC copy sample', fileName: 'cnic-copy.jpg', fileType: 'image' },
+        { title: 'Service book extract', fileName: 'service-book.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'workforce-posts',
+      module: 'workforce',
+      files: [
+        { title: 'Sanctioned strength notification', fileName: 'sanctioned-strength.pdf', fileType: 'pdf' },
+        { title: 'Establishment schedule', fileName: 'establishment-schedule.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+    {
+      packId: 'workforce-wagers',
+      module: 'workforce',
+      files: [
+        { title: 'Daily wage engagement order', fileName: 'wager-engagement.pdf', fileType: 'pdf' },
+        { title: 'Attendance sheet', fileName: 'wager-attendance.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+    {
+      packId: 'workforce-consultants',
+      module: 'workforce',
+      files: [
+        { title: 'Consultancy contract', fileName: 'consultancy-contract.pdf', fileType: 'pdf' },
+        { title: 'Deliverable report', fileName: 'consultant-deliverable.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'board-members',
+      module: 'board',
+      files: [
+        { title: 'Board appointment notification', fileName: 'board-appointment.pdf', fileType: 'pdf' },
+        { title: 'Declaration of interest', fileName: 'declaration-of-interest.pdf', fileType: 'pdf' },
+        { title: 'Member photograph', fileName: 'board-member.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      packId: 'executives',
+      module: 'executives',
+      files: [
+        { title: 'CEO appointment letter', fileName: 'ceo-appointment.pdf', fileType: 'pdf' },
+        { title: 'Performance contract', fileName: 'executive-kpi.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'governance-calendar',
+      module: 'board',
+      files: [
+        { title: 'Board meeting notice', fileName: 'board-meeting-notice.pdf', fileType: 'pdf' },
+        { title: 'Annual calendar', fileName: 'governance-calendar.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'finance-budget',
+      module: 'finance',
+      files: [
+        { title: 'Approved annual budget', fileName: 'annual-budget.pdf', fileType: 'pdf' },
+        { title: 'Budget working sheet', fileName: 'budget-working.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+    {
+      packId: 'finance-reporting',
+      module: 'finance',
+      files: [
+        { title: 'Management accounts', fileName: 'management-accounts.pdf', fileType: 'pdf' },
+        { title: 'Trial balance', fileName: 'trial-balance.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+    {
+      packId: 'loans',
+      module: 'loans',
+      files: [
+        { title: 'Loan agreement', fileName: 'loan-agreement.pdf', fileType: 'pdf' },
+        { title: 'Disbursement advice', fileName: 'loan-disbursement.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'grants',
+      module: 'loans',
+      files: [
+        { title: 'Grant award letter', fileName: 'grant-award.pdf', fileType: 'pdf' },
+        { title: 'Utilization certificate', fileName: 'grant-uc.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'industrial',
+      module: 'industrial',
+      files: [
+        { title: 'Production log', fileName: 'production-log.xlsx', fileType: 'spreadsheet' },
+        { title: 'Plant photograph', fileName: 'plant-photo.jpg', fileType: 'image' },
+      ],
+    },
+    {
+      packId: 'procurement-contracts',
+      module: 'procurement',
+      files: [
+        { title: 'Signed contract', fileName: 'procurement-contract.pdf', fileType: 'pdf' },
+        { title: 'Bid evaluation report', fileName: 'bid-evaluation.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'procurement-plans',
+      module: 'procurement',
+      files: [
+        { title: 'Annual procurement plan', fileName: 'annual-procurement-plan.pdf', fileType: 'pdf' },
+        { title: 'PPRA upload receipt', fileName: 'ppra-receipt.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'audit-register',
+      module: 'audit',
+      files: [
+        { title: 'External audit report', fileName: 'external-audit.pdf', fileType: 'pdf' },
+        { title: 'Management letter', fileName: 'management-letter.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'audit-paras',
+      module: 'audit',
+      files: [
+        { title: 'Audit para extract', fileName: 'audit-para.pdf', fileType: 'pdf' },
+        { title: 'Departmental reply', fileName: 'para-reply.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'pac',
+      module: 'audit',
+      files: [
+        { title: 'PAC directive', fileName: 'pac-directive.pdf', fileType: 'pdf' },
+        { title: 'Compliance note', fileName: 'pac-compliance.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'litigation',
+      module: 'litigation',
+      files: [
+        { title: 'Plaint / petition', fileName: 'court-plaint.pdf', fileType: 'pdf' },
+        { title: 'Latest court order', fileName: 'court-order.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'compliance',
+      module: 'compliance',
+      files: [
+        { title: 'Statutory filing receipt', fileName: 'statutory-filing.pdf', fileType: 'pdf' },
+        { title: 'Compliance checklist', fileName: 'compliance-checklist.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+    {
+      packId: 'privatization',
+      module: 'privatization',
+      files: [
+        { title: 'PC summary', fileName: 'pc-summary.pdf', fileType: 'pdf' },
+        { title: 'Transaction teaser', fileName: 'transaction-teaser.pdf', fileType: 'pdf' },
+      ],
+    },
+    {
+      packId: 'transformation',
+      module: 'privatization',
+      files: [
+        { title: 'Initiative brief', fileName: 'transformation-brief.pdf', fileType: 'pdf' },
+        { title: 'Milestone tracker', fileName: 'milestone-tracker.xlsx', fileType: 'spreadsheet' },
+      ],
+    },
+  ]
+
+  const documents: DocumentMeta[] = []
+  for (const org of ORG_SPECS) {
+    for (const pack of packs) {
+      pack.files.forEach((file, index) => {
+        documents.push(
+          ensureDocument({
+            id: `fdoc-${org.id}-${pack.packId}-${index}`,
+            organizationId: org.id,
+            title: file.title,
+            category: DOCUMENT_CATEGORY.OTHER,
+            fileName: `${org.abbreviation}-${file.fileName}`,
+            fileType: file.fileType,
+            linkedRecordType: 'form_docs',
+            linkedRecordId: `form-docs-${org.id}-${pack.packId}`,
+            linkedModule: pack.module,
+            uploadedAt: `2026-0${(index % 6) + 1}-18T10:00:00.000Z`,
+            uploadedBy: 'soe_contributor',
+            version: 1,
+            status: 'available',
+          }),
+        )
+      })
+    }
+  }
+  return documents
+}
+
 function buildPhase12Intelligence(args: {
   organizations: Organization[]
   assets: Asset[]
@@ -2639,6 +2877,23 @@ function buildPhase12Intelligence(args: {
     ]
     events.forEach((e, i) => {
       submissionHistory.push({ ...e, id: `subhist-psm-fin-${i + 1}` })
+    })
+  }
+
+  const psmProcurementSub = args.submissions.find((s) => s.id === 'sub-psm-procurement-fy2027')
+  if (psmProcurementSub?.status === SUBMISSION_STATUS.RETURNED) {
+    submissionHistory.push({
+      id: 'subhist-psm-proc-return',
+      organizationId: 'org-psm',
+      submissionId: psmProcurementSub.id,
+      reportingPeriodId: 'period-fy2027',
+      module: 'procurement',
+      occurredAt: psmProcurementSub.updatedAt,
+      actorRole: 'moip_reviewer',
+      action: 'returned_to_soe',
+      status: SUBMISSION_STATUS.RETURNED,
+      relatedVersion: psmProcurementSub.version,
+      comment: 'Attach board-approved procurement policy and complete tender register for FY2027.',
     })
   }
 
@@ -4230,7 +4485,7 @@ export function createSeedDataset() {
     financeVersions: [] as FinancialVersionSnapshot[],
     approvedFinanceKpis: [] as ApprovedFinanceKpi[],
     ...workflow,
-    documents: [...workflow.documents, ...assetDocuments, ...phase12.extraDocuments].map((d) =>
+    documents: [...workflow.documents, ...assetDocuments, ...buildContributorFormDocuments(), ...phase12.extraDocuments].map((d) =>
       ensureDocument(d as Parameters<typeof ensureDocument>[0]),
     ),
     submissionHistory: phase12.submissionHistory,
